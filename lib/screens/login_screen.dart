@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/supabase_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,6 +15,7 @@ class _LoginScreenState extends State<LoginScreen>
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
@@ -48,11 +51,42 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      _showSnackBar('Por favor ingresa tu correo y contraseña.', isError: true);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final AuthResponse response = await SupabaseService.signInWithEmail(
+        email: email,
+        password: password,
+      );
+
+      if (response.user != null && mounted) {
+        _showSnackBar('¡Bienvenido, ${response.user!.email}!');
+        // TODO: Navegar a la pantalla principal
+        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+      }
+    } on AuthException catch (e) {
+      _showSnackBar(e.message, isError: true);
+    } catch (e) {
+      _showSnackBar('Error inesperado. Intenta de nuevo.', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Iniciando sesión...', style: GoogleFonts.outfit()),
-        backgroundColor: sentryBlue,
+        content: Text(message, style: GoogleFonts.outfit()),
+        backgroundColor: isError ? const Color(0xFFD32F2F) : sentryBlue,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -249,24 +283,33 @@ class _LoginScreenState extends State<LoginScreen>
                                   ],
                                 ),
                                 child: ElevatedButton(
-                                  onPressed: _handleLogin,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.transparent,
-                                    shadowColor: Colors.transparent,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Iniciar Sesión',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ),
+                                   onPressed: _isLoading ? null : _handleLogin,
+                                   style: ElevatedButton.styleFrom(
+                                     backgroundColor: Colors.transparent,
+                                     shadowColor: Colors.transparent,
+                                     foregroundColor: Colors.white,
+                                     shape: RoundedRectangleBorder(
+                                       borderRadius: BorderRadius.circular(16),
+                                     ),
+                                   ),
+                                   child: _isLoading
+                                       ? const SizedBox(
+                                           width: 22,
+                                           height: 22,
+                                           child: CircularProgressIndicator(
+                                             color: Colors.white,
+                                             strokeWidth: 2.5,
+                                           ),
+                                         )
+                                       : Text(
+                                           'Iniciar Sesión',
+                                           style: GoogleFonts.outfit(
+                                             fontSize: 17,
+                                             fontWeight: FontWeight.bold,
+                                             letterSpacing: 0.5,
+                                           ),
+                                         ),
+                                 ),
                               ),
                             ),
 
