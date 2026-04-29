@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
+import '../services/guard_service.dart';
+import 'guard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -70,8 +72,16 @@ class _LoginScreenState extends State<LoginScreen>
 
       if (response.user != null && mounted) {
         _showSnackBar('¡Bienvenido, ${response.user!.email}!');
-        // TODO: Navegar a la pantalla principal
-        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+
+        // Verificar si es validador y navegar
+        final isValidator = await GuardService.isCurrentUserValidator();
+        if (isValidator && mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const GuardScreen()),
+          );
+        }
+        // TODO: Navegar a pantalla principal para otros roles
       }
     } on AuthException catch (e) {
       _showSnackBar(e.message, isError: true);
