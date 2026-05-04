@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
 import '../services/guard_service.dart';
+import '../theme/app_colors.dart';
 import 'guard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -22,12 +23,12 @@ class _LoginScreenState extends State<LoginScreen>
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
-  // ── Paleta Sentry ──────────────────────────────────────────
-  static const Color sentryNavy = Color(0xFF0D2B6B);      // Azul oscuro
-  static const Color sentryBlue = Color(0xFF1565C0);      // Azul medio
-  static const Color sentryCyan = Color(0xFF29B6F6);      // Celeste claro
-  static const Color sentryGrey = Color(0xFF8FA3B1);      // Gris azulado
-  static const Color sentryBg   = Color(0xFFEDF2F7);      // Fondo gris muy claro
+  // ── Paleta Sentry (centralizada en AppColors) ───────────────
+  static const Color sentryNavy = AppColors.sentryNavy;
+  static const Color sentryBlue = AppColors.sentryBlue;
+  static const Color sentryCyan = AppColors.sentryCyan;
+  static const Color sentryGrey = AppColors.sentryGrey;
+  static const Color sentryBg   = AppColors.sentryBg;
   // ────────────────────────────────────────────────────────────
 
   @override
@@ -139,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen>
               height: 200,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: sentryCyan.withOpacity(0.15),
+                color: sentryCyan.withValues(alpha: 0.15),
               ),
             ),
           ),
@@ -181,7 +182,7 @@ class _LoginScreenState extends State<LoginScreen>
                           borderRadius: BorderRadius.circular(32),
                           boxShadow: [
                             BoxShadow(
-                              color: sentryNavy.withOpacity(0.10),
+                              color: sentryNavy.withValues(alpha: 0.10),
                               blurRadius: 30,
                               offset: const Offset(0, 10),
                             ),
@@ -286,7 +287,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: sentryBlue.withOpacity(0.35),
+                                      color: sentryBlue.withValues(alpha: 0.35),
                                       blurRadius: 16,
                                       offset: const Offset(0, 6),
                                     ),
@@ -472,7 +473,7 @@ class _LoginScreenState extends State<LoginScreen>
         border: Border.all(color: Colors.grey.shade200, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.06),
+            color: Colors.grey.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
