@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/supabase_service.dart';
 import 'screens/admin_dashboard_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/payment_vouchers_screen.dart';
 import 'theme/app_colors.dart';
 
@@ -27,7 +28,7 @@ class SentryApp extends StatelessWidget {
         textTheme: GoogleFonts.outfitTextTheme(Theme.of(context).textTheme),
         useMaterial3: true,
       ),
-      home: const AdminDashboardScreen(), // TODO: cambiar a LoginScreen() cuando termines
+      home: const LoginScreen(),
       routes: {
         '/admin':     (_) => const AdminDashboardScreen(),
         '/vouchers':  (_) => const PaymentVouchersScreen(),
