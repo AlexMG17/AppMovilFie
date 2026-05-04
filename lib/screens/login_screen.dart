@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/supabase_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -10,505 +7,762 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
-    with SingleTickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen> {
+  // LÓGICA DE NAVEGACIÓN PRINCIPAL
+  bool? isStudent;
+
+  // Lógica para alternar entre Login y Registro
+  bool _isStudentLogin = true;
+  bool _isExternalLogin = true;
+
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController(); // NUEVO: Confirmar contraseña
   bool _obscurePassword = true;
-  bool _isLoading = false;
-  late AnimationController _animController;
-  late Animation<double> _fadeAnim;
-  late Animation<Offset> _slideAnim;
 
-  // ── Paleta Sentry ──────────────────────────────────────────
-  static const Color sentryNavy = Color(0xFF0D2B6B);      // Azul oscuro
-  static const Color sentryBlue = Color(0xFF1565C0);      // Azul medio
-  static const Color sentryCyan = Color(0xFF29B6F6);      // Celeste claro
-  static const Color sentryGrey = Color(0xFF8FA3B1);      // Gris azulado
-  static const Color sentryBg   = Color(0xFFEDF2F7);      // Fondo gris muy claro
-  // ────────────────────────────────────────────────────────────
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeIn);
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.08),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
-    _animController.forward();
-  }
+  // GUÍA DE COLORES SENTRY
+  static const Color sentryNavy = Color(0xFF0D2B6B);
+  static const Color sentryBlue = Color(0xFF1565C0);
+  static const Color sentryCyan = Color(0xFF29B6F6);
+  static const Color sentryGrey = Color(0xFF8FA3B1);
+  static const Color sentryBg = Color(0xFFEDF2F7);
 
   @override
   void dispose() {
-    _animController.dispose();
+    _nameController.dispose();
     _emailController.dispose();
-    _passController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
-    final email = _emailController.text.trim();
-    final password = _passController.text.trim();
-
-    if (email.isEmpty || password.isEmpty) {
-      _showSnackBar('Por favor ingresa tu correo y contraseña.', isError: true);
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final AuthResponse response = await SupabaseService.signInWithEmail(
-        email: email,
-        password: password,
-      );
-
-      if (response.user != null && mounted) {
-        _showSnackBar('¡Bienvenido, ${response.user!.email}!');
-        // TODO: Navegar a la pantalla principal
-        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
-      }
-    } on AuthException catch (e) {
-      _showSnackBar(e.message, isError: true);
-    } catch (e) {
-      _showSnackBar('Error inesperado. Intenta de nuevo.', isError: true);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.outfit()),
-        backgroundColor: isError ? const Color(0xFFD32F2F) : sentryBlue,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+  // Limpia los campos al cambiar de pantalla
+  void _clearControllers() {
+    _nameController.clear();
+    _emailController.clear();
+    _passwordController.clear();
+    _confirmPasswordController.clear();
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Scaffold(
       backgroundColor: sentryBg,
       body: Stack(
         children: [
-          // ── Fondo con gradiente superior ──────────────────────
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 280,
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [sentryNavy, sentryBlue],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(40),
-                  bottomRight: Radius.circular(40),
-                ),
+          // =========================================================
+          // 1. DISEÑO DE FONDO
+          // =========================================================
+          Container(
+            height: size.height * 0.45,
+            decoration: const BoxDecoration(
+              color: sentryNavy,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(60),
+                bottomRight: Radius.circular(60),
               ),
             ),
           ),
-
-          // ── Círculo decorativo celeste ────────────────────────
           Positioned(
-            top: -60,
-            right: -50,
+            top: -size.width * 0.2,
+            right: -size.width * 0.2,
             child: Container(
-              width: 200,
-              height: 200,
+              width: size.width * 0.7,
+              height: size.width * 0.7,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: sentryBlue,
+              ),
+            ),
+          ),
+          Positioned(
+            top: -size.width * 0.1,
+            right: -size.width * 0.1,
+            child: Container(
+              width: size.width * 0.45,
+              height: size.width * 0.45,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: sentryCyan.withOpacity(0.15),
+                color: sentryCyan.withOpacity(0.2),
               ),
             ),
           ),
 
-          // ── Contenido principal ───────────────────────────────
+          // =========================================================
+          // 2. GIF DE LLAMAS FIESTERAS
+          // =========================================================
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 0.9,
+                child: Image.asset(
+                  'assets/images/Llamasgif.gif',
+                  height: 200,
+                  fit: BoxFit.fitWidth,
+                  alignment: Alignment.bottomCenter,
+                  // colorBlendMode: BlendMode.multiply, // (Descomenta si tiene fondo blanco solido)
+                ),
+              ),
+            ),
+          ),
+
+          // =========================================================
+          // 3. CONTENIDO PRINCIPAL
+          // =========================================================
           SafeArea(
-            child: FadeTransition(
-              opacity: _fadeAnim,
-              child: SlideTransition(
-                position: _slideAnim,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: 30),
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 20),
+                    // LOGO
+                    Image.asset(
+                      'assets/images/logo.png',
+                      height: 210,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(height: 30),
 
-                      // Logo Sentry
-                      Hero(
-                        tag: 'sentry-logo',
-                        child: Image.asset(
-                          'assets/images/logo.png',
-                          height: 110,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) =>
-                              _buildFallbackLogo(),
-                        ),
+                    // TARJETA BLANCA
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(32),
+                        boxShadow: [
+                          BoxShadow(
+                            color: sentryNavy.withOpacity(0.15),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
                       ),
-
-                      const SizedBox(height: 40),
-
-                      // ── Tarjeta blanca ─────────────────────────────
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 28, vertical: 36),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(32),
-                          boxShadow: [
-                            BoxShadow(
-                              color: sentryNavy.withOpacity(0.10),
-                              blurRadius: 30,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Título
-                            Text(
-                              'Bienvenido',
-                              style: GoogleFonts.outfit(
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold,
-                                color: sentryNavy,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Inicia sesión para continuar',
-                              style: GoogleFonts.outfit(
-                                fontSize: 14,
-                                color: sentryGrey,
-                              ),
-                            ),
-
-                            const SizedBox(height: 32),
-
-                            // Email Field
-                            _buildLabel('Correo electrónico'),
-                            const SizedBox(height: 8),
-                            _buildTextField(
-                              controller: _emailController,
-                              hintText: 'ejemplo@correo.com',
-                              icon: Icons.email_outlined,
-                              obscureText: false,
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            // Password Field
-                            _buildLabel('Contraseña'),
-                            const SizedBox(height: 8),
-                            _buildTextField(
-                              controller: _passController,
-                              hintText: '••••••••',
-                              icon: Icons.lock_outline,
-                              obscureText: _obscurePassword,
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined,
-                                  color: sentryGrey,
-                                  size: 20,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
-                              ),
-                            ),
-
-                            const SizedBox(height: 10),
-
-                            // Forgot Password
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: () {},
-                                style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: Size.zero,
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                child: Text(
-                                  '¿Olvidaste tu contraseña?',
-                                  style: GoogleFonts.outfit(
-                                    color: sentryCyan,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 28),
-
-                            // Login Button
-                            SizedBox(
-                              width: double.infinity,
-                              height: 54,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [sentryBlue, sentryCyan],
-                                    begin: Alignment.centerLeft,
-                                    end: Alignment.centerRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: sentryBlue.withOpacity(0.35),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                  ],
-                                ),
-                                child: ElevatedButton(
-                                   onPressed: _isLoading ? null : _handleLogin,
-                                   style: ElevatedButton.styleFrom(
-                                     backgroundColor: Colors.transparent,
-                                     shadowColor: Colors.transparent,
-                                     foregroundColor: Colors.white,
-                                     shape: RoundedRectangleBorder(
-                                       borderRadius: BorderRadius.circular(16),
-                                     ),
-                                   ),
-                                   child: _isLoading
-                                       ? const SizedBox(
-                                           width: 22,
-                                           height: 22,
-                                           child: CircularProgressIndicator(
-                                             color: Colors.white,
-                                             strokeWidth: 2.5,
-                                           ),
-                                         )
-                                       : Text(
-                                           'Iniciar Sesión',
-                                           style: GoogleFonts.outfit(
-                                             fontSize: 17,
-                                             fontWeight: FontWeight.bold,
-                                             letterSpacing: 0.5,
-                                           ),
-                                         ),
-                                 ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 24),
-
-                            // Divider
-                            Row(
-                              children: [
-                                Expanded(
-                                    child: Divider(color: Colors.grey.shade200)),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12),
-                                  child: Text(
-                                    'o continúa con',
-                                    style: GoogleFonts.outfit(
-                                        color: sentryGrey, fontSize: 12),
-                                  ),
-                                ),
-                                Expanded(
-                                    child: Divider(color: Colors.grey.shade200)),
-                              ],
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            // Social Buttons
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _buildSocialButton(
-                                    'assets/images/logo.png', 'Google',
-                                    fallbackChar: 'G',
-                                    fallbackColor: const Color(0xFFDB4437)),
-                                const SizedBox(width: 16),
-                                _buildSocialButton(
-                                    'assets/images/logo.png', 'Microsoft',
-                                    fallbackChar: 'M',
-                                    fallbackColor: const Color(0xFF00A4EF)),
-                              ],
-                            ),
-
-                            const SizedBox(height: 28),
-
-                            // Sign up row
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  '¿No tienes cuenta? ',
-                                  style: GoogleFonts.outfit(
-                                    color: Colors.black54,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                GestureDetector(
-                                  onTap: () {},
-                                  child: Text(
-                                    'Regístrate',
-                                    style: GoogleFonts.outfit(
-                                      color: sentryBlue,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                      padding: const EdgeInsets.all(28.0),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        child: isStudent == null
+                            ? _buildInitialQuestion()
+                            : (isStudent == true
+                                  ? _buildStudentLogin()
+                                  : _buildNormalLogin()),
                       ),
+                    ),
 
-                      const SizedBox(height: 30),
+                    // Espacio reservado para las llamas
+                    const SizedBox(height: 200),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                      // Footer
-                      Text(
-                        '© 2025 Sentry · Acceso Seguro',
-                        style: GoogleFonts.outfit(
-                          color: Colors.white60,
-                          fontSize: 11,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
+  // =========================================================================
+  // PANTALLA 1: Pregunta Inicial
+  // =========================================================================
+  Widget _buildInitialQuestion() {
+    return Column(
+      key: const ValueKey(1),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '¡Bienvenido!',
+          style: TextStyle(
+            fontSize: 28,
+            color: sentryNavy,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Por favor, selecciona tu perfil de ingreso:',
+          style: TextStyle(fontSize: 15, color: sentryGrey),
+        ),
+        const SizedBox(height: 30),
+        _buildRoleButton(
+          title: 'Estudiante Politécnico',
+          subtitle: 'Acceso con @espoch.edu.ec',
+          icon: Icons.school_rounded,
+          onTap: () {
+            setState(() {
+              isStudent = true;
+              _isStudentLogin = true;
+            });
+          },
+        ),
+        const SizedBox(height: 16),
+        _buildRoleButton(
+          title: 'Invitado / Externo',
+          subtitle: 'Acceso con Google o correo',
+          icon: Icons.person_rounded,
+          onTap: () {
+            setState(() {
+              isStudent = false;
+              _isExternalLogin = true;
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  // =========================================================================
+  // PANTALLA 2: Login / Registro Estudiante
+  // =========================================================================
+  Widget _buildStudentLogin() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        key: const ValueKey(2),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: sentryNavy,
+                  size: 20,
+                ),
+                onPressed: () {
+                  setState(() {
+                    isStudent = null;
+                    _clearControllers();
+                  });
+                },
+              ),
+              Text(
+                _isStudentLogin ? 'Acceso Estudiantil' : 'Registro Estudiantil',
+                style: const TextStyle(
+                  color: sentryNavy,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Campo de Nombre (Solo visible en Registro)
+          if (!_isStudentLogin) ...[
+            _buildEpicTextField(
+              controller: _nameController,
+              label: 'Nombre Completo',
+              hint: 'Ej. Juan Pérez',
+              icon: Icons.person_outline,
+              validator: (value) {
+                if (value == null || value.isEmpty) return 'Ingresa tu nombre';
+                return null;
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+
+          _buildEpicTextField(
+            controller: _emailController,
+            label: 'Correo Institucional',
+            hint: 'ejemplo@espoch.edu.ec',
+            icon: Icons.alternate_email,
+            validator: (value) {
+              if (value == null || value.isEmpty) return 'Ingresa tu correo';
+              if (!value.endsWith('@espoch.edu.ec')) {
+                return 'Debe ser un correo @espoch.edu.ec válido';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+
+          _buildEpicTextField(
+            controller: _passwordController,
+            label: 'Contraseña',
+            hint: '••••••••',
+            icon: Icons.lock_outline,
+            isPassword: true,
+            validator: (value) {
+              if (value == null || value.isEmpty)
+                return 'Ingresa tu contraseña';
+              if (!_isStudentLogin && value.length < 6)
+                return 'Debe tener al menos 6 caracteres';
+              return null;
+            },
+          ),
+
+          // Confirmar Contraseña (Solo visible en Registro)
+          if (!_isStudentLogin) ...[
+            const SizedBox(height: 20),
+            _buildEpicTextField(
+              controller: _confirmPasswordController,
+              label: 'Confirmar Contraseña',
+              hint: '••••••••',
+              icon: Icons.lock_outline,
+              isPassword: true,
+              validator: (value) {
+                if (value == null || value.isEmpty)
+                  return 'Confirma tu contraseña';
+                if (value != _passwordController.text)
+                  return 'Las contraseñas no coinciden';
+                return null;
+              },
+            ),
+          ],
+
+          // Olvidaste contraseña (Solo visible en Login)
+          if (_isStudentLogin) ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {},
+                child: const Text(
+                  '¿Olvidaste tu contraseña?',
+                  style: TextStyle(
+                    color: sentryBlue,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
             ),
+            const SizedBox(height: 10),
+          ] else ...[
+            const SizedBox(height: 30),
+          ],
+
+          _buildEpicButton(
+            text: _isStudentLogin ? 'Iniciar Sesión' : 'Crear Cuenta',
+            onPressed: () {
+              if (_formKey.currentState!.validate()) {
+                // Lógica de validación Estudiante
+              }
+            },
           ),
-        ],
-      ),
-    );
-  }
+          const SizedBox(height: 24),
 
-  Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: GoogleFonts.outfit(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: sentryNavy,
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hintText,
-    required IconData icon,
-    required bool obscureText,
-    Widget? suffixIcon,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      style: GoogleFonts.outfit(color: sentryNavy, fontSize: 15),
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: GoogleFonts.outfit(color: Colors.black26, fontSize: 14),
-        prefixIcon: Icon(icon, color: sentryGrey, size: 20),
-        suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: sentryBg,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200, width: 1.2),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: sentryCyan, width: 1.8),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      ),
-    );
-  }
-
-  Widget _buildSocialButton(String assetPath, String label,
-      {required String fallbackChar, required Color fallbackColor}) {
-    return Container(
-      width: 120,
-      height: 48,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200, width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Center(
-        child: Text(
-          fallbackChar,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: fallbackColor,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFallbackLogo() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              colors: [sentryNavy, sentryCyan],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+          // Botón para alternar entre Login y Registro
+          Center(
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _isStudentLogin = !_isStudentLogin;
+                  _formKey.currentState?.reset();
+                  _clearControllers();
+                });
+              },
+              child: RichText(
+                text: TextSpan(
+                  text: _isStudentLogin
+                      ? '¿No tienes cuenta? '
+                      : '¿Ya tienes cuenta? ',
+                  style: const TextStyle(color: sentryGrey, fontSize: 14),
+                  children: [
+                    TextSpan(
+                      text: _isStudentLogin ? 'Regístrate' : 'Inicia Sesión',
+                      style: const TextStyle(
+                        color: sentryNavy,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          child: const Icon(Icons.shield, color: Colors.white, size: 44),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================================
+  // PANTALLA 3: Login / Registro Externo (MODIFICADO)
+  // =========================================================================
+  Widget _buildNormalLogin() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        key: const ValueKey(3),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: sentryNavy,
+                  size: 20,
+                ),
+                onPressed: () {
+                  setState(() {
+                    isStudent = null;
+                    _clearControllers();
+                  });
+                },
+              ),
+              Text(
+                _isExternalLogin ? 'Iniciar Sesión' : 'Crear Cuenta',
+                style: const TextStyle(
+                  color: sentryNavy,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Campo de Nombre (Solo visible en Registro)
+          if (!_isExternalLogin) ...[
+            _buildEpicTextField(
+              controller: _nameController,
+              label: 'Nombre Completo',
+              hint: 'Ej. María Gómez',
+              icon: Icons.person_outline,
+              validator: (value) {
+                if (value == null || value.isEmpty) return 'Ingresa tu nombre';
+                return null;
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+
+          _buildEpicTextField(
+            controller: _emailController,
+            label: 'Correo electrónico',
+            hint: 'ejemplo@correo.com',
+            icon: Icons.email_outlined,
+            validator: (value) {
+              if (value == null || value.isEmpty) return 'Ingresa tu correo';
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+
+          _buildEpicTextField(
+            controller: _passwordController,
+            label: 'Contraseña',
+            hint: '••••••••',
+            icon: Icons.lock_outline,
+            isPassword: true,
+            validator: (value) {
+              if (value == null || value.isEmpty)
+                return 'Ingresa tu contraseña';
+              if (!_isExternalLogin && value.length < 6)
+                return 'Debe tener al menos 6 caracteres';
+              return null;
+            },
+          ),
+
+          // Confirmar Contraseña (Solo visible en Registro)
+          if (!_isExternalLogin) ...[
+            const SizedBox(height: 20),
+            _buildEpicTextField(
+              controller: _confirmPasswordController,
+              label: 'Confirmar Contraseña',
+              hint: '••••••••',
+              icon: Icons.lock_outline,
+              isPassword: true,
+              validator: (value) {
+                if (value == null || value.isEmpty)
+                  return 'Confirma tu contraseña';
+                if (value != _passwordController.text)
+                  return 'Las contraseñas no coinciden';
+                return null;
+              },
+            ),
+          ],
+
+          // Olvidaste contraseña (Solo visible en Login)
+          if (_isExternalLogin) ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {},
+                child: const Text(
+                  '¿Olvidaste tu contraseña?',
+                  style: TextStyle(
+                    color: sentryBlue,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ] else ...[
+            const SizedBox(height: 30),
+          ],
+
+          _buildEpicButton(
+            text: _isExternalLogin ? 'Iniciar Sesión' : 'Crear Cuenta',
+            onPressed: () {
+              if (_formKey.currentState!.validate()) {
+                // Lógica de validación Externo
+              }
+            },
+          ),
+          const SizedBox(height: 24),
+
+          // Sección de Google siempre visible en usuario externo
+          Row(
+            children: [
+              Expanded(
+                child: Divider(
+                  color: sentryGrey.withOpacity(0.5),
+                  thickness: 1,
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'o continúa con',
+                  style: TextStyle(
+                    color: sentryGrey,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Divider(
+                  color: sentryGrey.withOpacity(0.5),
+                  thickness: 1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: sentryBg,
+              foregroundColor: sentryNavy,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: sentryGrey.withOpacity(0.3)),
+              ),
+            ),
+            icon: const Icon(Icons.g_mobiledata, size: 36, color: Colors.red),
+            label: const Text(
+              'Google',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            onPressed: () {},
+          ),
+          const SizedBox(height: 24),
+
+          // Botón para alternar entre Login y Registro Externo
+          Center(
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _isExternalLogin = !_isExternalLogin;
+                  _formKey.currentState?.reset();
+                  _clearControllers();
+                });
+              },
+              child: RichText(
+                text: TextSpan(
+                  text: _isExternalLogin
+                      ? '¿No tienes cuenta? '
+                      : '¿Ya tienes cuenta? ',
+                  style: const TextStyle(color: sentryGrey, fontSize: 14),
+                  children: [
+                    TextSpan(
+                      text: _isExternalLogin ? 'Regístrate' : 'Inicia Sesión',
+                      style: const TextStyle(
+                        color: sentryNavy,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================================
+  // WIDGETS REUTILIZABLES
+  // =========================================================================
+
+  Widget _buildRoleButton({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: sentryBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: sentryCyan.withOpacity(0.3), width: 1.5),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(color: sentryNavy.withOpacity(0.05), blurRadius: 8),
+                ],
+              ),
+              child: Icon(icon, color: sentryBlue, size: 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: sentryNavy,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: sentryGrey, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, color: sentryGrey, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEpicTextField({
+    TextEditingController? controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    bool isPassword = false,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: sentryNavy,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 8),
-        Text(
-          'SENTRY',
-          style: GoogleFonts.outfit(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            letterSpacing: 4,
+        TextFormField(
+          controller: controller,
+          obscureText: isPassword ? _obscurePassword : false,
+          style: const TextStyle(
+            color: sentryNavy,
+            fontWeight: FontWeight.w500,
+          ),
+          validator: validator,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: sentryGrey),
+            prefixIcon: Icon(icon, color: sentryGrey),
+            suffixIcon: isPassword
+                ? IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                      color: sentryGrey,
+                    ),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                  )
+                : null,
+            filled: true,
+            fillColor: sentryBg,
+            contentPadding: const EdgeInsets.symmetric(vertical: 18),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: sentryCyan, width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEpicButton({
+    required String text,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: sentryBlue.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        gradient: const LinearGradient(
+          colors: [sentryCyan, sentryBlue],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        onPressed: onPressed,
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ),
     );
   }
 }

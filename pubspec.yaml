@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   google_fonts: ^8.0.2
-  supabase_flutter: ^2.12.4
+  google_sign_in: ^7.2.0
 
 dev_dependencies:
   flutter_test:
