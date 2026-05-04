@@ -8,12 +8,19 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // LÓGICA INTACTA
+  // LÓGICA DE NAVEGACIÓN PRINCIPAL
   bool? isStudent;
 
+  // Lógica para alternar entre Login y Registro
+  bool _isStudentLogin = true;
+  bool _isExternalLogin = true;
+
   final _formKey = GlobalKey<FormState>();
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController(); // NUEVO: Confirmar contraseña
   bool _obscurePassword = true;
 
   // GUÍA DE COLORES SENTRY
@@ -24,6 +31,23 @@ class _LoginScreenState extends State<LoginScreen> {
   static const Color sentryBg = Color(0xFFEDF2F7);
 
   @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  // Limpia los campos al cambiar de pantalla
+  void _clearControllers() {
+    _nameController.clear();
+    _emailController.clear();
+    _passwordController.clear();
+    _confirmPasswordController.clear();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
@@ -32,26 +56,18 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Stack(
         children: [
           // =========================================================
-          // 1. DISEÑO DE FONDO (Azul con esquinas inferiores redondeadas)
+          // 1. DISEÑO DE FONDO
           // =========================================================
-
-          // Fondo azul superior con la curva que pediste
           Container(
             height: size.height * 0.45,
             decoration: const BoxDecoration(
               color: sentryNavy,
               borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(
-                  60,
-                ), // Redondeo de la esquina inferior izquierda
-                bottomRight: Radius.circular(
-                  60,
-                ), // Redondeo de la esquina inferior derecha
+                bottomLeft: Radius.circular(60),
+                bottomRight: Radius.circular(60),
               ),
             ),
           ),
-
-          // Círculo grande superpuesto (Esquina superior derecha)
           Positioned(
             top: -size.width * 0.2,
             right: -size.width * 0.2,
@@ -64,8 +80,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
-
-          // Círculo mediano interior
           Positioned(
             top: -size.width * 0.1,
             right: -size.width * 0.1,
@@ -80,7 +94,28 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
 
           // =========================================================
-          // 2. CONTENIDO PRINCIPAL
+          // 2. GIF DE LLAMAS FIESTERAS
+          // =========================================================
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 0.9,
+                child: Image.asset(
+                  'assets/images/Llamasgif.gif',
+                  height: 200,
+                  fit: BoxFit.fitWidth,
+                  alignment: Alignment.bottomCenter,
+                  // colorBlendMode: BlendMode.multiply, // (Descomenta si tiene fondo blanco solido)
+                ),
+              ),
+            ),
+          ),
+
+          // =========================================================
+          // 3. CONTENIDO PRINCIPAL
           // =========================================================
           SafeArea(
             child: Center(
@@ -90,22 +125,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const SizedBox(height: 20),
-                    // LOGO INTACTO
+                    // LOGO
                     Image.asset(
                       'assets/images/logo.png',
                       height: 210,
                       fit: BoxFit.contain,
                     ),
-                    const SizedBox(height: 12),
-                    /*const Text(
-                      'Sentry',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 1.5,
-                      ),
-                    ),*/
                     const SizedBox(height: 30),
 
                     // TARJETA BLANCA
@@ -132,7 +157,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   : _buildNormalLogin()),
                       ),
                     ),
-                    const SizedBox(height: 20),
+
+                    // Espacio reservado para las llamas
+                    const SizedBox(height: 200),
                   ],
                 ),
               ),
@@ -169,21 +196,31 @@ class _LoginScreenState extends State<LoginScreen> {
           title: 'Estudiante Politécnico',
           subtitle: 'Acceso con @espoch.edu.ec',
           icon: Icons.school_rounded,
-          onTap: () => setState(() => isStudent = true),
+          onTap: () {
+            setState(() {
+              isStudent = true;
+              _isStudentLogin = true;
+            });
+          },
         ),
         const SizedBox(height: 16),
         _buildRoleButton(
           title: 'Invitado / Externo',
           subtitle: 'Acceso con Google o correo',
           icon: Icons.person_rounded,
-          onTap: () => setState(() => isStudent = false),
+          onTap: () {
+            setState(() {
+              isStudent = false;
+              _isExternalLogin = true;
+            });
+          },
         ),
       ],
     );
   }
 
   // =========================================================================
-  // PANTALLA 2: Login Estudiante
+  // PANTALLA 2: Login / Registro Estudiante
   // =========================================================================
   Widget _buildStudentLogin() {
     return Form(
@@ -200,11 +237,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: sentryNavy,
                   size: 20,
                 ),
-                onPressed: () => setState(() => isStudent = null),
+                onPressed: () {
+                  setState(() {
+                    isStudent = null;
+                    _clearControllers();
+                  });
+                },
               ),
-              const Text(
-                'Registro Estudiantil',
-                style: TextStyle(
+              Text(
+                _isStudentLogin ? 'Acceso Estudiantil' : 'Registro Estudiantil',
+                style: const TextStyle(
                   color: sentryNavy,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -213,6 +255,22 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
           const SizedBox(height: 24),
+
+          // Campo de Nombre (Solo visible en Registro)
+          if (!_isStudentLogin) ...[
+            _buildEpicTextField(
+              controller: _nameController,
+              label: 'Nombre Completo',
+              hint: 'Ej. Juan Pérez',
+              icon: Icons.person_outline,
+              validator: (value) {
+                if (value == null || value.isEmpty) return 'Ingresa tu nombre';
+                return null;
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+
           _buildEpicTextField(
             controller: _emailController,
             label: 'Correo Institucional',
@@ -227,21 +285,100 @@ class _LoginScreenState extends State<LoginScreen> {
             },
           ),
           const SizedBox(height: 20),
+
           _buildEpicTextField(
             controller: _passwordController,
             label: 'Contraseña',
             hint: '••••••••',
             icon: Icons.lock_outline,
             isPassword: true,
+            validator: (value) {
+              if (value == null || value.isEmpty)
+                return 'Ingresa tu contraseña';
+              if (!_isStudentLogin && value.length < 6)
+                return 'Debe tener al menos 6 caracteres';
+              return null;
+            },
           ),
-          const SizedBox(height: 30),
+
+          // Confirmar Contraseña (Solo visible en Registro)
+          if (!_isStudentLogin) ...[
+            const SizedBox(height: 20),
+            _buildEpicTextField(
+              controller: _confirmPasswordController,
+              label: 'Confirmar Contraseña',
+              hint: '••••••••',
+              icon: Icons.lock_outline,
+              isPassword: true,
+              validator: (value) {
+                if (value == null || value.isEmpty)
+                  return 'Confirma tu contraseña';
+                if (value != _passwordController.text)
+                  return 'Las contraseñas no coinciden';
+                return null;
+              },
+            ),
+          ],
+
+          // Olvidaste contraseña (Solo visible en Login)
+          if (_isStudentLogin) ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {},
+                child: const Text(
+                  '¿Olvidaste tu contraseña?',
+                  style: TextStyle(
+                    color: sentryBlue,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ] else ...[
+            const SizedBox(height: 30),
+          ],
+
           _buildEpicButton(
-            text: 'Validar e Iniciar Sesión',
+            text: _isStudentLogin ? 'Iniciar Sesión' : 'Crear Cuenta',
             onPressed: () {
               if (_formKey.currentState!.validate()) {
-                // Lógica
+                // Lógica de validación Estudiante
               }
             },
+          ),
+          const SizedBox(height: 24),
+
+          // Botón para alternar entre Login y Registro
+          Center(
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _isStudentLogin = !_isStudentLogin;
+                  _formKey.currentState?.reset();
+                  _clearControllers();
+                });
+              },
+              child: RichText(
+                text: TextSpan(
+                  text: _isStudentLogin
+                      ? '¿No tienes cuenta? '
+                      : '¿Ya tienes cuenta? ',
+                  style: const TextStyle(color: sentryGrey, fontSize: 14),
+                  children: [
+                    TextSpan(
+                      text: _isStudentLogin ? 'Regístrate' : 'Inicia Sesión',
+                      style: const TextStyle(
+                        color: sentryNavy,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -249,99 +386,215 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // =========================================================================
-  // PANTALLA 3: Login Normal
+  // PANTALLA 3: Login / Registro Externo (MODIFICADO)
   // =========================================================================
   Widget _buildNormalLogin() {
-    return Column(
-      key: const ValueKey(3),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(
-                Icons.arrow_back_ios_new,
-                color: sentryNavy,
-                size: 20,
+    return Form(
+      key: _formKey,
+      child: Column(
+        key: const ValueKey(3),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: sentryNavy,
+                  size: 20,
+                ),
+                onPressed: () {
+                  setState(() {
+                    isStudent = null;
+                    _clearControllers();
+                  });
+                },
               ),
-              onPressed: () => setState(() => isStudent = null),
-            ),
-            const Text(
-              'Iniciar Sesión',
-              style: TextStyle(
-                color: sentryNavy,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        _buildEpicTextField(
-          label: 'Correo electrónico',
-          hint: 'ejemplo@correo.com',
-          icon: Icons.email_outlined,
-        ),
-        const SizedBox(height: 20),
-        _buildEpicTextField(
-          label: 'Contraseña',
-          hint: '••••••••',
-          icon: Icons.lock_outline,
-          isPassword: true,
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: () {},
-            child: const Text(
-              '¿Olvidaste tu contraseña?',
-              style: TextStyle(color: sentryBlue, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        _buildEpicButton(text: 'Iniciar Sesión', onPressed: () {}),
-        const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: Divider(color: sentryGrey.withOpacity(0.5), thickness: 1),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'o',
-                style: TextStyle(
-                  color: sentryGrey,
+              Text(
+                _isExternalLogin ? 'Iniciar Sesión' : 'Crear Cuenta',
+                style: const TextStyle(
+                  color: sentryNavy,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Campo de Nombre (Solo visible en Registro)
+          if (!_isExternalLogin) ...[
+            _buildEpicTextField(
+              controller: _nameController,
+              label: 'Nombre Completo',
+              hint: 'Ej. María Gómez',
+              icon: Icons.person_outline,
+              validator: (value) {
+                if (value == null || value.isEmpty) return 'Ingresa tu nombre';
+                return null;
+              },
             ),
-            Expanded(
-              child: Divider(color: sentryGrey.withOpacity(0.5), thickness: 1),
+            const SizedBox(height: 20),
+          ],
+
+          _buildEpicTextField(
+            controller: _emailController,
+            label: 'Correo electrónico',
+            hint: 'ejemplo@correo.com',
+            icon: Icons.email_outlined,
+            validator: (value) {
+              if (value == null || value.isEmpty) return 'Ingresa tu correo';
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+
+          _buildEpicTextField(
+            controller: _passwordController,
+            label: 'Contraseña',
+            hint: '••••••••',
+            icon: Icons.lock_outline,
+            isPassword: true,
+            validator: (value) {
+              if (value == null || value.isEmpty)
+                return 'Ingresa tu contraseña';
+              if (!_isExternalLogin && value.length < 6)
+                return 'Debe tener al menos 6 caracteres';
+              return null;
+            },
+          ),
+
+          // Confirmar Contraseña (Solo visible en Registro)
+          if (!_isExternalLogin) ...[
+            const SizedBox(height: 20),
+            _buildEpicTextField(
+              controller: _confirmPasswordController,
+              label: 'Confirmar Contraseña',
+              hint: '••••••••',
+              icon: Icons.lock_outline,
+              isPassword: true,
+              validator: (value) {
+                if (value == null || value.isEmpty)
+                  return 'Confirma tu contraseña';
+                if (value != _passwordController.text)
+                  return 'Las contraseñas no coinciden';
+                return null;
+              },
             ),
           ],
-        ),
-        const SizedBox(height: 24),
-        ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: sentryBg,
-            foregroundColor: sentryNavy,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: sentryGrey.withOpacity(0.3)),
+
+          // Olvidaste contraseña (Solo visible en Login)
+          if (_isExternalLogin) ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {},
+                child: const Text(
+                  '¿Olvidaste tu contraseña?',
+                  style: TextStyle(
+                    color: sentryBlue,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ] else ...[
+            const SizedBox(height: 30),
+          ],
+
+          _buildEpicButton(
+            text: _isExternalLogin ? 'Iniciar Sesión' : 'Crear Cuenta',
+            onPressed: () {
+              if (_formKey.currentState!.validate()) {
+                // Lógica de validación Externo
+              }
+            },
+          ),
+          const SizedBox(height: 24),
+
+          // Sección de Google siempre visible en usuario externo
+          Row(
+            children: [
+              Expanded(
+                child: Divider(
+                  color: sentryGrey.withOpacity(0.5),
+                  thickness: 1,
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'o continúa con',
+                  style: TextStyle(
+                    color: sentryGrey,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Divider(
+                  color: sentryGrey.withOpacity(0.5),
+                  thickness: 1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: sentryBg,
+              foregroundColor: sentryNavy,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: sentryGrey.withOpacity(0.3)),
+              ),
+            ),
+            icon: const Icon(Icons.g_mobiledata, size: 36, color: Colors.red),
+            label: const Text(
+              'Google',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            onPressed: () {},
+          ),
+          const SizedBox(height: 24),
+
+          // Botón para alternar entre Login y Registro Externo
+          Center(
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _isExternalLogin = !_isExternalLogin;
+                  _formKey.currentState?.reset();
+                  _clearControllers();
+                });
+              },
+              child: RichText(
+                text: TextSpan(
+                  text: _isExternalLogin
+                      ? '¿No tienes cuenta? '
+                      : '¿Ya tienes cuenta? ',
+                  style: const TextStyle(color: sentryGrey, fontSize: 14),
+                  children: [
+                    TextSpan(
+                      text: _isExternalLogin ? 'Regístrate' : 'Inicia Sesión',
+                      style: const TextStyle(
+                        color: sentryNavy,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          icon: const Icon(Icons.g_mobiledata, size: 36, color: Colors.red),
-          label: const Text(
-            'Continuar con Google',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          onPressed: () {},
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -376,11 +629,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   BoxShadow(color: sentryNavy.withOpacity(0.05), blurRadius: 8),
                 ],
               ),
-              child: const Icon(
-                Icons.school_rounded,
-                color: sentryBlue,
-                size: 28,
-              ),
+              child: Icon(icon, color: sentryBlue, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
