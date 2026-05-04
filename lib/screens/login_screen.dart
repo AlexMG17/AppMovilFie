@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
+import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -151,8 +152,8 @@ class _LoginScreenState extends State<LoginScreen>
                       Hero(
                         tag: 'sentry-logo',
                         child: Image.asset(
-                          'assets/images/logo.png',
-                          height: 110,
+                          'assets/images/logo_tuco.png',
+                          height: 130,
                           fit: BoxFit.contain,
                           errorBuilder: (context, error, stackTrace) =>
                               _buildFallbackLogo(),
@@ -229,9 +230,10 @@ class _LoginScreenState extends State<LoginScreen>
                                   size: 20,
                                 ),
                                 onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                                  );
                                 },
                               ),
                             ),
