@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Usaremos Supabase nativo
+import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -8,6 +10,12 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  // Conexión con nuestro cerebro de Base de Datos
+  final AuthService _authService = AuthService();
+
+  // Estado para mostrar el círculo de carga
+  bool _isLoading = false;
+
   // LÓGICA DE NAVEGACIÓN PRINCIPAL
   bool? isStudent;
 
@@ -15,12 +23,15 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isStudentLogin = true;
   bool _isExternalLogin = true;
 
+  // Control para nuestra notificación superior
+  OverlayEntry? _activeToast;
+
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
-      TextEditingController(); // NUEVO: Confirmar contraseña
+      TextEditingController();
   bool _obscurePassword = true;
 
   // GUÍA DE COLORES SENTRY
@@ -32,6 +43,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    // Si cerramos la pantalla, eliminamos cualquier notificación flotante que haya quedado
+    _activeToast?.remove();
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -47,12 +60,175 @@ class _LoginScreenState extends State<LoginScreen> {
     _confirmPasswordController.clear();
   }
 
+  // =========================================================================
+  // NOTIFICACIÓN FLOTANTE PERSONALIZADA (SUPERIOR)
+  // =========================================================================
+  void _showTopToast(String message, {bool isError = false}) {
+    // Si ya hay un mensaje en pantalla, lo quitamos para poner el nuevo
+    _activeToast?.remove();
+    _activeToast = null;
+
+    final overlay = Overlay.of(context);
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top:
+            MediaQuery.of(context).padding.top +
+            20, // Lo pone arriba, debajo de la hora/batería
+        left: 24,
+        right: 24,
+        child: Material(
+          color: Colors.transparent,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOutBack, // Animación de rebote suave
+            builder: (context, value, child) {
+              return Transform.translate(
+                offset: Offset(0, -50 * (1 - value)), // Desliza desde arriba
+                child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: isError ? Colors.redAccent : Colors.green,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: (isError ? Colors.redAccent : Colors.green)
+                        .withAlpha(100),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isError ? Icons.error_outline : Icons.check_circle_outline,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    _activeToast = overlayEntry;
+    overlay.insert(overlayEntry);
+
+    // Se oculta automáticamente después de 4 segundos
+    Future.delayed(const Duration(seconds: 4), () {
+      if (_activeToast == overlayEntry) {
+        _activeToast?.remove();
+        _activeToast = null;
+      }
+    });
+  }
+
+  // =========================================================================
+  // LÓGICA DE AUTENTICACIÓN CON SUPABASE
+  // =========================================================================
+  Future<void> _handleAuth(bool isStudentFlow, bool isLoginFlow) async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+      final nombre = _nameController.text.trim();
+
+      final int idRol = isStudentFlow ? 1 : 2;
+
+      if (isLoginFlow) {
+        // ------------------ INICIAR SESIÓN ------------------
+        await _authService.signIn(email: email, password: password);
+
+        if (mounted) {
+          _showTopToast('¡Inicio de sesión exitoso!');
+        }
+      } else {
+        // ------------------ REGISTRO ------------------
+        await _authService.signUp(
+          email: email,
+          password: password,
+          nombre: nombre,
+          idRol: idRol,
+        );
+
+        if (mounted) {
+          _showTopToast(
+            '¡Cuenta creada! Por favor revisa tu correo para confirmar.',
+          );
+          setState(() {
+            if (isStudentFlow) {
+              _isStudentLogin = true;
+            } else {
+              _isExternalLogin = true;
+            }
+            _clearControllers();
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showTopToast('Error: ${e.toString()}', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // =========================================================================
+  // LÓGICA DE GOOGLE SIGN-IN CON SUPABASE NATIVO
+  // =========================================================================
+  Future<void> _handleGoogleSignIn() async {
+    try {
+      final supabase = Supabase.instance.client;
+
+      // Supabase se encarga de abrir automáticamente el flujo seguro de Google
+      await supabase.auth.signInWithOAuth(OAuthProvider.google);
+
+      // Nota para el futuro: Para que la app regrese solita a esta pantalla
+      // tras hacer login en Google, habrá que configurar "Deep Links" después.
+    } catch (error) {
+      if (mounted) {
+        _showTopToast('Error al conectar con Google.', isError: true);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: sentryBg,
+      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+      // ESTO CONGELA EL FONDO PARA QUE NO SE MUEVA CON EL TECLADO
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           // =========================================================
@@ -88,7 +264,7 @@ class _LoginScreenState extends State<LoginScreen> {
               height: size.width * 0.45,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: sentryCyan.withOpacity(0.2),
+                color: sentryCyan.withAlpha(51),
               ),
             ),
           ),
@@ -108,7 +284,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   height: 200,
                   fit: BoxFit.fitWidth,
                   alignment: Alignment.bottomCenter,
-                  // colorBlendMode: BlendMode.multiply, // (Descomenta si tiene fondo blanco solido)
                 ),
               ),
             ),
@@ -117,50 +292,55 @@ class _LoginScreenState extends State<LoginScreen> {
           // =========================================================
           // 3. CONTENIDO PRINCIPAL
           // =========================================================
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 20),
-                    // LOGO
-                    Image.asset(
-                      'assets/images/logo.png',
-                      height: 210,
-                      fit: BoxFit.contain,
-                    ),
-                    const SizedBox(height: 30),
-
-                    // TARJETA BLANCA
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(32),
-                        boxShadow: [
-                          BoxShadow(
-                            color: sentryNavy.withOpacity(0.15),
-                            blurRadius: 20,
-                            spreadRadius: 2,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
+          // EL PADDING DINÁMICO PERMITE QUE SOLO EL FORMULARIO SUBA AL ABRIR EL TECLADO
+          Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 20),
+                      // LOGO
+                      Image.asset(
+                        'assets/images/logo.png',
+                        height: 210,
+                        fit: BoxFit.contain,
                       ),
-                      padding: const EdgeInsets.all(28.0),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        child: isStudent == null
-                            ? _buildInitialQuestion()
-                            : (isStudent == true
-                                  ? _buildStudentLogin()
-                                  : _buildNormalLogin()),
-                      ),
-                    ),
+                      const SizedBox(height: 30),
 
-                    // Espacio reservado para las llamas
-                    const SizedBox(height: 200),
-                  ],
+                      // TARJETA BLANCA
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(32),
+                          boxShadow: [
+                            BoxShadow(
+                              color: sentryNavy.withAlpha(38),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(28.0),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          child: isStudent == null
+                              ? _buildInitialQuestion()
+                              : (isStudent == true
+                                    ? _buildStudentLogin()
+                                    : _buildNormalLogin()),
+                        ),
+                      ),
+
+                      // Espacio reservado para las llamas
+                      const SizedBox(height: 200),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -264,7 +444,9 @@ class _LoginScreenState extends State<LoginScreen> {
               hint: 'Ej. Juan Pérez',
               icon: Icons.person_outline,
               validator: (value) {
-                if (value == null || value.isEmpty) return 'Ingresa tu nombre';
+                if (value == null || value.isEmpty) {
+                  return 'Ingresa tu nombre';
+                }
                 return null;
               },
             ),
@@ -277,7 +459,9 @@ class _LoginScreenState extends State<LoginScreen> {
             hint: 'ejemplo@espoch.edu.ec',
             icon: Icons.alternate_email,
             validator: (value) {
-              if (value == null || value.isEmpty) return 'Ingresa tu correo';
+              if (value == null || value.isEmpty) {
+                return 'Ingresa tu correo';
+              }
               if (!value.endsWith('@espoch.edu.ec')) {
                 return 'Debe ser un correo @espoch.edu.ec válido';
               }
@@ -293,10 +477,19 @@ class _LoginScreenState extends State<LoginScreen> {
             icon: Icons.lock_outline,
             isPassword: true,
             validator: (value) {
-              if (value == null || value.isEmpty)
+              if (value == null || value.isEmpty) {
                 return 'Ingresa tu contraseña';
-              if (!_isStudentLogin && value.length < 6)
-                return 'Debe tener al menos 6 caracteres';
+              }
+              // Validaciones estrictas solo aplicables durante el registro
+              if (!_isStudentLogin) {
+                if (value.length < 8) return 'Debe tener al menos 8 caracteres';
+                if (!value.contains(RegExp(r'[A-Z]')))
+                  return 'Debe contener al menos una mayúscula';
+                if (!value.contains(RegExp(r'[0-9]')))
+                  return 'Debe contener al menos un número';
+                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]')))
+                  return 'Debe contener un símbolo especial (ej. !@#\$&*)';
+              }
               return null;
             },
           ),
@@ -311,10 +504,12 @@ class _LoginScreenState extends State<LoginScreen> {
               icon: Icons.lock_outline,
               isPassword: true,
               validator: (value) {
-                if (value == null || value.isEmpty)
+                if (value == null || value.isEmpty) {
                   return 'Confirma tu contraseña';
-                if (value != _passwordController.text)
+                }
+                if (value != _passwordController.text) {
                   return 'Las contraseñas no coinciden';
+                }
                 return null;
               },
             ),
@@ -342,11 +537,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
           _buildEpicButton(
             text: _isStudentLogin ? 'Iniciar Sesión' : 'Crear Cuenta',
-            onPressed: () {
-              if (_formKey.currentState!.validate()) {
-                // Lógica de validación Estudiante
-              }
-            },
+            onPressed: () => _handleAuth(true, _isStudentLogin),
           ),
           const SizedBox(height: 24),
 
@@ -386,7 +577,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // =========================================================================
-  // PANTALLA 3: Login / Registro Externo (MODIFICADO)
+  // PANTALLA 3: Login / Registro Externo
   // =========================================================================
   Widget _buildNormalLogin() {
     return Form(
@@ -430,7 +621,9 @@ class _LoginScreenState extends State<LoginScreen> {
               hint: 'Ej. María Gómez',
               icon: Icons.person_outline,
               validator: (value) {
-                if (value == null || value.isEmpty) return 'Ingresa tu nombre';
+                if (value == null || value.isEmpty) {
+                  return 'Ingresa tu nombre';
+                }
                 return null;
               },
             ),
@@ -443,7 +636,9 @@ class _LoginScreenState extends State<LoginScreen> {
             hint: 'ejemplo@correo.com',
             icon: Icons.email_outlined,
             validator: (value) {
-              if (value == null || value.isEmpty) return 'Ingresa tu correo';
+              if (value == null || value.isEmpty) {
+                return 'Ingresa tu correo';
+              }
               return null;
             },
           ),
@@ -456,10 +651,19 @@ class _LoginScreenState extends State<LoginScreen> {
             icon: Icons.lock_outline,
             isPassword: true,
             validator: (value) {
-              if (value == null || value.isEmpty)
+              if (value == null || value.isEmpty) {
                 return 'Ingresa tu contraseña';
-              if (!_isExternalLogin && value.length < 6)
-                return 'Debe tener al menos 6 caracteres';
+              }
+              // Validaciones estrictas solo aplicables durante el registro
+              if (!_isExternalLogin) {
+                if (value.length < 8) return 'Debe tener al menos 8 caracteres';
+                if (!value.contains(RegExp(r'[A-Z]')))
+                  return 'Debe contener al menos una mayúscula';
+                if (!value.contains(RegExp(r'[0-9]')))
+                  return 'Debe contener al menos un número';
+                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]')))
+                  return 'Debe contener un símbolo especial (ej. !@#\$&*)';
+              }
               return null;
             },
           ),
@@ -474,10 +678,12 @@ class _LoginScreenState extends State<LoginScreen> {
               icon: Icons.lock_outline,
               isPassword: true,
               validator: (value) {
-                if (value == null || value.isEmpty)
+                if (value == null || value.isEmpty) {
                   return 'Confirma tu contraseña';
-                if (value != _passwordController.text)
+                }
+                if (value != _passwordController.text) {
                   return 'Las contraseñas no coinciden';
+                }
                 return null;
               },
             ),
@@ -505,11 +711,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
           _buildEpicButton(
             text: _isExternalLogin ? 'Iniciar Sesión' : 'Crear Cuenta',
-            onPressed: () {
-              if (_formKey.currentState!.validate()) {
-                // Lógica de validación Externo
-              }
-            },
+            onPressed: () => _handleAuth(false, _isExternalLogin),
           ),
           const SizedBox(height: 24),
 
@@ -517,10 +719,7 @@ class _LoginScreenState extends State<LoginScreen> {
           Row(
             children: [
               Expanded(
-                child: Divider(
-                  color: sentryGrey.withOpacity(0.5),
-                  thickness: 1,
-                ),
+                child: Divider(color: sentryGrey.withAlpha(128), thickness: 1),
               ),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
@@ -534,10 +733,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               Expanded(
-                child: Divider(
-                  color: sentryGrey.withOpacity(0.5),
-                  thickness: 1,
-                ),
+                child: Divider(color: sentryGrey.withAlpha(128), thickness: 1),
               ),
             ],
           ),
@@ -551,7 +747,7 @@ class _LoginScreenState extends State<LoginScreen> {
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: sentryGrey.withOpacity(0.3)),
+                side: BorderSide(color: sentryGrey.withAlpha(77)),
               ),
             ),
             icon: const Icon(Icons.g_mobiledata, size: 36, color: Colors.red),
@@ -559,7 +755,7 @@ class _LoginScreenState extends State<LoginScreen> {
               'Google',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            onPressed: () {},
+            onPressed: _handleGoogleSignIn,
           ),
           const SizedBox(height: 24),
 
@@ -616,7 +812,7 @@ class _LoginScreenState extends State<LoginScreen> {
         decoration: BoxDecoration(
           color: sentryBg,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: sentryCyan.withOpacity(0.3), width: 1.5),
+          border: Border.all(color: sentryCyan.withAlpha(77), width: 1.5),
         ),
         child: Row(
           children: [
@@ -626,7 +822,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
-                  BoxShadow(color: sentryNavy.withOpacity(0.05), blurRadius: 8),
+                  BoxShadow(color: sentryNavy.withAlpha(13), blurRadius: 8),
                 ],
               ),
               child: Icon(icon, color: sentryBlue, size: 28),
@@ -699,8 +895,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           : Icons.visibility,
                       color: sentryGrey,
                     ),
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
                   )
                 : null,
             filled: true,
@@ -733,7 +932,7 @@ class _LoginScreenState extends State<LoginScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: sentryBlue.withOpacity(0.3),
+            color: sentryBlue.withAlpha(77),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -753,15 +952,24 @@ class _LoginScreenState extends State<LoginScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
         ),
-        onPressed: onPressed,
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
+        onPressed: _isLoading ? null : onPressed,
+        child: _isLoading
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+            : Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
       ),
     );
   }
