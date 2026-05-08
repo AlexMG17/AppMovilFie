@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
@@ -21,13 +21,13 @@ class _LoginScreenState extends State<LoginScreen>
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
-  // ── Paleta Sentry (centralizada en AppColors) ───────────────
+  // â”€â”€ Paleta Sentry (centralizada en AppColors) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static const Color sentryNavy = AppColors.sentryNavy;
   static const Color sentryBlue = AppColors.sentryBlue;
   static const Color sentryCyan = AppColors.sentryCyan;
   static const Color sentryGrey = AppColors.sentryGrey;
   static const Color sentryBg   = AppColors.sentryBg;
-  // ────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   void initState() {
@@ -70,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen>
       );
 
       if (response.user != null && mounted) {
-        _showSnackBar('¡Bienvenido, ${response.user!.email}!');
+        _showSnackBar('Â¡Bienvenido, ${response.user!.email}!');
         // TODO: Navegar a la pantalla principal
         // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
       }
@@ -100,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen>
       backgroundColor: sentryBg,
       body: Stack(
         children: [
-          // ── Fondo con gradiente superior ──────────────────────
+          // â”€â”€ Fondo con gradiente superior â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Positioned(
             top: 0,
             left: 0,
@@ -121,7 +121,7 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
 
-          // ── Círculo decorativo celeste ────────────────────────
+          // â”€â”€ Círculo decorativo celeste â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Positioned(
             top: -60,
             right: -50,
@@ -135,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
 
-          // ── Contenido principal ───────────────────────────────
+          // â”€â”€ Contenido principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           SafeArea(
             child: FadeTransition(
               opacity: _fadeAnim,
@@ -162,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                       const SizedBox(height: 40),
 
-                      // ── Tarjeta blanca ─────────────────────────────
+                      // â”€â”€ Tarjeta blanca â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(
@@ -218,7 +218,7 @@ class _LoginScreenState extends State<LoginScreen>
                             const SizedBox(height: 8),
                             _buildTextField(
                               controller: _passController,
-                              hintText: '••••••••',
+                              hintText: 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
                               icon: Icons.lock_outline,
                               obscureText: _obscurePassword,
                               suffixIcon: IconButton(
@@ -251,7 +251,7 @@ class _LoginScreenState extends State<LoginScreen>
                                       MaterialTapTargetSize.shrinkWrap,
                                 ),
                                 child: Text(
-                                  '¿Olvidaste tu contraseña?',
+                                  'Â¿Olvidaste tu contraseña?',
                                   style: GoogleFonts.outfit(
                                     color: sentryCyan,
                                     fontSize: 12,
@@ -360,7 +360,7 @@ class _LoginScreenState extends State<LoginScreen>
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  '¿No tienes cuenta? ',
+                                  'Â¿No tienes cuenta? ',
                                   style: GoogleFonts.outfit(
                                     color: Colors.black54,
                                     fontSize: 13,
@@ -387,7 +387,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                       // Footer
                       Text(
-                        '© 2025 Sentry · Acceso Seguro',
+                        'Â© 2025 Sentry Â· Acceso Seguro',
                         style: GoogleFonts.outfit(
                           color: Colors.white60,
                           fontSize: 11,
