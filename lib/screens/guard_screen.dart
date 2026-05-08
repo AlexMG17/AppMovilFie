@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/guard_service.dart';
+import '../services/supabase_service.dart';
 
 class GuardScreen extends StatefulWidget {
   const GuardScreen({super.key});
@@ -262,13 +263,17 @@ class _GuardScreenState extends State<GuardScreen>
         children: [
           // Logo
           Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(colors: [sentryBlue, sentryCyan]),
+              color: Colors.white,
             ),
-            child: const Icon(Icons.shield, color: Colors.white, size: 20),
+            clipBehavior: Clip.antiAlias,
+            child: Padding(
+              padding: const EdgeInsets.all(4.0),
+              child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
+            ),
           ),
           const SizedBox(width: 10),
           // Título
@@ -344,14 +349,20 @@ class _GuardScreenState extends State<GuardScreen>
             ),
           ),
           const SizedBox(width: 8),
-          // Botón de ajustes
+          // Botón de cerrar sesión
           IconButton(
-            onPressed: () {},
+            onPressed: () async {
+              await SupabaseService.signOut();
+              if (context.mounted) {
+                Navigator.of(context).pushReplacementNamed('/login');
+              }
+            },
             icon: const Icon(
-              Icons.settings_outlined,
-              color: sentryGrey,
-              size: 22,
+              Icons.logout_rounded,
+              color: sentryError,
+              size: 24,
             ),
+            tooltip: 'Cerrar sesión',
           ),
         ],
       ),

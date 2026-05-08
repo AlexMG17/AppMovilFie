@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'services/supabase_service.dart';
 import 'screens/admin_dashboard_screen.dart';
 import 'screens/payment_vouchers_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/guard_screen.dart';
 import 'theme/app_colors.dart';
 
 Future<void> main() async {
@@ -27,8 +29,10 @@ class SentryApp extends StatelessWidget {
         textTheme: GoogleFonts.outfitTextTheme(Theme.of(context).textTheme),
         useMaterial3: true,
       ),
-      home: const AdminDashboardScreen(), // TODO: cambiar a LoginScreen() cuando termines
+      home: const LoginScreen(),
       routes: {
+        '/login':     (_) => const LoginScreen(),
+        '/guard':     (_) => const GuardScreen(),
         '/admin':     (_) => const AdminDashboardScreen(),
         '/vouchers':  (_) => const PaymentVouchersScreen(),
       },

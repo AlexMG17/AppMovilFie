@@ -11,10 +11,7 @@ class SupabaseService {
 
   /// Inicializa Supabase. Llamar una sola vez en main().
   static Future<void> initialize() async {
-    await Supabase.initialize(
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-    );
+    await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
   }
 
   /// Cliente Supabase listo para usar en cualquier parte de la app.
@@ -24,7 +21,8 @@ class SupabaseService {
   static User? get currentUser => client.auth.currentUser;
 
   /// Stream de cambios de sesión.
-  static Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
+  static Stream<AuthState> get authStateChanges =>
+      client.auth.onAuthStateChange;
 
   // ── Auth helpers ──────────────────────────────────────────────
 

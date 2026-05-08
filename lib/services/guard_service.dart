@@ -43,16 +43,32 @@ class GuardService {
     if (user == null) return false;
 
     try {
-      final data = await _client
+      // 1. Obtener el id_rol del usuario
+      final userData = await _client
           .from('usuarios')
-          .select('id_rol, roles(nombre)')
+          .select('id_rol')
           .eq('email', user.email!)
           .single();
 
-      final rolData = data['roles'];
-      if (rolData == null) return false;
-      return rolData['nombre'] == 'validador';
-    } catch (_) {
+      final idRol = userData['id_rol'];
+      if (idRol == null) {
+        print('El usuario no tiene un id_rol asignado.');
+        return false;
+      }
+
+      // 2. Obtener el nombre del rol
+      final roleData = await _client
+          .from('roles')
+          .select('nombre')
+          .eq('id_rol', idRol)
+          .single();
+
+      final nombreRol = roleData['nombre']?.toString().toLowerCase().trim();
+      print('Nombre del rol detectado: \$nombreRol');
+
+      return nombreRol == 'validador';
+    } catch (e) {
+      print('Error en isCurrentUserValidator: \$e');
       return false;
     }
   }
@@ -228,8 +244,8 @@ class GuardService {
           resultado: row['resultado'] ?? 'invalido',
           nombreAsistente: row['nombre_asistente'] ?? 'Desconocido',
           codigoQR: row['codigo_qr'],
-          timestamp: DateTime.tryParse(row['escaneado_en'] ?? '') ??
-              DateTime.now(),
+          timestamp:
+              DateTime.tryParse(row['escaneado_en'] ?? '') ?? DateTime.now(),
         );
       }).toList();
     } catch (_) {
