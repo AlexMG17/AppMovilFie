@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/admin_dashboard_screen.dart';
 import 'screens/payment_vouchers_screen.dart';
 import 'screens/login_screen.dart';
@@ -12,6 +13,7 @@ Future<void> main() async {
 
   // Inicializar Supabase antes de arrancar la app
   await SupabaseService.initialize();
+
 
   runApp(const SentryApp());
 }

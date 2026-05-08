@@ -13,6 +13,7 @@ dependencies:
   google_fonts: ^8.0.2
   mobile_scanner: ^7.2.0
   qr_flutter: ^4.1.0
+  google_sign_in: ^7.2.0
   supabase_flutter: ^2.12.4
 
 dev_dependencies:
