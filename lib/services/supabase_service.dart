@@ -7,7 +7,7 @@ class SupabaseService {
 
   static const String supabaseUrl = 'https://nnglhmbldffzlsnraryv.supabase.co';
   static const String supabaseAnonKey =
-      'sb_publishable_h065qIIpntclT4c8gjLqyQ_bXdZ97aU';
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5uZ2xobWJsZGZmemxzbnJhcnl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4Mjk3MjksImV4cCI6MjA5MTQwNTcyOX0.aIH1G7t7UKty6lQE0RSx0EDxHWjgHAuLBd5GecCP1Gg';
 
   /// Inicializa Supabase. Llamar una sola vez en main().
   static Future<void> initialize() async {

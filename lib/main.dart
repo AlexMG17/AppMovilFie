@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'services/supabase_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -26,6 +27,16 @@ class SentryApp extends StatelessWidget {
     return MaterialApp(
       title: 'Sentry',
       debugShowCheckedModeBanner: false,
+      // CONFIGURACIÓN DE IDIOMA AL ESPAÑOL POR DEFECTO
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es', 'ES'), // Español
+        Locale('en', 'US'), // Inglés
+      ],
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.sentryBlue),
         textTheme: GoogleFonts.outfitTextTheme(Theme.of(context).textTheme),

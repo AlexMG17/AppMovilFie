@@ -231,7 +231,6 @@ class _LoginScreenState extends State<LoginScreen> {
         _showTopToast('Error al conectar con Google.', isError: true);
       }
     }
-    }
   }
 
   @override
