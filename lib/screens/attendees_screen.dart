@@ -1,113 +1,42 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/event_service.dart';
+import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 
-// â”€â”€â”€ Modelo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-enum AttendeeStatus { registered, entered, pending }
+// ── Modelo ────────────────────────────────────────────────────────────────────
+enum AttendeeStatus { registered, entered }
 
 class Attendee {
-  final String id;
   final String name;
   final String email;
-  final String career;
   final AttendeeStatus status;
   final String? qrData;
 
   const Attendee({
-    required this.id,
     required this.name,
     required this.email,
-    required this.career,
     required this.status,
     this.qrData,
   });
+
+  factory Attendee.fromMap(Map<String, dynamic> map) {
+    final u = map['usuarios'];
+    final nombre = u is Map ? (u['nombre'] ?? 'Sin nombre') : 'Sin nombre';
+    final email = u is Map ? (u['email'] ?? '') : '';
+    final estado = map['estado'] as String? ?? 'activo';
+    return Attendee(
+      name: nombre,
+      email: email,
+      status: estado == 'usado' ? AttendeeStatus.entered : AttendeeStatus.registered,
+      qrData: map['codigo_qr'] as String?,
+    );
+  }
 }
 
-// â”€â”€â”€ Datos simulados â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-final List<Attendee> _mockAttendees = [
-  Attendee(
-    id: '1',
-    name: 'Ana Torres Guzmán',
-    email: 'a.torres@espoch.edu.ec',
-    career: 'Ing. Electrónica',
-    status: AttendeeStatus.entered,
-    qrData: 'SENTRY|Ana Torres Guzmán|TRF-0847',
-  ),
-  Attendee(
-    id: '2',
-    name: 'Carlos Mendoza Rivas',
-    email: 'c.mendoza@espoch.edu.ec',
-    career: 'Ing. Sistemas',
-    status: AttendeeStatus.entered,
-    qrData: 'SENTRY|Carlos Mendoza Rivas|TRF-0931',
-  ),
-  Attendee(
-    id: '3',
-    name: 'Diego Flores Castillo',
-    email: 'd.flores@espoch.edu.ec',
-    career: 'Ing. Telecom.',
-    status: AttendeeStatus.registered,
-    qrData: 'SENTRY|Diego Flores Castillo|TRF-0799',
-  ),
-  Attendee(
-    id: '4',
-    name: 'Sofía Ramírez León',
-    email: 's.ramirez@espoch.edu.ec',
-    career: 'Ing. Sistemas',
-    status: AttendeeStatus.pending,
-  ),
-  Attendee(
-    id: '5',
-    name: 'Luis Cáceres Mora',
-    email: 'l.caceres@espoch.edu.ec',
-    career: 'Ing. Electrónica',
-    status: AttendeeStatus.entered,
-    qrData: 'SENTRY|Luis Cáceres Mora|TRF-0823',
-  ),
-  Attendee(
-    id: '6',
-    name: 'María Salinas Cruz',
-    email: 'm.salinas@espoch.edu.ec',
-    career: 'Ing. Sistemas',
-    status: AttendeeStatus.entered,
-    qrData: 'SENTRY|María Salinas Cruz|TRF-0888',
-  ),
-  Attendee(
-    id: '7',
-    name: 'Pedro Aguirre Vega',
-    email: 'p.aguirre@espoch.edu.ec',
-    career: 'Ing. Civil',
-    status: AttendeeStatus.entered,
-    qrData: 'SENTRY|Pedro Aguirre Vega|TRF-0754',
-  ),
-  Attendee(
-    id: '8',
-    name: 'Valentina Ríos Ponce',
-    email: 'v.rios@espoch.edu.ec',
-    career: 'Ing. Industrial',
-    status: AttendeeStatus.registered,
-    qrData: 'SENTRY|Valentina Ríos Ponce|TRF-0902',
-  ),
-  Attendee(
-    id: '9',
-    name: 'Jorge Salas Trujillo',
-    email: 'j.salas@espoch.edu.ec',
-    career: 'Ing. Mecánica',
-    status: AttendeeStatus.pending,
-  ),
-  Attendee(
-    id: '10',
-    name: 'Camila Vera Dávalos',
-    email: 'c.vera@espoch.edu.ec',
-    career: 'Ing. Electrónica',
-    status: AttendeeStatus.entered,
-    qrData: 'SENTRY|Camila Vera Dávalos|TRF-0915',
-  ),
-];
-
-// â”€â”€â”€ Color de avatar según inicial â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Color de avatar según inicial ─────────────────────────────────────────────
 const List<Color> _avatarPalette = [
   AppColors.sentryBlue,
   AppColors.sentryCyan,
@@ -119,7 +48,7 @@ const List<Color> _avatarPalette = [
 Color _avatarColor(String name) =>
     _avatarPalette[name.codeUnitAt(0) % _avatarPalette.length];
 
-// â”€â”€â”€ Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Screen ────────────────────────────────────────────────────────────────────
 class AttendeesScreen extends StatefulWidget {
   const AttendeesScreen({super.key});
   @override
@@ -131,29 +60,29 @@ class _AttendeesScreenState extends State<AttendeesScreen>
   bool _showOnlyEntered = false;
   final _searchCtrl = TextEditingController();
   String _query = '';
+  bool _loading = true;
+
+  List<Attendee> _attendees = [];
+  int? _eventId;
+  RealtimeChannel? _channel;
 
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
-  late Timer _timer;
-  int _tick = 0;
 
-  // â”€â”€ Estadísticas â”€â”€
-  int get _total => _mockAttendees.length;
+  // ── Estadísticas ──
+  int get _total => _attendees.length;
   int get _entered =>
-      _mockAttendees.where((a) => a.status == AttendeeStatus.entered).length;
+      _attendees.where((a) => a.status == AttendeeStatus.entered).length;
   int get _registered =>
-      _mockAttendees.where((a) => a.status == AttendeeStatus.registered).length;
-  int get _pending =>
-      _mockAttendees.where((a) => a.status == AttendeeStatus.pending).length;
+      _attendees.where((a) => a.status == AttendeeStatus.registered).length;
 
-  List<Attendee> get _filtered => _mockAttendees.where((a) {
+  List<Attendee> get _filtered => _attendees.where((a) {
     final matchStatus = !_showOnlyEntered || a.status == AttendeeStatus.entered;
     final q = _query.toLowerCase();
     final matchQ =
         q.isEmpty ||
         a.name.toLowerCase().contains(q) ||
-        a.email.toLowerCase().contains(q) ||
-        a.career.toLowerCase().contains(q);
+        a.email.toLowerCase().contains(q);
     return matchStatus && matchQ;
   }).toList();
 
@@ -166,17 +95,65 @@ class _AttendeesScreenState extends State<AttendeesScreen>
     );
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _fadeCtrl.forward();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _tick++);
-    });
+    _load();
   }
 
   @override
   void dispose() {
+    _channel?.unsubscribe();
     _fadeCtrl.dispose();
-    _timer.cancel();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final event = await EventService.getActiveEvent();
+      if (event == null) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      _eventId = event.id;
+      await _fetch();
+      _subscribeRealtime(event.id);
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _fetch() async {
+    if (_eventId == null) return;
+    try {
+      final rows = await SupabaseService.client
+          .from('entradas')
+          .select('codigo_qr, estado, usuarios(nombre, email)')
+          .eq('id_evento', _eventId!)
+          .neq('estado', 'cancelado')
+          .order('estado'); // 'activo' antes que 'usado'
+
+      final list = (rows as List).map((r) => Attendee.fromMap(r)).toList();
+      if (mounted) setState(() { _attendees = list; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _subscribeRealtime(int idEvento) {
+    _channel = SupabaseService.client
+        .channel('attendees-$idEvento')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'entradas',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id_evento',
+            value: idEvento,
+          ),
+          callback: (_) => _fetch(),
+        )
+        .subscribe();
   }
 
   TextStyle _ts(double sz, {FontWeight fw = FontWeight.w400, Color? color}) =>
@@ -186,7 +163,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
         color: color ?? AppColors.sentryNavy,
       );
 
-  // â”€â”€ Modal QR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Modal QR ──────────────────────────────────────────────────────────────
   void _showQr(Attendee a) {
     showDialog(
       context: context,
@@ -198,21 +175,14 @@ class _AttendeesScreenState extends State<AttendeesScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Encabezado
               Row(
                 children: [
                   CircleAvatar(
                     radius: 20,
-                    backgroundColor: _avatarColor(
-                      a.name,
-                    ).withValues(alpha: 0.15),
+                    backgroundColor: _avatarColor(a.name).withValues(alpha: 0.15),
                     child: Text(
                       a.name[0],
-                      style: _ts(
-                        15,
-                        fw: FontWeight.w700,
-                        color: _avatarColor(a.name),
-                      ),
+                      style: _ts(15, fw: FontWeight.w700, color: _avatarColor(a.name)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -221,18 +191,12 @@ class _AttendeesScreenState extends State<AttendeesScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(a.name, style: _ts(13, fw: FontWeight.w700)),
-                        Text(
-                          a.career,
-                          style: _ts(11, color: AppColors.sentryGrey),
-                        ),
+                        Text(a.email, style: _ts(11, color: AppColors.sentryGrey)),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      color: AppColors.sentryGrey,
-                    ),
+                    icon: const Icon(Icons.close_rounded, color: AppColors.sentryGrey),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -240,11 +204,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
               const SizedBox(height: 16),
               Text(
                 'Código QR de Acceso',
-                style: _ts(
-                  12,
-                  fw: FontWeight.w600,
-                  color: AppColors.sentryGrey,
-                ),
+                style: _ts(12, fw: FontWeight.w600, color: AppColors.sentryGrey),
               ),
               const SizedBox(height: 14),
               Container(
@@ -270,32 +230,39 @@ class _AttendeesScreenState extends State<AttendeesScreen>
               ),
               const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.1),
+                  color: a.status == AttendeeStatus.entered
+                      ? AppColors.success.withValues(alpha: 0.1)
+                      : AppColors.sentryBlue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: AppColors.success.withValues(alpha: 0.4),
+                    color: a.status == AttendeeStatus.entered
+                        ? AppColors.success.withValues(alpha: 0.4)
+                        : AppColors.sentryBlue.withValues(alpha: 0.4),
                   ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      Icons.verified_rounded,
+                    Icon(
+                      a.status == AttendeeStatus.entered
+                          ? Icons.verified_rounded
+                          : Icons.qr_code_rounded,
                       size: 14,
-                      color: AppColors.success,
+                      color: a.status == AttendeeStatus.entered
+                          ? AppColors.success
+                          : AppColors.sentryBlue,
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      'Acceso verificado',
+                      a.status == AttendeeStatus.entered ? 'Acceso verificado' : 'Acceso pendiente',
                       style: _ts(
                         12,
                         fw: FontWeight.w600,
-                        color: AppColors.success,
+                        color: a.status == AttendeeStatus.entered
+                            ? AppColors.success
+                            : AppColors.sentryBlue,
                       ),
                     ),
                   ],
@@ -310,7 +277,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     final list = _filtered;
@@ -338,7 +305,14 @@ class _AttendeesScreenState extends State<AttendeesScreen>
                     const SizedBox(height: 20),
                     _buildTableHeader(),
                     const SizedBox(height: 8),
-                    if (list.isEmpty)
+                    if (_loading)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 40),
+                          child: CircularProgressIndicator(color: AppColors.sentryBlue),
+                        ),
+                      )
+                    else if (list.isEmpty)
                       _buildEmpty()
                     else
                       ...list.map(
@@ -358,17 +332,13 @@ class _AttendeesScreenState extends State<AttendeesScreen>
     );
   }
 
-  // â”€â”€ AppBar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── AppBar ─────────────────────────────────────────────────────────────────
   SliverAppBar _buildAppBar() => SliverAppBar(
     backgroundColor: AppColors.sentryBg,
     elevation: 0,
     pinned: true,
     leading: IconButton(
-      icon: const Icon(
-        Icons.menu_rounded,
-        color: AppColors.sentryNavy,
-        size: 22,
-      ),
+      icon: const Icon(Icons.menu_rounded, color: AppColors.sentryNavy, size: 22),
       onPressed: () {},
     ),
     title: Column(
@@ -392,23 +362,17 @@ class _AttendeesScreenState extends State<AttendeesScreen>
             Container(
               width: 6,
               height: 6,
-              decoration: const BoxDecoration(
-                color: AppColors.success,
-                shape: BoxShape.circle,
-              ),
+              decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
             ),
             const SizedBox(width: 5),
-            Text(
-              'En vivo',
-              style: _ts(10, fw: FontWeight.w600, color: AppColors.success),
-            ),
+            Text('En vivo', style: _ts(10, fw: FontWeight.w600, color: AppColors.success)),
           ],
         ),
       ),
     ],
   );
 
-  // â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Header ─────────────────────────────────────────────────────────────────
   Widget _buildHeader() => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -418,7 +382,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
           children: [
             Text('Asistentes', style: _ts(24, fw: FontWeight.w800)),
             Text(
-              'RF21 Â· RF22 â€” Lista de asistentes en tiempo real',
+              'Lista de asistentes en tiempo real',
               style: _ts(11, color: AppColors.sentryGrey),
             ),
           ],
@@ -438,10 +402,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
             Container(
               width: 7,
               height: 7,
-              decoration: const BoxDecoration(
-                color: AppColors.success,
-                shape: BoxShape.circle,
-              ),
+              decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
             ),
             const SizedBox(width: 7),
             Text(
@@ -454,7 +415,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
     ],
   );
 
-  // â”€â”€ Estadísticas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Estadísticas ────────────────────────────────────────────────────────────
   Widget _buildStatsRow() => Row(
     children: [
       _StatTile(
@@ -474,16 +435,16 @@ class _AttendeesScreenState extends State<AttendeesScreen>
       ),
       const SizedBox(width: 10),
       _StatTile(
-        icon: Icons.schedule_rounded,
-        color: AppColors.warning,
-        value: '$_pending',
-        label: 'Pendiente\npago',
+        icon: Icons.people_alt_rounded,
+        color: AppColors.sentryNavy,
+        value: '$_total',
+        label: 'Total\nentradas',
         ts: _ts,
       ),
     ],
   );
 
-  // â”€â”€ Filtros â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Filtros ─────────────────────────────────────────────────────────────────
   Widget _buildFilterTabs() => Row(
     children: [
       _FilterTab(
@@ -502,7 +463,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
     ],
   );
 
-  // â”€â”€ Búsqueda â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Búsqueda ────────────────────────────────────────────────────────────────
   Widget _buildSearchBar() => TextField(
     controller: _searchCtrl,
     onChanged: (v) => setState(() => _query = v),
@@ -510,22 +471,11 @@ class _AttendeesScreenState extends State<AttendeesScreen>
     decoration: InputDecoration(
       hintText: 'Buscar asistente...',
       hintStyle: _ts(14, color: AppColors.sentryGrey),
-      prefixIcon: const Icon(
-        Icons.search_rounded,
-        color: AppColors.sentryGrey,
-        size: 20,
-      ),
+      prefixIcon: const Icon(Icons.search_rounded, color: AppColors.sentryGrey, size: 20),
       suffixIcon: _query.isNotEmpty
           ? IconButton(
-              icon: const Icon(
-                Icons.clear_rounded,
-                size: 18,
-                color: AppColors.sentryGrey,
-              ),
-              onPressed: () => setState(() {
-                _query = '';
-                _searchCtrl.clear();
-              }),
+              icon: const Icon(Icons.clear_rounded, size: 18, color: AppColors.sentryGrey),
+              onPressed: () => setState(() { _query = ''; _searchCtrl.clear(); }),
             )
           : null,
       filled: true,
@@ -546,31 +496,21 @@ class _AttendeesScreenState extends State<AttendeesScreen>
     ),
   );
 
-  // â”€â”€ Encabezado de tabla â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Encabezado de tabla ─────────────────────────────────────────────────────
   Widget _buildTableHeader() => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 4),
     child: Row(
       children: [
         Expanded(
-          child: Text(
-            'Asistente',
-            style: _ts(11, fw: FontWeight.w600, color: AppColors.sentryGrey),
-          ),
+          child: Text('Asistente', style: _ts(11, fw: FontWeight.w600, color: AppColors.sentryGrey)),
         ),
         SizedBox(
           width: 84,
-          child: Text(
-            'Carrera',
-            style: _ts(11, fw: FontWeight.w600, color: AppColors.sentryGrey),
-          ),
+          child: Text('Email', style: _ts(11, fw: FontWeight.w600, color: AppColors.sentryGrey)),
         ),
         SizedBox(
           width: 40,
-          child: Text(
-            'QR',
-            textAlign: TextAlign.center,
-            style: _ts(11, fw: FontWeight.w600, color: AppColors.sentryGrey),
-          ),
+          child: Text('QR', textAlign: TextAlign.center, style: _ts(11, fw: FontWeight.w600, color: AppColors.sentryGrey)),
         ),
       ],
     ),
@@ -581,14 +521,10 @@ class _AttendeesScreenState extends State<AttendeesScreen>
       padding: const EdgeInsets.only(top: 60),
       child: Column(
         children: [
-          Icon(
-            Icons.people_outline_rounded,
-            size: 64,
-            color: AppColors.sentryGrey.withValues(alpha: 0.5),
-          ),
+          Icon(Icons.people_outline_rounded, size: 64, color: AppColors.sentryGrey.withValues(alpha: 0.5)),
           const SizedBox(height: 12),
           Text(
-            'Sin resultados',
+            _eventId == null ? 'No hay evento activo' : 'Sin resultados',
             style: _ts(16, fw: FontWeight.w600, color: AppColors.sentryGrey),
           ),
         ],
@@ -597,7 +533,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
   );
 }
 
-// â”€â”€â”€ Tarjeta de estadística â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Tarjeta de estadística ────────────────────────────────────────────────────
 class _StatTile extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -643,25 +579,17 @@ class _StatTile extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: GoogleFonts.outfit(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
+            style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.w800, color: color),
           ),
           const SizedBox(height: 2),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: ts(10, color: AppColors.sentryGrey),
-          ),
+          Text(label, textAlign: TextAlign.center, style: ts(10, color: AppColors.sentryGrey)),
         ],
       ),
     ),
   );
 }
 
-// â”€â”€â”€ Tab de filtro â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Tab de filtro ─────────────────────────────────────────────────────────────
 class _FilterTab extends StatelessWidget {
   final String label;
   final int count;
@@ -688,13 +616,7 @@ class _FilterTab extends StatelessWidget {
           color: active ? AppColors.sentryBlue : AppColors.cardBorder,
         ),
         boxShadow: active
-            ? [
-                BoxShadow(
-                  color: AppColors.sentryBlue.withValues(alpha: 0.25),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ]
+            ? [BoxShadow(color: AppColors.sentryBlue.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3))]
             : [],
       ),
       child: Row(
@@ -712,9 +634,7 @@ class _FilterTab extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: active
-                  ? Colors.white.withValues(alpha: 0.25)
-                  : AppColors.sentryBg,
+              color: active ? Colors.white.withValues(alpha: 0.25) : AppColors.sentryBg,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
@@ -732,7 +652,7 @@ class _FilterTab extends StatelessWidget {
   );
 }
 
-// â”€â”€â”€ Fila de asistente â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Fila de asistente ─────────────────────────────────────────────────────────
 class _AttendeeRow extends StatelessWidget {
   final Attendee attendee;
   final VoidCallback? onQr;
@@ -748,19 +668,7 @@ class _AttendeeRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final a = attendee;
     final aColor = _avatarColor(a.name);
-
-    Color accent;
-    switch (a.status) {
-      case AttendeeStatus.entered:
-        accent = AppColors.success;
-        break;
-      case AttendeeStatus.registered:
-        accent = AppColors.sentryBlue;
-        break;
-      case AttendeeStatus.pending:
-        accent = AppColors.warning;
-        break;
-    }
+    final accent = a.status == AttendeeStatus.entered ? AppColors.success : AppColors.sentryBlue;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -776,99 +684,88 @@ class _AttendeeRow extends StatelessWidget {
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: IntrinsicHeight(
-          child: Row(
-            children: [
-              // Barra lateral de estado
-              Container(width: 4, color: accent),
-              // Contenido
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 13,
-                  ),
-                  child: Row(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            // Avatar + nombre + estado
+            Expanded(
+              child: Row(
+                children: [
+                  Stack(
                     children: [
-                      // Avatar
                       CircleAvatar(
-                        radius: 21,
+                        radius: 18,
                         backgroundColor: aColor.withValues(alpha: 0.15),
                         child: Text(
-                          a.name[0],
-                          style: ts(15, fw: FontWeight.w700, color: aColor),
+                          a.name.isNotEmpty ? a.name[0].toUpperCase() : '?',
+                          style: ts(13, fw: FontWeight.w700, color: aColor),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      // Nombre + email
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              a.name,
-                              style: ts(13, fw: FontWeight.w700),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              a.email,
-                              style: ts(10, color: AppColors.sentryGrey),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: accent,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
                         ),
-                      ),
-                      // Carrera
-                      SizedBox(
-                        width: 72,
-                        child: Text(
-                          a.career,
-                          style: ts(10, color: AppColors.sentryGrey),
-                        ),
-                      ),
-                      // Botón QR
-                      SizedBox(
-                        width: 36,
-                        child: a.qrData != null
-                            ? GestureDetector(
-                                onTap: onQr,
-                                child: Container(
-                                  width: 34,
-                                  height: 34,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.sentryBlue.withValues(
-                                      alpha: 0.1,
-                                    ),
-                                    borderRadius: BorderRadius.circular(9),
-                                    border: Border.all(
-                                      color: AppColors.sentryBlue.withValues(
-                                        alpha: 0.3,
-                                      ),
-                                    ),
-                                  ),
-                                  child: const Icon(
-                                    Icons.qr_code_2_rounded,
-                                    size: 18,
-                                    color: AppColors.sentryBlue,
-                                  ),
-                                ),
-                              )
-                            : Center(
-                                child: Text(
-                                  'â€”',
-                                  style: ts(14, color: AppColors.sentryGrey),
-                                ),
-                              ),
                       ),
                     ],
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          a.name,
+                          style: ts(13, fw: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          a.status == AttendeeStatus.entered ? 'Ingresó' : 'Registrado',
+                          style: ts(10, color: accent),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            // Email abreviado
+            SizedBox(
+              width: 84,
+              child: Text(
+                a.email.split('@').first,
+                style: ts(11, color: AppColors.sentryGrey),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            // Botón QR
+            SizedBox(
+              width: 40,
+              child: Center(
+                child: onQr != null
+                    ? GestureDetector(
+                        onTap: onQr,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: AppColors.sentryBlue.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.qr_code_rounded, size: 16, color: AppColors.sentryBlue),
+                        ),
+                      )
+                    : Icon(Icons.remove, size: 14, color: AppColors.sentryGrey.withValues(alpha: 0.4)),
+              ),
+            ),
+          ],
         ),
       ),
     );

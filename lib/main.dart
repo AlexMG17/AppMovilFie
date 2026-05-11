@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'services/supabase_service.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'screens/admin_shell_screen.dart';
 import 'screens/login_screen.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'screens/admin_dashboard_screen.dart';
-import 'screens/payment_vouchers_screen.dart';
 import 'screens/guard_screen.dart';
 import 'theme/app_colors.dart';
 import 'screens/home_screen.dart';
+import 'services/supabase_service.dart';
 
 Future<void> main() async {
-  // Asegura que los bindings de Flutter estén listos
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Comentado temporalmente para centrarte en el diseño sin errores de conexión
-  // await SupabaseService.initialize();
-
-
+  await SupabaseService.initialize();
+  await GoogleSignIn.instance.initialize(
+    serverClientId:
+        '20543870962-g64kl64vhdu5dlthkmlglgq5qfl6ocg0.apps.googleusercontent.com',
+  );
   runApp(const SentryApp());
 }
 

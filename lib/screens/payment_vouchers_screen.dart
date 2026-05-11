@@ -1,95 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/event_service.dart';
+import '../services/payment_service.dart' show PaymentService, PagoAdminModel;
+import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 
-// â”€â”€â”€ Modelo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-enum VoucherStatus { pending, approved, rejected }
-
-class PaymentVoucher {
-  final String id;
-  final String name;
-  final String career;
-  final String reference;
-  final DateTime date;
-  VoucherStatus status;
-  String? qrData;
-
-  PaymentVoucher({
-    required this.id,
-    required this.name,
-    required this.career,
-    required this.reference,
-    required this.date,
-    this.status = VoucherStatus.pending,
-    this.qrData,
-  });
-}
-
-// â”€â”€â”€ Datos simulados â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-List<PaymentVoucher> _mockVouchers = [
-  PaymentVoucher(
-    id: '1',
-    name: 'Carlos Mendoza Rivas',
-    career: 'Ing. Sistemas',
-    reference: 'TRF-0931',
-    date: DateTime(2026, 6, 14, 10, 32),
-    status: VoucherStatus.pending,
-  ),
-  PaymentVoucher(
-    id: '2',
-    name: 'Ana Torres Guzmán',
-    career: 'Ing. Electrónica',
-    reference: 'TRF-0847',
-    date: DateTime(2026, 6, 13, 15, 20),
-    status: VoucherStatus.approved,
-    qrData: 'SENTRY|Ana Torres Guzmán|TRF-0847',
-  ),
-  PaymentVoucher(
-    id: '3',
-    name: 'Diego Flores Castillo',
-    career: 'Ing. Telecom.',
-    reference: 'TRF-0799',
-    date: DateTime(2026, 6, 13, 9, 15),
-    status: VoucherStatus.rejected,
-  ),
-  PaymentVoucher(
-    id: '4',
-    name: 'Sofía Ramírez León',
-    career: 'Ing. Sistemas',
-    reference: 'TRF-0912',
-    date: DateTime(2026, 6, 14, 8, 44),
-    status: VoucherStatus.pending,
-  ),
-  PaymentVoucher(
-    id: '5',
-    name: 'Luis Cáceres Mora',
-    career: 'Ing. Electrónica',
-    reference: 'TRF-0823',
-    date: DateTime(2026, 6, 12, 16, 5),
-    status: VoucherStatus.approved,
-    qrData: 'SENTRY|Luis Cáceres Mora|TRF-0823',
-  ),
-  PaymentVoucher(
-    id: '6',
-    name: 'María Salinas Cruz',
-    career: 'Ing. Sistemas',
-    reference: 'TRF-0888',
-    date: DateTime(2026, 6, 13, 11, 30),
-    status: VoucherStatus.approved,
-    qrData: 'SENTRY|María Salinas Cruz|TRF-0888',
-  ),
-  PaymentVoucher(
-    id: '7',
-    name: 'Pedro Aguirre Vega',
-    career: 'Ing. Civil',
-    reference: 'TRF-0754',
-    date: DateTime(2026, 6, 12, 9, 0),
-    status: VoucherStatus.pending,
-  ),
-];
-
-// â”€â”€â”€ Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 class PaymentVouchersScreen extends StatefulWidget {
   const PaymentVouchersScreen({super.key});
   @override
@@ -97,176 +14,353 @@ class PaymentVouchersScreen extends StatefulWidget {
 }
 
 class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
-  VoucherStatus? _filter; // null = Todos
-  final _search = TextEditingController();
+  List<PagoAdminModel> _pagos = [];
+  bool _loading = true;
+  String? _error;
+  String? _filterEstado;
+  final _searchCtrl = TextEditingController();
   String _query = '';
+  int? _eventId;
+  String _eventName = 'Gala FIE';
+  final Set<int> _processing = {};
+  RealtimeChannel? _channel;
 
-  List<PaymentVoucher> get _filtered {
-    return _mockVouchers.where((v) {
-      final matchStatus = _filter == null || v.status == _filter;
-      final matchSearch =
-          _query.isEmpty ||
-          v.name.toLowerCase().contains(_query.toLowerCase()) ||
-          v.reference.toLowerCase().contains(_query.toLowerCase());
-      return matchStatus && matchSearch;
-    }).toList();
+  // ── computed ──────────────────────────────────────────────────────────────
+
+  List<PagoAdminModel> get _filtered => _pagos.where((p) {
+        final ms = _filterEstado == null || p.estado == _filterEstado;
+        final mq = _query.isEmpty ||
+            p.nombreUsuario.toLowerCase().contains(_query.toLowerCase()) ||
+            p.emailUsuario.toLowerCase().contains(_query.toLowerCase());
+        return ms && mq;
+      }).toList();
+
+  int _count(String? e) =>
+      e == null ? _pagos.length : _pagos.where((p) => p.estado == e).length;
+
+  // ── lifecycle ─────────────────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
   }
 
-  int _count(VoucherStatus? s) => s == null
-      ? _mockVouchers.length
-      : _mockVouchers.where((v) => v.status == s).length;
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _channel?.unsubscribe();
+    super.dispose();
+  }
 
-  // â”€â”€ Helpers de texto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  TextStyle _ts(double sz, {FontWeight fw = FontWeight.w400, Color? color}) =>
-      GoogleFonts.outfit(
-        fontSize: sz,
-        fontWeight: fw,
-        color: color ?? AppColors.sentryNavy,
-      );
+  // ── data ──────────────────────────────────────────────────────────────────
 
-  // â”€â”€ Chip de estado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  Widget _statusChip(VoucherStatus s) {
-    final map = {
-      VoucherStatus.pending: (
-        label: 'Pendiente',
-        bg: const Color(0xFFFFF3E0),
-        fg: const Color(0xFFE65100),
-      ),
-      VoucherStatus.approved: (
-        label: 'Aprobado',
-        bg: const Color(0xFFE8F5E9),
-        fg: const Color(0xFF2E7D32),
-      ),
-      VoucherStatus.rejected: (
-        label: 'Rechazado',
-        bg: const Color(0xFFFFEBEE),
-        fg: const Color(0xFFC62828),
-      ),
-    };
-    final c = map[s]!;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: c.bg,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        c.label,
-        style: _ts(11, fw: FontWeight.w600, color: c.fg),
+  Future<void> _loadData() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final event = await EventService.getActiveEvent();
+      if (event == null) {
+        if (mounted) {
+          setState(() {
+            _loading = false;
+            _error = 'No hay evento activo.';
+          });
+        }
+        return;
+      }
+      _eventId = event.id;
+      _eventName = event.nombre;
+      final pagos = await PaymentService.getAllPagos(idEvento: event.id);
+      if (!mounted) return;
+      setState(() {
+        _pagos = pagos;
+        _loading = false;
+      });
+      _subscribeRealtime(event.id);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  // API #4 — Supabase Realtime: nuevos comprobantes aparecen sin refrescar
+  void _subscribeRealtime(int idEvento) {
+    _channel?.unsubscribe();
+    _channel = SupabaseService.client
+        .channel('pagos-admin-$idEvento')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'pagos',
+          callback: (_) {
+            if (mounted) _refreshSilent();
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _refreshSilent() async {
+    if (_eventId == null) return;
+    try {
+      final pagos = await PaymentService.getAllPagos(idEvento: _eventId!);
+      if (mounted) setState(() => _pagos = pagos);
+    } catch (_) {}
+  }
+
+  // ── actions ───────────────────────────────────────────────────────────────
+
+  Future<void> _approve(PagoAdminModel p) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Aprobar pago', style: _ts(16, fw: FontWeight.w700)),
+        content: Text(
+          '¿Confirmas la aprobación del pago de ${p.nombreUsuario}?\n'
+          'Se generará su código QR de acceso.',
+          style: _ts(13, c: AppColors.sentryGrey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancelar', style: _ts(13, c: AppColors.sentryGrey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child:
+                Text('Aprobar', style: _ts(13, fw: FontWeight.w600, c: Colors.white)),
+          ),
+        ],
       ),
     );
+    if (ok != true || !mounted) return;
+
+    setState(() => _processing.add(p.id));
+    try {
+      final qrCode = await PaymentService.approvePago(
+        idPago: p.id,
+        idUsuario: p.idUsuario,
+        idEvento: p.idEvento,
+      );
+      if (mounted) {
+        await _refreshSilent();
+        _showQrDialog(p.nombreUsuario, qrCode);
+        _showSnack('✓ ${p.nombreUsuario} aprobado. QR generado.');
+      }
+    } catch (e) {
+      if (mounted) _showSnack('Error: ${e.toString()}', isError: true);
+    } finally {
+      if (mounted) setState(() => _processing.remove(p.id));
+    }
   }
 
-  // â”€â”€ Diálogo: ver comprobante â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  void _showVoucher(PaymentVoucher v) {
+  Future<void> _reject(PagoAdminModel p) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Rechazar pago', style: _ts(16, fw: FontWeight.w700)),
+        content: Text(
+          '¿Rechazar el comprobante de ${p.nombreUsuario}?',
+          style: _ts(13, c: AppColors.sentryGrey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancelar', style: _ts(13, c: AppColors.sentryGrey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('Rechazar',
+                style: _ts(13, fw: FontWeight.w600, c: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _processing.add(p.id));
+    try {
+      await PaymentService.rejectPago(idPago: p.id);
+      if (mounted) {
+        await _refreshSilent();
+        _showSnack('Comprobante de ${p.nombreUsuario} rechazado.');
+      }
+    } catch (e) {
+      if (mounted) _showSnack('Error: ${e.toString()}', isError: true);
+    } finally {
+      if (mounted) setState(() => _processing.remove(p.id));
+    }
+  }
+
+  Future<void> _showExistingQr(PagoAdminModel p) async {
+    final entry = await PaymentService.getMyEntry(
+      idUsuario: p.idUsuario,
+      idEvento: p.idEvento,
+    );
+    if (!mounted) return;
+    if (entry == null) {
+      _showSnack('No se encontró el QR.', isError: true);
+      return;
+    }
+    _showQrDialog(p.nombreUsuario, entry['codigo_qr'] ?? '');
+  }
+
+  void _showSnack(String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: isError ? AppColors.error : AppColors.success,
+    ));
+  }
+
+  // ── dialogs / sheets ──────────────────────────────────────────────────────
+
+  void _showVoucherSheet(PagoAdminModel p) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.65,
+        maxChildSize: 0.95,
+        builder: (_, ctrl) => SingleChildScrollView(
+          controller: ctrl,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2)),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Text('Comprobante de Pago', style: _ts(18, fw: FontWeight.w700)),
-            const SizedBox(height: 16),
-            _detailRow('Asistente', v.name),
-            _detailRow('Carrera', v.career),
-            _detailRow('Referencia', '#${v.reference}'),
-            _detailRow(
-              'Fecha',
-              '${v.date.day}/${v.date.month}/${v.date.year}  ${_pad(v.date.hour)}:${_pad(v.date.minute)}',
-            ),
-            _detailRow(
-              'Estado',
-              v.status == VoucherStatus.pending
-                  ? 'Pendiente'
-                  : v.status == VoucherStatus.approved
-                  ? 'Aprobado'
-                  : 'Rechazado',
-            ),
-            const SizedBox(height: 16),
-            // imagen simulada del comprobante
-            Container(
-              width: double.infinity,
-              height: 160,
-              decoration: BoxDecoration(
-                color: AppColors.sentryBg,
+              const SizedBox(height: 20),
+              Text('Comprobante de Pago',
+                  style: _ts(18, fw: FontWeight.w700)),
+              const SizedBox(height: 16),
+              _detailRow('Estudiante', p.nombreUsuario),
+              _detailRow('Email', p.emailUsuario),
+              _detailRow(
+                'Fecha',
+                '${p.fechaPago.day}/${p.fechaPago.month}/${p.fechaPago.year}'
+                '  ${_pad(p.fechaPago.hour)}:${_pad(p.fechaPago.minute)}',
+              ),
+              _detailRow('Estado', p.estado.toUpperCase()),
+              if (!p.comprobanteIsUrl && p.comprobante != null)
+                _detailRow('Referencia', p.comprobante!),
+              const SizedBox(height: 16),
+              // Imagen del comprobante (API #3 — Supabase Storage serving)
+              ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.cardBorder),
+                child: p.comprobanteIsUrl
+                    ? Image.network(
+                        p.comprobante!,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (_, child, prog) => prog == null
+                            ? child
+                            : Container(
+                                height: 180,
+                                color: AppColors.sentryBg,
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                      color: AppColors.sentryBlue),
+                                ),
+                              ),
+                        errorBuilder: (_, _, _) => _imgPlaceholder(
+                            'No se pudo cargar la imagen'),
+                      )
+                    : _imgPlaceholder(
+                        p.comprobante ?? 'Sin archivo adjunto'),
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.image_outlined,
-                    size: 48,
-                    color: AppColors.sentryGrey,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Imagen del comprobante',
-                    style: _ts(12, color: AppColors.sentryGrey),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _detailRow(String label, String value) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Row(
-      children: [
-        SizedBox(
-          width: 90,
-          child: Text(label, style: _ts(12, color: AppColors.sentryGrey)),
+  Widget _imgPlaceholder(String text) => Container(
+        width: double.infinity,
+        height: 140,
+        decoration: BoxDecoration(
+          color: AppColors.sentryBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.cardBorder),
         ),
-        Expanded(
-          child: Text(value, style: _ts(13, fw: FontWeight.w600)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.receipt_long_outlined,
+                size: 40, color: AppColors.sentryGrey),
+            const SizedBox(height: 8),
+            Text(text,
+                style: _ts(12, c: AppColors.sentryGrey),
+                textAlign: TextAlign.center),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 
-  // â”€â”€ Diálogo: ver QR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  void _showQr(PaymentVoucher v) {
+  void _showQrDialog(String nombre, String qrCode) {
     showDialog(
       context: context,
       builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Código QR de Acceso', style: _ts(16, fw: FontWeight.w700)),
-              const SizedBox(height: 8),
-              Text(v.name, style: _ts(13, color: AppColors.sentryGrey)),
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_rounded,
+                    color: AppColors.success, size: 28),
+              ),
+              const SizedBox(height: 12),
+              Text('QR Generado', style: _ts(16, fw: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(nombre,
+                  style: _ts(13, c: AppColors.sentryGrey),
+                  textAlign: TextAlign.center),
               const SizedBox(height: 20),
+              // API #8 — qr_flutter: QR generado localmente
               QrImageView(
-                data: v.qrData ?? 'SENTRY|${v.name}|${v.reference}',
+                data: qrCode,
                 version: QrVersions.auto,
-                size: 200,
+                size: 180,
                 eyeStyle: const QrEyeStyle(
                   color: AppColors.sentryNavy,
                   eyeShape: QrEyeShape.square,
@@ -276,15 +370,10 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
                   dataModuleShape: QrDataModuleShape.square,
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                '#${v.reference}',
-                style: _ts(
-                  12,
-                  fw: FontWeight.w600,
-                  color: AppColors.sentryBlue,
-                ),
-              ),
+              const SizedBox(height: 8),
+              Text(qrCode,
+                  style: _ts(9, c: AppColors.sentryGrey),
+                  textAlign: TextAlign.center),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
@@ -294,13 +383,10 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
                     backgroundColor: AppColors.sentryBlue,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: Text(
-                    'Cerrar',
-                    style: _ts(14, fw: FontWeight.w600, color: Colors.white),
-                  ),
+                  child: Text('Cerrar',
+                      style: _ts(14, fw: FontWeight.w600, c: Colors.white)),
                 ),
               ),
             ],
@@ -310,121 +396,16 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
     );
   }
 
-  // â”€â”€ Aprobar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  void _approve(PaymentVoucher v) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Aprobar comprobante', style: _ts(16, fw: FontWeight.w700)),
-        content: Text(
-          'Â¿Confirmas la aprobación del pago de ${v.name}? Se generará un código QR de acceso.',
-          style: _ts(13, color: AppColors.sentryGrey),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancelar',
-              style: _ts(13, color: AppColors.sentryGrey),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                v.status = VoucherStatus.approved;
-                v.qrData = 'SENTRY|${v.name}|${v.reference}|GALA-FIE-2026';
-              });
-              Navigator.pop(context);
-              _showQr(v);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2E7D32),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: Text(
-              'Aprobar',
-              style: _ts(13, fw: FontWeight.w600, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // ── build ─────────────────────────────────────────────────────────────────
 
-  // â”€â”€ Rechazar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  void _reject(PaymentVoucher v) {
-    final reasonCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Rechazar comprobante',
-          style: _ts(16, fw: FontWeight.w700),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Indica el motivo del rechazo para ${v.name}:',
-              style: _ts(13, color: AppColors.sentryGrey),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonCtrl,
-              maxLines: 3,
-              style: _ts(13),
-              decoration: InputDecoration(
-                hintText: 'Ej. Comprobante ilegible...',
-                hintStyle: _ts(13, color: AppColors.sentryGrey),
-                filled: true,
-                fillColor: AppColors.sentryBg,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancelar',
-              style: _ts(13, color: AppColors.sentryGrey),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() => v.status = VoucherStatus.rejected);
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFC62828),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: Text(
-              'Rechazar',
-              style: _ts(13, fw: FontWeight.w600, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   @override
   Widget build(BuildContext context) {
-    final list = _filtered;
+    if (_loading) {
+      return const Center(
+          child: CircularProgressIndicator(color: AppColors.sentryBlue));
+    }
+    if (_error != null) return _buildError();
+
     return Scaffold(
       backgroundColor: AppColors.sentryBg,
       body: SafeArea(
@@ -443,20 +424,7 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
                   const SizedBox(height: 16),
                   _buildSummaryRow(),
                   const SizedBox(height: 16),
-                  if (list.isEmpty)
-                    _buildEmpty()
-                  else
-                    ...list.map(
-                      (v) => _VoucherCard(
-                        voucher: v,
-                        onView: () => _showVoucher(v),
-                        onApprove: () => _approve(v),
-                        onReject: () => _reject(v),
-                        onQr: () => _showQr(v),
-                        ts: _ts,
-                        statusChip: _statusChip(v.status),
-                      ),
-                    ),
+                  ..._buildList(),
                 ]),
               ),
             ),
@@ -466,163 +434,174 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
     );
   }
 
-  // â”€â”€ AppBar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  SliverAppBar _buildAppBar() => SliverAppBar(
-    backgroundColor: AppColors.sentryBg,
-    elevation: 0,
-    pinned: true,
-    leading: IconButton(
-      icon: const Icon(Icons.menu_rounded, color: AppColors.sentryNavy),
-      onPressed: () {},
-    ),
-    title: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Comprobantes de Pago', style: _ts(16, fw: FontWeight.w700)),
-        Text('Gala FIE 2026', style: _ts(11, color: AppColors.sentryGrey)),
-      ],
-    ),
-    actions: [
-      Container(
-        margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppColors.success.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.success.withValues(alpha: 0.4)),
+  Widget _buildError() => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 56, color: AppColors.error),
+              const SizedBox(height: 12),
+              Text(_error!,
+                  style: _ts(14, c: AppColors.sentryGrey),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                  onPressed: _loadData, child: const Text('Reintentar')),
+            ],
+          ),
         ),
-        child: Row(
+      );
+
+  SliverAppBar _buildAppBar() => SliverAppBar(
+        backgroundColor: AppColors.sentryBg,
+        elevation: 0,
+        pinned: true,
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.sentryNavy),
+          onPressed: () {},
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: AppColors.success,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              'En vivo',
-              style: _ts(10, fw: FontWeight.w600, color: AppColors.success),
-            ),
+            Text('Comprobantes de Pago',
+                style: _ts(16, fw: FontWeight.w700)),
+            Text(_eventName, style: _ts(11, c: AppColors.sentryGrey)),
           ],
         ),
-      ),
-    ],
-  );
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded,
+                color: AppColors.sentryBlue),
+            onPressed: _loadData,
+            tooltip: 'Actualizar',
+          ),
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                  color: AppColors.success.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                      color: AppColors.success, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 4),
+                Text('En vivo',
+                    style: _ts(10,
+                        fw: FontWeight.w600, c: AppColors.success)),
+              ],
+            ),
+          ),
+        ],
+      );
 
-  // â”€â”€ Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildSearch() => TextField(
-    controller: _search,
-    onChanged: (v) => setState(() => _query = v),
-    style: _ts(14),
-    decoration: InputDecoration(
-      hintText: 'Buscar por nombre o referencia...',
-      hintStyle: _ts(14, color: AppColors.sentryGrey),
-      prefixIcon: const Icon(
-        Icons.search_rounded,
-        color: AppColors.sentryGrey,
-        size: 20,
-      ),
-      suffixIcon: _query.isNotEmpty
-          ? IconButton(
-              icon: const Icon(
-                Icons.clear_rounded,
-                size: 18,
-                color: AppColors.sentryGrey,
-              ),
-              onPressed: () => setState(() {
-                _query = '';
-                _search.clear();
-              }),
-            )
-          : null,
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: AppColors.cardBorder),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppColors.sentryCyan, width: 1.5),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    ),
-  );
+        controller: _searchCtrl,
+        onChanged: (v) => setState(() => _query = v),
+        style: _ts(14),
+        decoration: InputDecoration(
+          hintText: 'Buscar por nombre o email...',
+          hintStyle: _ts(14, c: AppColors.sentryGrey),
+          prefixIcon: const Icon(Icons.search_rounded,
+              color: AppColors.sentryGrey, size: 20),
+          suffixIcon: _query.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear_rounded,
+                      size: 18, color: AppColors.sentryGrey),
+                  onPressed: () =>
+                      setState(() {
+                        _query = '';
+                        _searchCtrl.clear();
+                      }),
+                )
+              : null,
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: AppColors.cardBorder)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide:
+                  const BorderSide(color: AppColors.sentryCyan, width: 1.5)),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+      );
 
-  // â”€â”€ Filtros â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildFilters() => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: Row(
-      children: [
-        _filterChip(null, 'Todos'),
-        const SizedBox(width: 8),
-        _filterChip(VoucherStatus.pending, 'Pendientes'),
-        const SizedBox(width: 8),
-        _filterChip(VoucherStatus.approved, 'Aprobados'),
-        const SizedBox(width: 8),
-        _filterChip(VoucherStatus.rejected, 'Rechazados'),
-      ],
-    ),
-  );
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _filterChip(null, 'Todos'),
+            const SizedBox(width: 8),
+            _filterChip('pendiente', 'Pendientes'),
+            const SizedBox(width: 8),
+            _filterChip('aprobado', 'Aprobados'),
+            const SizedBox(width: 8),
+            _filterChip('rechazado', 'Rechazados'),
+          ],
+        ),
+      );
 
-  Widget _filterChip(VoucherStatus? s, String label) {
-    final active = _filter == s;
-    final count = _count(s);
+  Widget _filterChip(String? estado, String label) {
+    final active = _filterEstado == estado;
     return GestureDetector(
-      onTap: () => setState(() => _filter = s),
+      onTap: () => setState(() => _filterEstado = estado),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: active ? AppColors.sentryBlue : Colors.white,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: active ? AppColors.sentryBlue : AppColors.cardBorder,
-          ),
+              color: active ? AppColors.sentryBlue : AppColors.cardBorder),
           boxShadow: active
               ? [
                   BoxShadow(
-                    color: AppColors.sentryBlue.withValues(alpha: 0.25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
+                      color: AppColors.sentryBlue.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3))
                 ]
               : [],
         ),
         child: Row(
           children: [
-            Text(
-              label,
-              style: _ts(
-                13,
-                fw: FontWeight.w600,
-                color: active ? Colors.white : AppColors.sentryNavy,
-              ),
-            ),
+            Text(label,
+                style: _ts(13,
+                    fw: FontWeight.w600,
+                    c: active
+                        ? Colors.white
+                        : AppColors.sentryNavy)),
             const SizedBox(width: 6),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
                 color: active
                     ? Colors.white.withValues(alpha: 0.25)
                     : AppColors.sentryBg,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(
-                '$count',
-                style: _ts(
-                  11,
-                  fw: FontWeight.w700,
-                  color: active ? Colors.white : AppColors.sentryBlue,
-                ),
-              ),
+              child: Text('${_count(estado)}',
+                  style: _ts(11,
+                      fw: FontWeight.w700,
+                      c: active
+                          ? Colors.white
+                          : AppColors.sentryBlue)),
             ),
           ],
         ),
@@ -630,94 +609,65 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
     );
   }
 
-  // â”€â”€ Fila resumen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildSummaryRow() => Row(
-    children: [
-      _summaryTile('Total', '${_count(null)}', AppColors.sentryBlue),
-      const SizedBox(width: 8),
-      _summaryTile(
-        'Pendientes',
-        '${_count(VoucherStatus.pending)}',
-        const Color(0xFFE65100),
-      ),
-      const SizedBox(width: 8),
-      _summaryTile(
-        'Aprobados',
-        '${_count(VoucherStatus.approved)}',
-        const Color(0xFF2E7D32),
-      ),
-      const SizedBox(width: 8),
-      _summaryTile(
-        'Rechazados',
-        '${_count(VoucherStatus.rejected)}',
-        const Color(0xFFC62828),
-      ),
-    ],
-  );
-
-  Widget _summaryTile(String label, String value, Color color) => Expanded(
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Column(
         children: [
-          Text(
-            value,
-            style: _ts(20, fw: FontWeight.w800, color: color),
-          ),
-          Text(label, style: _ts(10, color: AppColors.sentryGrey)),
+          _summaryTile('Total', _count(null), AppColors.sentryBlue),
+          const SizedBox(width: 8),
+          _summaryTile(
+              'Pendientes', _count('pendiente'), const Color(0xFFE65100)),
+          const SizedBox(width: 8),
+          _summaryTile(
+              'Aprobados', _count('aprobado'), const Color(0xFF2E7D32)),
+          const SizedBox(width: 8),
+          _summaryTile(
+              'Rechazados', _count('rechazado'), const Color(0xFFC62828)),
         ],
-      ),
-    ),
-  );
+      );
 
-  Widget _buildEmpty() => Center(
-    child: Padding(
-      padding: const EdgeInsets.only(top: 60),
-      child: Column(
-        children: [
-          Icon(
-            Icons.inbox_outlined,
-            size: 64,
-            color: AppColors.sentryGrey.withValues(alpha: 0.5),
+  Widget _summaryTile(String label, int value, Color color) => Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.cardBorder),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Sin resultados',
-            style: _ts(16, fw: FontWeight.w600, color: AppColors.sentryGrey),
+          child: Column(
+            children: [
+              Text('$value', style: _ts(20, fw: FontWeight.w800, c: color)),
+              Text(label, style: _ts(10, c: AppColors.sentryGrey)),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 
-  String _pad(int n) => n.toString().padLeft(2, '0');
-}
+  List<Widget> _buildList() {
+    final list = _filtered;
+    if (list.isEmpty) {
+      return [
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 60),
+            child: Column(
+              children: [
+                Icon(Icons.inbox_outlined,
+                    size: 64,
+                    color: AppColors.sentryGrey.withValues(alpha: 0.5)),
+                const SizedBox(height: 12),
+                Text('Sin comprobantes',
+                    style: _ts(16,
+                        fw: FontWeight.w600, c: AppColors.sentryGrey)),
+              ],
+            ),
+          ),
+        )
+      ];
+    }
+    return list.map(_buildPagoCard).toList();
+  }
 
-// â”€â”€â”€ Tarjeta de comprobante â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-class _VoucherCard extends StatelessWidget {
-  final PaymentVoucher voucher;
-  final VoidCallback onView, onApprove, onReject, onQr;
-  final TextStyle Function(double, {Color? color, FontWeight fw}) ts;
-  final Widget statusChip;
-
-  const _VoucherCard({
-    required this.voucher,
-    required this.onView,
-    required this.onApprove,
-    required this.onReject,
-    required this.onQr,
-    required this.ts,
-    required this.statusChip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final v = voucher;
+  Widget _buildPagoCard(PagoAdminModel p) {
+    final processing = _processing.contains(p.id);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -727,28 +677,26 @@ class _VoucherCard extends StatelessWidget {
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
           BoxShadow(
-            color: AppColors.sentryNavy.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
+              color: AppColors.sentryNavy.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 3))
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // â”€â”€ Fila superior â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Row(
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundColor: AppColors.sentryBlue.withValues(alpha: 0.12),
+                backgroundColor:
+                    AppColors.sentryBlue.withValues(alpha: 0.12),
                 child: Text(
-                  v.name[0],
-                  style: ts(
-                    16,
-                    fw: FontWeight.w700,
-                    color: AppColors.sentryBlue,
-                  ),
+                  p.nombreUsuario.isNotEmpty
+                      ? p.nombreUsuario[0].toUpperCase()
+                      : '?',
+                  style: _ts(16,
+                      fw: FontWeight.w700, c: AppColors.sentryBlue),
                 ),
               ),
               const SizedBox(width: 12),
@@ -756,136 +704,172 @@ class _VoucherCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      v.name,
-                      style: ts(14, fw: FontWeight.w700),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(v.career, style: ts(11, color: AppColors.sentryGrey)),
+                    Text(p.nombreUsuario,
+                        style: _ts(14, fw: FontWeight.w700),
+                        overflow: TextOverflow.ellipsis),
+                    Text(p.emailUsuario,
+                        style: _ts(11, c: AppColors.sentryGrey),
+                        overflow: TextOverflow.ellipsis),
                   ],
                 ),
               ),
-              statusChip,
+              _statusChip(p.estado),
             ],
           ),
-
           const SizedBox(height: 12),
           Divider(color: AppColors.cardBorder, height: 1),
           const SizedBox(height: 12),
-
-          // â”€â”€ Fila de datos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Row(
             children: [
-              _info(Icons.tag_rounded, '#${v.reference}'),
-              const SizedBox(width: 20),
-              _info(
-                Icons.calendar_today_outlined,
-                '${v.date.day}/${v.date.month}/${v.date.year}',
-              ),
-              const SizedBox(width: 20),
-              _info(
-                Icons.access_time_rounded,
-                '${v.date.hour.toString().padLeft(2, '0')}:${v.date.minute.toString().padLeft(2, '0')}',
-              ),
+              _infoChip(Icons.calendar_today_outlined,
+                  '${p.fechaPago.day}/${p.fechaPago.month}/${p.fechaPago.year}'),
+              const SizedBox(width: 16),
+              _infoChip(Icons.access_time_rounded,
+                  '${_pad(p.fechaPago.hour)}:${_pad(p.fechaPago.minute)}'),
+              if (p.comprobanteIsUrl) ...[
+                const SizedBox(width: 16),
+                _infoChip(Icons.attach_file_rounded, 'Archivo'),
+              ],
             ],
           ),
-
           const SizedBox(height: 14),
-
-          // â”€â”€ Acciones â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-          Row(
-            children: [
-              // Ver comprobante
-              _iconBtn(
-                Icons.visibility_outlined,
-                AppColors.sentryBlue,
-                onView,
-                'Ver',
+          if (processing)
+            const Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                    color: AppColors.sentryBlue, strokeWidth: 2),
               ),
-              const SizedBox(width: 8),
-              if (v.status == VoucherStatus.pending) ...[
-                Expanded(
-                  child: _actionBtn(
-                    'Aprobar',
-                    const Color(0xFF2E7D32),
-                    Icons.check_rounded,
-                    onApprove,
-                  ),
-                ),
+            )
+          else
+            Row(
+              children: [
+                _iconBtn(Icons.visibility_outlined, AppColors.sentryBlue,
+                    () => _showVoucherSheet(p), 'Ver'),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: _actionBtn(
-                    'Rechazar',
-                    const Color(0xFFC62828),
-                    Icons.close_rounded,
-                    onReject,
+                if (p.isPending) ...[
+                  Expanded(
+                    child: _actionBtn('Aprobar', AppColors.success,
+                        Icons.check_rounded, () => _approve(p)),
                   ),
-                ),
-              ] else if (v.status == VoucherStatus.approved)
-                _iconBtn(
-                  Icons.qr_code_2_rounded,
-                  AppColors.sentryNavy,
-                  onQr,
-                  'QR',
-                )
-              else
-                Text(
-                  'Sin acciones disponibles',
-                  style: ts(11, color: AppColors.sentryGrey),
-                ),
-            ],
-          ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _actionBtn('Rechazar', AppColors.error,
+                        Icons.close_rounded, () => _reject(p)),
+                  ),
+                ] else if (p.isApproved)
+                  _iconBtn(Icons.qr_code_2_rounded, AppColors.sentryNavy,
+                      () => _showExistingQr(p), 'Ver QR')
+                else
+                  Text('Sin acciones',
+                      style: _ts(11, c: AppColors.sentryGrey)),
+              ],
+            ),
         ],
       ),
     );
   }
 
-  Widget _info(IconData icon, String text) => Row(
-    children: [
-      Icon(icon, size: 13, color: AppColors.sentryGrey),
-      const SizedBox(width: 4),
-      Text(text, style: ts(12, color: AppColors.sentryGrey)),
-    ],
-  );
+  // ── helpers ───────────────────────────────────────────────────────────────
+
+  TextStyle _ts(double sz,
+          {FontWeight fw = FontWeight.w400, Color? c}) =>
+      GoogleFonts.outfit(
+          fontSize: sz,
+          fontWeight: fw,
+          color: c ?? AppColors.sentryNavy);
+
+  Widget _statusChip(String estado) {
+    const configs = {
+      'pendiente': (
+        label: 'Pendiente',
+        bg: Color(0xFFFFF3E0),
+        fg: Color(0xFFE65100)
+      ),
+      'aprobado': (
+        label: 'Aprobado',
+        bg: Color(0xFFE8F5E9),
+        fg: Color(0xFF2E7D32)
+      ),
+      'rechazado': (
+        label: 'Rechazado',
+        bg: Color(0xFFFFEBEE),
+        fg: Color(0xFFC62828)
+      ),
+    };
+    final cfg = configs[estado];
+    if (cfg == null) return const SizedBox();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+          color: cfg.bg, borderRadius: BorderRadius.circular(20)),
+      child:
+          Text(cfg.label, style: _ts(11, fw: FontWeight.w600, c: cfg.fg)),
+    );
+  }
+
+  Widget _infoChip(IconData icon, String text) => Row(
+        children: [
+          Icon(icon, size: 13, color: AppColors.sentryGrey),
+          const SizedBox(width: 4),
+          Text(text, style: _ts(12, c: AppColors.sentryGrey)),
+        ],
+      );
 
   Widget _iconBtn(
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-    String tooltip,
-  ) => Tooltip(
-    message: tooltip,
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.10),
+          IconData icon, Color color, VoidCallback onTap, String tip) =>
+      Tooltip(
+        message: tip,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(10),
+              border:
+                  Border.all(color: color.withValues(alpha: 0.25)),
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
         ),
-        child: Icon(icon, size: 18, color: color),
-      ),
-    ),
-  );
+      );
 
   Widget _actionBtn(
-    String label,
-    Color color,
-    IconData icon,
-    VoidCallback onTap,
-  ) => ElevatedButton.icon(
-    onPressed: onTap,
-    icon: Icon(icon, size: 14),
-    label: Text(label),
-    style: ElevatedButton.styleFrom(
-      backgroundColor: color,
-      foregroundColor: Colors.white,
-      textStyle: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      elevation: 0,
-    ),
-  );
+          String label, Color color, IconData icon, VoidCallback onTap) =>
+      ElevatedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 14),
+        label: Text(label),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          textStyle:
+              GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w700),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10)),
+          elevation: 0,
+        ),
+      );
+
+  Widget _detailRow(String label, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 90,
+              child: Text(label,
+                  style: _ts(12, c: AppColors.sentryGrey)),
+            ),
+            Expanded(
+                child: Text(value, style: _ts(13, fw: FontWeight.w600))),
+          ],
+        ),
+      );
+
+  String _pad(int n) => n.toString().padLeft(2, '0');
 }

@@ -2,6 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/event_service.dart';
+import '../services/payment_service.dart' show PaymentService;
+import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 import 'attendees_screen.dart';
 import 'import_students_screen.dart';
@@ -53,47 +57,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   int _secondsAgo = 0;
 
   // â”€â”€ Métricas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  final int totalRegistrados = 250;
-  final int totalCapacidad = 250;
-  final int aprobados = 218;
-  final int pendientes = 19;
-  final int rechazados = 13;
-  final int ingresaron = 157;
-  final int qrGenerados = 218;
+  // Métricas reales desde Supabase
+  int totalRegistrados = 0;
+  int totalCapacidad = 350;
+  int aprobados = 0;
+  int pendientes = 0;
+  int rechazados = 0;
+  int ingresaron = 0;
+  int qrGenerados = 0;
+  String _eventName = 'Gala FIE';
+  RealtimeChannel? _realtimeChannel;
 
   // â”€â”€ Actividad reciente â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  List<_Activity> get _activities => [
-    _Activity(
-      icon: Icons.login_rounded,
-      iconColor: _green,
-      title: 'Ana Torres ingresó',
-      time: 'Hace 2 min',
-    ),
-    _Activity(
-      icon: Icons.check_circle,
-      iconColor: _blue,
-      title: 'Luis Cáceres aprobado',
-      time: 'Hace 5 min',
-    ),
-    _Activity(
-      icon: Icons.login_rounded,
-      iconColor: _green,
-      title: 'María Salinas ingresó',
-      time: 'Hace 8 min',
-    ),
-    _Activity(
-      icon: Icons.qr_code_2_rounded,
-      iconColor: _cyan,
-      title: 'QR generado - 3 usuarios',
-      time: 'Hace 12 min',
-    ),
-    _Activity(
-      icon: Icons.login_rounded,
-      iconColor: _green,
-      title: 'Pedro Aguirre ingresó',
-      time: 'Hace 15 min',
-    ),
-  ];
+  List<_Activity> _activities = [];
 
   // â”€â”€ Datos gráfico línea (ingresos por hora) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   final List<FlSpot> _lineSpots = const [
@@ -143,13 +119,105 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     _realtimeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _secondsAgo++);
     });
+
+    _loadStats();
   }
 
   @override
   void dispose() {
     _fadeCtrl.dispose();
     _realtimeTimer.cancel();
+    _realtimeChannel?.unsubscribe();
     super.dispose();
+  }
+
+  // Carga métricas reales desde Supabase (API #2 — Database)
+  Future<void> _loadStats() async {
+    try {
+      final event = await EventService.getActiveEvent();
+      if (event == null || !mounted) return;
+
+      final results = await Future.wait([
+        PaymentService.getDashboardStats(idEvento: event.id),
+        EventService.getCapacidad(),
+        SupabaseService.client
+            .from('scan_logs')
+            .select('nombre_asistente, resultado, escaneado_en')
+            .order('escaneado_en', ascending: false)
+            .limit(5),
+      ]);
+
+      if (!mounted) return;
+      final stats = results[0] as Map<String, int>;
+      final cap = results[1] as int;
+      final logs = results[2] as List;
+
+      final activities = logs.map<_Activity>((row) {
+        final resultado = row['resultado'] as String? ?? 'invalido';
+        final nombre = row['nombre_asistente'] as String? ?? 'Desconocido';
+        final ts = DateTime.tryParse(row['escaneado_en'] ?? '');
+        final diff = ts != null ? DateTime.now().difference(ts) : Duration.zero;
+        final timeLabel = diff.inMinutes < 1
+            ? 'Ahora'
+            : diff.inHours < 1
+                ? 'Hace ${diff.inMinutes} min'
+                : 'Hace ${diff.inHours} h';
+        return switch (resultado) {
+          'valido' => _Activity(
+              icon: Icons.login_rounded,
+              iconColor: _green,
+              title: '$nombre ingresó',
+              time: timeLabel,
+            ),
+          'usado' => _Activity(
+              icon: Icons.warning_rounded,
+              iconColor: _yellow,
+              title: '$nombre (QR ya usado)',
+              time: timeLabel,
+            ),
+          _ => _Activity(
+              icon: Icons.cancel_outlined,
+              iconColor: _red,
+              title: 'QR inválido – $nombre',
+              time: timeLabel,
+            ),
+        };
+      }).toList();
+
+      setState(() {
+        _eventName = event.nombre;
+        totalCapacidad = cap > 0 ? cap : 350;
+        totalRegistrados = totalCapacidad;
+        pendientes = stats['pendientes'] ?? 0;
+        aprobados = stats['aprobados'] ?? 0;
+        rechazados = stats['rechazados'] ?? 0;
+        ingresaron = stats['ingresaron'] ?? 0;
+        qrGenerados = stats['aprobados'] ?? 0;
+        _activities = activities;
+      });
+
+      _subscribeRealtime(event.id);
+    } catch (_) {}
+  }
+
+  // API #4 — Supabase Realtime: métricas se actualizan sin recargar
+  void _subscribeRealtime(int idEvento) {
+    _realtimeChannel?.unsubscribe();
+    _realtimeChannel = SupabaseService.client
+        .channel('dashboard-$idEvento')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'pagos',
+          callback: (_) { if (mounted) _loadStats(); },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'entradas',
+          callback: (_) { if (mounted) _loadStats(); },
+        )
+        .subscribe();
   }
 
   // â”€â”€ Helpers de texto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -231,7 +299,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Panel Administrativo', style: _ts(16, fw: FontWeight.w700)),
-          Text('Gala FIE 2026', style: _ts(11, color: _grey)),
+          Text(_eventName, style: _ts(11, color: _grey)),
         ],
       ),
       actions: [
@@ -271,7 +339,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         // Logout
         IconButton(
           icon: Icon(Icons.logout_rounded, color: _grey, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () async {
+            await SupabaseService.signOut();
+            if (mounted) Navigator.pushReplacementNamed(context, '/login');
+          },
         ),
       ],
     );
@@ -287,7 +358,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             children: [
               Text('Dashboard', style: _ts(22, fw: FontWeight.w800)),
               Text(
-                'RF23 - Estadísticas generales - Gala FIE 2026',
+                'Estadísticas generales — $_eventName',
                 style: _ts(11, color: _grey),
               ),
             ],
@@ -631,27 +702,38 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     sectionsSpace: 3,
                     centerSpaceRadius: 38,
                     sections: [
-                      PieChartSectionData(
-                        value: 157,
-                        color: _green,
-                        radius: 24,
-                        title: '',
-                        showTitle: false,
-                      ),
-                      PieChartSectionData(
-                        value: 61,
-                        color: _blue,
-                        radius: 24,
-                        title: '',
-                        showTitle: false,
-                      ),
-                      PieChartSectionData(
-                        value: 32,
-                        color: _cyan,
-                        radius: 24,
-                        title: '',
-                        showTitle: false,
-                      ),
+                      if (ingresaron > 0)
+                        PieChartSectionData(
+                          value: ingresaron.toDouble(),
+                          color: _green,
+                          radius: 24,
+                          title: '',
+                          showTitle: false,
+                        ),
+                      if (aprobados > 0)
+                        PieChartSectionData(
+                          value: aprobados.toDouble(),
+                          color: _blue,
+                          radius: 24,
+                          title: '',
+                          showTitle: false,
+                        ),
+                      if (pendientes > 0)
+                        PieChartSectionData(
+                          value: pendientes.toDouble(),
+                          color: _cyan,
+                          radius: 24,
+                          title: '',
+                          showTitle: false,
+                        ),
+                      if (ingresaron == 0 && aprobados == 0 && pendientes == 0)
+                        PieChartSectionData(
+                          value: 1,
+                          color: _border,
+                          radius: 24,
+                          title: '',
+                          showTitle: false,
+                        ),
                     ],
                   ),
                 ),
@@ -660,15 +742,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _DonutLegend(
-                    color: _green,
-                    value: '157',
-                    label: 'Ingresaron',
-                  ),
+                  _DonutLegend(color: _green, value: '$ingresaron', label: 'Ingresaron'),
                   const SizedBox(height: 14),
-                  _DonutLegend(color: _blue, value: '61', label: 'Registrados'),
+                  _DonutLegend(color: _blue, value: '$aprobados', label: 'Aprobados'),
                   const SizedBox(height: 14),
-                  _DonutLegend(color: _cyan, value: '32', label: 'Pendientes'),
+                  _DonutLegend(color: _cyan, value: '$pendientes', label: 'Pendientes'),
                 ],
               ),
             ],
@@ -692,7 +770,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 icon: Icons.people_alt_rounded,
                 color: _blue,
                 title: 'Asistentes',
-                subtitle: 'RF21 - RF22',
+                subtitle: 'Lista en tiempo real',
                 onTap: () => _openAdminTab(3, const AttendeesScreen()),
               ),
             ),
@@ -716,7 +794,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 icon: Icons.format_list_bulleted_rounded,
                 color: const Color(0xFF06B6D4),
                 title: 'Lista Estudiantes',
-                subtitle: 'RF25 - RF32 - RF33',
+                subtitle: 'CRUD y descarga',
                 onTap: () => _openAdminTab(1, const StudentListScreen()),
               ),
             ),
@@ -726,7 +804,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 icon: Icons.upload_file_rounded,
                 color: const Color(0xFF7C3AED),
                 title: 'Importar',
-                subtitle: 'RF24 - RF26-RF32',
+                subtitle: 'Carga masiva Excel/CSV',
                 onTap: () => _openAdminTab(2, const ImportStudentsScreen()),
               ),
             ),
@@ -759,37 +837,48 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ],
           ),
           const SizedBox(height: 16),
-          ...List.generate(_activities.length, (i) {
-            final a = _activities[i];
-            return Column(
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: a.iconColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(a.icon, color: a.iconColor, size: 18),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        a.title,
-                        style: _ts(13, fw: FontWeight.w500),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(a.time, style: _ts(11, color: _grey)),
-                  ],
+          if (_activities.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  'Sin actividad reciente',
+                  style: _ts(13, color: _grey),
                 ),
-                if (i < _activities.length - 1)
-                  Divider(height: 20, color: _divider, thickness: 0.5),
-              ],
-            );
-          }),
+              ),
+            )
+          else
+            ...List.generate(_activities.length, (i) {
+              final a = _activities[i];
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: a.iconColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(a.icon, color: a.iconColor, size: 18),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          a.title,
+                          style: _ts(13, fw: FontWeight.w500),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(a.time, style: _ts(11, color: _grey)),
+                    ],
+                  ),
+                  if (i < _activities.length - 1)
+                    Divider(height: 20, color: _divider, thickness: 0.5),
+                ],
+              );
+            }),
         ],
       ),
     );

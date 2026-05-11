@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/supabase_service.dart';
 import '../services/auth_service.dart';
 import '../services/guard_service.dart';
-import 'guard_screen.dart';
+import '../theme/app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,6 +30,9 @@ class _LoginScreenState extends State<LoginScreen> {
   // Control para nuestra notificación superior
   OverlayEntry? _activeToast;
 
+  StreamSubscription<AuthState>? _authSubscription;
+  bool _googleSignInInProgress = false;
+
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -37,15 +41,32 @@ class _LoginScreenState extends State<LoginScreen> {
       TextEditingController();
   bool _obscurePassword = true;
 
-  // GUÍA DE COLORES SENTRY
-  static const Color sentryNavy = Color(0xFF0D2B6B);
-  static const Color sentryBlue = Color(0xFF1565C0);
-  static const Color sentryCyan = Color(0xFF29B6F6);
-  static const Color sentryGrey = Color(0xFF8FA3B1);
-  static const Color sentryBg = Color(0xFFEDF2F7);
+  @override
+  void initState() {
+    super.initState();
+    _authSubscription =
+        Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+          if (!_googleSignInInProgress) return;
+          if (data.event == AuthChangeEvent.signedIn && mounted) {
+            _googleSignInInProgress = false;
+            final role = await GuardService.getCurrentUserRole();
+            if (!mounted) return;
+            switch (role) {
+              case 'validador':
+                Navigator.pushReplacementNamed(context, '/guard');
+              case 'admin':
+              case 'administrador':
+                Navigator.pushReplacementNamed(context, '/admin');
+              default:
+                Navigator.pushReplacementNamed(context, '/home');
+            }
+          }
+        });
+  }
 
   @override
   void dispose() {
+    _authSubscription?.cancel();
     // Si cerramos la pantalla, eliminamos cualquier notificación flotante que haya quedado
     _activeToast?.remove();
     _nameController.dispose();
@@ -168,14 +189,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (mounted) {
           _showTopToast('¡Inicio de sesión exitoso!');
-          
-          // Verificar rol y navegar a la pantalla correspondiente
-          final isValidator = await GuardService.isCurrentUserValidator();
-          if (isValidator && mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const GuardScreen()),
-            );
+
+          final role = await GuardService.getCurrentUserRole();
+          if (!mounted) return;
+
+          switch (role) {
+            case 'validador':
+              Navigator.pushReplacementNamed(context, '/guard');
+            case 'admin':
+            case 'administrador':
+              Navigator.pushReplacementNamed(context, '/admin');
+            default:
+              Navigator.pushReplacementNamed(context, '/home');
           }
         }
       } else {
@@ -219,14 +244,32 @@ class _LoginScreenState extends State<LoginScreen> {
   // =========================================================================
   Future<void> _handleGoogleSignIn() async {
     try {
-      final supabase = Supabase.instance.client;
+      _googleSignInInProgress = true;
 
-      // Supabase se encarga de abrir automáticamente el flujo seguro de Google
-      await supabase.auth.signInWithOAuth(OAuthProvider.google);
+      final account = await GoogleSignIn.instance.authenticate();
+      final idToken = account.authentication.idToken;
 
-      // Nota para el futuro: Para que la app regrese solita a esta pantalla
-      // tras hacer login en Google, habrá que configurar "Deep Links" después.
+      if (idToken == null) {
+        _googleSignInInProgress = false;
+        if (mounted) {
+          _showTopToast('No se pudo obtener el token de Google.', isError: true);
+        }
+        return;
+      }
+
+      await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+      );
+
+      // La navegación la maneja el listener _authSubscription
+    } on GoogleSignInException {
+      _googleSignInInProgress = false;
+      if (mounted) {
+        _showTopToast('Inicio de sesión con Google cancelado.', isError: true);
+      }
     } catch (error) {
+      _googleSignInInProgress = false;
       if (mounted) {
         _showTopToast('Error al conectar con Google.', isError: true);
       }
@@ -249,7 +292,7 @@ class _LoginScreenState extends State<LoginScreen> {
           Container(
             height: size.height * 0.45,
             decoration: const BoxDecoration(
-              color: sentryNavy,
+              color: AppColors.sentryNavy,
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(60),
                 bottomRight: Radius.circular(60),
@@ -264,7 +307,7 @@ class _LoginScreenState extends State<LoginScreen> {
               height: size.width * 0.7,
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                color: sentryBlue,
+                color: AppColors.sentryBlue,
               ),
             ),
           ),
@@ -276,7 +319,7 @@ class _LoginScreenState extends State<LoginScreen> {
               height: size.width * 0.45,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: sentryCyan.withAlpha(51),
+                color: AppColors.sentryCyan.withAlpha(51),
               ),
             ),
           ),
@@ -331,7 +374,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           borderRadius: BorderRadius.circular(32),
                           boxShadow: [
                             BoxShadow(
-                              color: sentryNavy.withAlpha(38),
+                              color: AppColors.sentryNavy.withAlpha(38),
                               blurRadius: 20,
                               spreadRadius: 2,
                               offset: const Offset(0, 8),
@@ -374,14 +417,14 @@ class _LoginScreenState extends State<LoginScreen> {
           '¡Bienvenido!',
           style: TextStyle(
             fontSize: 28,
-            color: sentryNavy,
+            color: AppColors.sentryNavy,
             fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 8),
         const Text(
           'Por favor, selecciona tu perfil de ingreso:',
-          style: TextStyle(fontSize: 15, color: sentryGrey),
+          style: TextStyle(fontSize: 15, color: AppColors.sentryGrey),
         ),
         const SizedBox(height: 30),
         _buildRoleButton(
@@ -426,7 +469,7 @@ class _LoginScreenState extends State<LoginScreen> {
               IconButton(
                 icon: const Icon(
                   Icons.arrow_back_ios_new,
-                  color: sentryNavy,
+                  color: AppColors.sentryNavy,
                   size: 20,
                 ),
                 onPressed: () {
@@ -439,7 +482,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 _isStudentLogin ? 'Acceso Estudiantil' : 'Registro Estudiantil',
                 style: const TextStyle(
-                  color: sentryNavy,
+                  color: AppColors.sentryNavy,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
@@ -494,13 +537,10 @@ class _LoginScreenState extends State<LoginScreen> {
               }
               // Validaciones estrictas solo aplicables durante el registro
               if (!_isStudentLogin) {
-                if (value.length < 8) return 'Debe tener al menos 8 caracteres';
-                if (!value.contains(RegExp(r'[A-Z]')))
-                  return 'Debe contener al menos una mayúscula';
-                if (!value.contains(RegExp(r'[0-9]')))
-                  return 'Debe contener al menos un número';
-                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]')))
-                  return 'Debe contener un símbolo especial (ej. !@#\$&*)';
+                if (value.length < 8) { return 'Debe tener al menos 8 caracteres'; }
+                if (!value.contains(RegExp(r'[A-Z]'))) { return 'Debe contener al menos una mayúscula'; }
+                if (!value.contains(RegExp(r'[0-9]'))) { return 'Debe contener al menos un número'; }
+                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]'))) { return 'Debe contener un símbolo especial (ej. !@#\$&*)'; }
               }
               return null;
             },
@@ -536,7 +576,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: const Text(
                   '¿Olvidaste tu contraseña?',
                   style: TextStyle(
-                    color: sentryBlue,
+                    color: AppColors.sentryBlue,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -568,12 +608,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   text: _isStudentLogin
                       ? '¿No tienes cuenta? '
                       : '¿Ya tienes cuenta? ',
-                  style: const TextStyle(color: sentryGrey, fontSize: 14),
+                  style: const TextStyle(color: AppColors.sentryGrey, fontSize: 14),
                   children: [
                     TextSpan(
                       text: _isStudentLogin ? 'Regístrate' : 'Inicia Sesión',
                       style: const TextStyle(
-                        color: sentryNavy,
+                        color: AppColors.sentryNavy,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
@@ -603,7 +643,7 @@ class _LoginScreenState extends State<LoginScreen> {
               IconButton(
                 icon: const Icon(
                   Icons.arrow_back_ios_new,
-                  color: sentryNavy,
+                  color: AppColors.sentryNavy,
                   size: 20,
                 ),
                 onPressed: () {
@@ -616,7 +656,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 _isExternalLogin ? 'Iniciar Sesión' : 'Crear Cuenta',
                 style: const TextStyle(
-                  color: sentryNavy,
+                  color: AppColors.sentryNavy,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
@@ -668,13 +708,10 @@ class _LoginScreenState extends State<LoginScreen> {
               }
               // Validaciones estrictas solo aplicables durante el registro
               if (!_isExternalLogin) {
-                if (value.length < 8) return 'Debe tener al menos 8 caracteres';
-                if (!value.contains(RegExp(r'[A-Z]')))
-                  return 'Debe contener al menos una mayúscula';
-                if (!value.contains(RegExp(r'[0-9]')))
-                  return 'Debe contener al menos un número';
-                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]')))
-                  return 'Debe contener un símbolo especial (ej. !@#\$&*)';
+                if (value.length < 8) { return 'Debe tener al menos 8 caracteres'; }
+                if (!value.contains(RegExp(r'[A-Z]'))) { return 'Debe contener al menos una mayúscula'; }
+                if (!value.contains(RegExp(r'[0-9]'))) { return 'Debe contener al menos un número'; }
+                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]'))) { return 'Debe contener un símbolo especial (ej. !@#\$&*)'; }
               }
               return null;
             },
@@ -710,7 +747,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: const Text(
                   '¿Olvidaste tu contraseña?',
                   style: TextStyle(
-                    color: sentryBlue,
+                    color: AppColors.sentryBlue,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -731,21 +768,21 @@ class _LoginScreenState extends State<LoginScreen> {
           Row(
             children: [
               Expanded(
-                child: Divider(color: sentryGrey.withAlpha(128), thickness: 1),
+                child: Divider(color: AppColors.sentryGrey.withAlpha(128), thickness: 1),
               ),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
                   'o continúa con',
                   style: TextStyle(
-                    color: sentryGrey,
+                    color: AppColors.sentryGrey,
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
               Expanded(
-                child: Divider(color: sentryGrey.withAlpha(128), thickness: 1),
+                child: Divider(color: AppColors.sentryGrey.withAlpha(128), thickness: 1),
               ),
             ],
           ),
@@ -753,13 +790,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: sentryBg,
-              foregroundColor: sentryNavy,
+              backgroundColor: AppColors.sentryBg,
+              foregroundColor: AppColors.sentryNavy,
               padding: const EdgeInsets.symmetric(vertical: 16),
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: sentryGrey.withAlpha(77)),
+                side: BorderSide(color: AppColors.sentryGrey.withAlpha(77)),
               ),
             ),
             icon: const Icon(Icons.g_mobiledata, size: 36, color: Colors.red),
@@ -786,12 +823,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   text: _isExternalLogin
                       ? '¿No tienes cuenta? '
                       : '¿Ya tienes cuenta? ',
-                  style: const TextStyle(color: sentryGrey, fontSize: 14),
+                  style: const TextStyle(color: AppColors.sentryGrey, fontSize: 14),
                   children: [
                     TextSpan(
                       text: _isExternalLogin ? 'Regístrate' : 'Inicia Sesión',
                       style: const TextStyle(
-                        color: sentryNavy,
+                        color: AppColors.sentryNavy,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
@@ -822,9 +859,9 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: sentryBg,
+          color: AppColors.sentryBg,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: sentryCyan.withAlpha(77), width: 1.5),
+          border: Border.all(color: AppColors.sentryCyan.withAlpha(77), width: 1.5),
         ),
         child: Row(
           children: [
@@ -834,10 +871,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
-                  BoxShadow(color: sentryNavy.withAlpha(13), blurRadius: 8),
+                  BoxShadow(color: AppColors.sentryNavy.withAlpha(13), blurRadius: 8),
                 ],
               ),
-              child: Icon(icon, color: sentryBlue, size: 28),
+              child: Icon(icon, color: AppColors.sentryBlue, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -847,7 +884,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(
                     title,
                     style: const TextStyle(
-                      color: sentryNavy,
+                      color: AppColors.sentryNavy,
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
                     ),
@@ -855,12 +892,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: const TextStyle(color: sentryGrey, fontSize: 13),
+                    style: const TextStyle(color: AppColors.sentryGrey, fontSize: 13),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, color: sentryGrey, size: 18),
+            const Icon(Icons.arrow_forward_ios, color: AppColors.sentryGrey, size: 18),
           ],
         ),
       ),
@@ -881,7 +918,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           label,
           style: const TextStyle(
-            color: sentryNavy,
+            color: AppColors.sentryNavy,
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
@@ -891,21 +928,21 @@ class _LoginScreenState extends State<LoginScreen> {
           controller: controller,
           obscureText: isPassword ? _obscurePassword : false,
           style: const TextStyle(
-            color: sentryNavy,
+            color: AppColors.sentryNavy,
             fontWeight: FontWeight.w500,
           ),
           validator: validator,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: sentryGrey),
-            prefixIcon: Icon(icon, color: sentryGrey),
+            hintStyle: const TextStyle(color: AppColors.sentryGrey),
+            prefixIcon: Icon(icon, color: AppColors.sentryGrey),
             suffixIcon: isPassword
                 ? IconButton(
                     icon: Icon(
                       _obscurePassword
                           ? Icons.visibility_off
                           : Icons.visibility,
-                      color: sentryGrey,
+                      color: AppColors.sentryGrey,
                     ),
                     onPressed: () {
                       setState(() {
@@ -915,7 +952,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   )
                 : null,
             filled: true,
-            fillColor: sentryBg,
+            fillColor: AppColors.sentryBg,
             contentPadding: const EdgeInsets.symmetric(vertical: 18),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
@@ -923,7 +960,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: sentryCyan, width: 2),
+              borderSide: const BorderSide(color: AppColors.sentryCyan, width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
@@ -944,13 +981,13 @@ class _LoginScreenState extends State<LoginScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: sentryBlue.withAlpha(77),
+            color: AppColors.sentryBlue.withAlpha(77),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
         ],
         gradient: const LinearGradient(
-          colors: [sentryCyan, sentryBlue],
+          colors: [AppColors.sentryCyan, AppColors.sentryBlue],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

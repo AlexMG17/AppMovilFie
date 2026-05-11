@@ -1,27 +1,28 @@
 import 'dart:convert';
-import 'package:excel/excel.dart' hide Border, TextSpan;
+import 'package:excel/excel.dart' show Excel;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/student_service.dart';
 import '../theme/app_colors.dart';
 
-// Paleta Sentry para mantener el admin conectado al home.
-const _kBg = AppColors.sentryBg;
-const _kCard = AppColors.cardBackground;
-const _kBorder = AppColors.cardBorder;
-const _kPurple = AppColors.sentryBlue;
-const _kPurp2 = AppColors.sentryNavy;
-const _kCyan = AppColors.sentryCyan;
-const _kGreen = AppColors.success;
-const _kRed = AppColors.error;
-const _kYellow = AppColors.warning;
-const _kWhite = Colors.white;
-const _kGrey = AppColors.sentryGrey;
-const _kNavy = AppColors.sentryNavy;
+// ─── Dark palette (pantalla de importación) ───────────────────────────────────
+const _kBg = Color(0xFF0B0F1A);
+const _kCard = Color(0xFF111827);
+const _kBorder = Color(0xFF1E2A45);
+const _kPurple = Color(0xFF7C3AED);
+const _kPurp2 = Color(0xFF5B21B6);
+const _kCyan = Color(0xFF06B6D4);
+const _kGreen = Color(0xFF22C55E);
+const _kRed = Color(0xFFEF4444);
+const _kYellow = Color(0xFFF59E0B);
+const _kWhite = Color(0xFFFFFFFF);
+const _kGrey = Color(0xFF8FA3B1);
+const _kNavy = Color(0xFF1E1B4B);
 
 const _kRequiredCols = ['nombre', 'correo_electronico', 'carrera'];
 
-// â”€â”€â”€ Modelo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Modelo ───────────────────────────────────────────────────────────────────
 class ImportedStudent {
   final String nombre;
   final String correoElectronico;
@@ -33,7 +34,7 @@ class ImportedStudent {
   });
 }
 
-// â”€â”€â”€ Estados â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Estados ──────────────────────────────────────────────────────────────────
 enum _ImportPhase { idle, loading, preview, importing, done }
 
 class _ImportResult {
@@ -47,7 +48,7 @@ class _ImportResult {
   });
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════════════════════════
 class ImportStudentsScreen extends StatefulWidget {
   const ImportStudentsScreen({super.key});
   @override
@@ -86,10 +87,10 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       GoogleFonts.outfit(
         fontSize: size,
         fontWeight: fw,
-        color: color ?? _kNavy,
+        color: color ?? _kWhite,
       );
 
-  // â”€â”€ RF24/RF26: Seleccionar archivo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── RF24/RF26: Seleccionar archivo ────────────────────────────────────────
   Future<void> _pickFile() async {
     setState(() {
       _phase = _ImportPhase.idle;
@@ -142,7 +143,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     }
   }
 
-  // â”€â”€ RF26/RF27: Parsear CSV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── RF26/RF27: Parsear CSV ────────────────────────────────────────────────
   List<ImportedStudent> _parseCsv(String content) {
     final lines = content
         .replaceAll('\r\n', '\n')
@@ -194,7 +195,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     return result;
   }
 
-  // â”€â”€ RF26/RF27: Parsear Excel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── RF26/RF27: Parsear Excel ──────────────────────────────────────────────
   List<ImportedStudent> _parseExcel(List<int> bytes) {
     final excel = Excel.decodeBytes(bytes);
     final sheetName = excel.tables.keys.first;
@@ -241,7 +242,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     return result;
   }
 
-  // â”€â”€ RF27: Validar columnas requeridas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── RF27: Validar columnas requeridas ─────────────────────────────────────
   void _validateHeaders(List<String> headers) {
     final missing = _kRequiredCols.where((c) => !headers.contains(c)).toList();
     if (missing.isNotEmpty) {
@@ -249,17 +250,14 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     }
   }
 
-  // â”€â”€ RF28/RF29: Procesar e importar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── RF28/RF29: Procesar e importar ────────────────────────────────────────
   Future<void> _doImport() async {
     setState(() => _phase = _ImportPhase.importing);
 
-    await Future.delayed(const Duration(seconds: 2));
-
-    // RF29: detectar duplicados por correo
+    // RF29: deduplicar por correo dentro del lote
     final seen = <String>{};
-    int imported = 0;
+    final unique = <Map<String, String>>[];
     int duplicates = 0;
-    int errors = 0;
 
     for (final s in _parsed) {
       final key = s.correoElectronico.toLowerCase();
@@ -268,16 +266,20 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
         continue;
       }
       seen.add(key);
+      unique.add({
+        'nombre': s.nombre,
+        'correo_electronico': s.correoElectronico,
+        'carrera': s.carrera,
+      });
+    }
 
-      try {
-        // TODO: conectar Supabase
-        // await SupabaseService.client
-        //     .from('estudiantes_habilitados')
-        //     .upsert({'nombre': s.nombre, 'correo': s.correoElectronico, 'carrera': s.carrera});
-        imported++;
-      } catch (_) {
-        errors++;
-      }
+    int imported = 0;
+    int errors = 0;
+
+    try {
+      imported = await StudentService.batchUpsert(unique);
+    } catch (_) {
+      errors = unique.length;
     }
 
     setState(() {
@@ -300,7 +302,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     });
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ═══════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -333,7 +335,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     );
   }
 
-  // â”€â”€ AppBar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── AppBar ────────────────────────────────────────────────────────────────
   SliverAppBar _buildAppBar() {
     return SliverAppBar(
       backgroundColor: _kBg,
@@ -380,7 +382,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
         const SizedBox(width: 4),
         CircleAvatar(
           radius: 16,
-          backgroundColor: _kCyan.withValues(alpha: 0.16),
+          backgroundColor: Color(0x337C3AED),
           child: const Icon(Icons.person_rounded, size: 18, color: _kPurple),
         ),
         IconButton(
@@ -391,7 +393,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     );
   }
 
-  // â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Header ────────────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,14 +401,14 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
         Text('Importar Estudiantes', style: _ts(22, fw: FontWeight.w800)),
         const SizedBox(height: 4),
         Text(
-          'RF24 Â· RF26â€“RF32 â€” Carga masiva de estudiantes habilitados',
+          'Carga masiva de estudiantes habilitados',
           style: _ts(11, color: _kGrey),
         ),
       ],
     );
   }
 
-  // â”€â”€ RF26/RF27: Tarjeta de requisitos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── RF26/RF27: Tarjeta de requisitos ──────────────────────────────────────
   Widget _buildRequirementsCard() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -435,7 +437,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Requisitos del archivo (RF26 Â· RF27)',
+                  'Requisitos del archivo',
                   style: _ts(13, fw: FontWeight.w700, color: _kCyan),
                 ),
               ),
@@ -516,7 +518,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     ),
   );
 
-  // â”€â”€ Contenido dinámico â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Contenido dinámico ────────────────────────────────────────────────────
   Widget _buildContent() {
     return switch (_phase) {
       _ImportPhase.idle => _buildFilePicker(),
@@ -527,7 +529,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     };
   }
 
-  // â”€â”€ RF24: Selector de archivo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── RF24: Selector de archivo ─────────────────────────────────────────────
   Widget _buildFilePicker() {
     final isLoading = _phase == _ImportPhase.loading;
     return Column(
@@ -584,7 +586,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                   Text(
                     isLoading
                         ? (_fileName ?? '')
-                        : 'RF24 Â· RF26 â€” Arrastra o haz clic para cargar',
+                        : 'Arrastra o haz clic para cargar',
                     style: _ts(11, color: _kGrey),
                     textAlign: TextAlign.center,
                   ),
@@ -628,7 +630,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     );
   }
 
-  // â”€â”€ RF27/RF30: Vista previa â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── RF27/RF30: Vista previa ───────────────────────────────────────────────
   Widget _buildPreview() {
     final preview = _parsed.take(5).toList();
     return Column(
@@ -655,7 +657,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                       style: _ts(13, fw: FontWeight.w600, color: _kGreen),
                     ),
                     Text(
-                      '${_parsed.length} registros encontrados Â· RF27 validado',
+                      '${_parsed.length} registros encontrados · columnas validadas',
                       style: _ts(11, color: _kGrey),
                     ),
                   ],
@@ -669,7 +671,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
           ),
         ),
         const SizedBox(height: 16),
-        Text('Vista previa Â· RF30', style: _ts(13, fw: FontWeight.w700)),
+        Text('Vista previa', style: _ts(13, fw: FontWeight.w700)),
         const SizedBox(height: 10),
         // Tabla previa
         Container(
@@ -693,19 +695,19 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                       Expanded(
                         child: Text(
                           'Nombre',
-                          style: _ts(11, fw: FontWeight.w700, color: _kWhite),
+                          style: _ts(11, fw: FontWeight.w700),
                         ),
                       ),
                       Expanded(
                         child: Text(
                           'Correo',
-                          style: _ts(11, fw: FontWeight.w700, color: _kWhite),
+                          style: _ts(11, fw: FontWeight.w700),
                         ),
                       ),
                       Expanded(
                         child: Text(
                           'Carrera',
-                          style: _ts(11, fw: FontWeight.w700, color: _kWhite),
+                          style: _ts(11, fw: FontWeight.w700),
                         ),
                       ),
                     ],
@@ -774,7 +776,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
             icon: const Icon(Icons.upload_rounded, color: _kWhite),
             label: Text(
               'Importar ${_parsed.length} estudiantes',
-              style: _ts(14, fw: FontWeight.w700, color: _kWhite),
+              style: _ts(14, fw: FontWeight.w700),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: _kPurple,
@@ -791,7 +793,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     );
   }
 
-  // â”€â”€ RF28: Importando â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── RF28: Importando ──────────────────────────────────────────────────────
   Widget _buildImporting() {
     return Container(
       padding: const EdgeInsets.all(36),
@@ -817,7 +819,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
           ),
           const SizedBox(height: 6),
           Text(
-            'RF28 Â· RF29 â€” Procesando y verificando duplicados',
+            'Procesando y verificando duplicados...',
             style: _ts(11, color: _kGrey),
             textAlign: TextAlign.center,
           ),
@@ -826,7 +828,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     );
   }
 
-  // â”€â”€ RF30: Resultado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── RF30: Resultado ───────────────────────────────────────────────────────
   Widget _buildResult() {
     final r = _result!;
     return Column(
@@ -858,7 +860,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    'Importación completada Â· RF30',
+                    'Importación completada',
                     style: _ts(15, fw: FontWeight.w700),
                   ),
                 ],
@@ -918,9 +920,9 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
   }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════════════════════════
 // Widgets auxiliares
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════════════════════════════════════════
 
 class _DashedBorderPainter extends CustomPainter {
   final Color color;

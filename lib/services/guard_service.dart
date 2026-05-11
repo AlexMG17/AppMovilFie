@@ -35,15 +35,15 @@ class GuardService {
 
   static SupabaseClient get _client => SupabaseService.client;
 
-  // ── Verificar si el usuario actual es validador ────────────────
+  // ── Rol del usuario actual ────────────────────────────────────
 
-  /// Devuelve true si el usuario logueado tiene rol de validador.
-  static Future<bool> isCurrentUserValidator() async {
+  /// Devuelve el nombre del rol del usuario logueado en minúsculas,
+  /// o null si no está autenticado o hay error.
+  static Future<String?> getCurrentUserRole() async {
     final user = SupabaseService.currentUser;
-    if (user == null) return false;
+    if (user == null) return null;
 
     try {
-      // 1. Obtener el id_rol del usuario
       final userData = await _client
           .from('usuarios')
           .select('id_rol')
@@ -51,26 +51,24 @@ class GuardService {
           .single();
 
       final idRol = userData['id_rol'];
-      if (idRol == null) {
-        print('El usuario no tiene un id_rol asignado.');
-        return false;
-      }
+      if (idRol == null) return null;
 
-      // 2. Obtener el nombre del rol
       final roleData = await _client
           .from('roles')
           .select('nombre')
           .eq('id_rol', idRol)
           .single();
 
-      final nombreRol = roleData['nombre']?.toString().toLowerCase().trim();
-      print('Nombre del rol detectado: \$nombreRol');
-
-      return nombreRol == 'validador';
-    } catch (e) {
-      print('Error en isCurrentUserValidator: \$e');
-      return false;
+      return roleData['nombre']?.toString().toLowerCase().trim();
+    } catch (_) {
+      return null;
     }
+  }
+
+  /// Devuelve true si el usuario logueado tiene rol de validador.
+  static Future<bool> isCurrentUserValidator() async {
+    final role = await getCurrentUserRole();
+    return role == 'validador';
   }
 
   /// Obtiene el id_usuario del usuario autenticado.
@@ -94,11 +92,11 @@ class GuardService {
 
   /// Valida un código QR y devuelve el resultado.
   /// - Si no existe en 'entradas' → invalido
-  /// - Si estado == 'usado' → usado
-  /// - Si estado == 'valido' → valido (registra ingreso)
+  /// - Si estado == 'usado'      → usado
+  /// - Si estado == 'activo'     → valido (marca como usado)
   static Future<ScanResult> validateQR({
     required String codigoQR,
-    required int idGuardia,
+    int? idGuardia,   // nullable: si no hay sesión igual valida
     int? idEvento,
   }) async {
     try {
@@ -109,14 +107,15 @@ class GuardService {
           .eq('codigo_qr', codigoQR);
 
       if (rows.isEmpty) {
-        // No existe → inválido
-        await _logScan(
-          codigoQR: codigoQR,
-          resultado: 'invalido',
-          idGuardia: idGuardia,
-          idEvento: idEvento,
-          nombreAsistente: 'Código inválido',
-        );
+        if (idGuardia != null) {
+          await _logScan(
+            codigoQR: codigoQR,
+            resultado: 'invalido',
+            idGuardia: idGuardia,
+            idEvento: idEvento,
+            nombreAsistente: 'Código inválido',
+          );
+        }
         return ScanResult(
           resultado: 'invalido',
           nombreAsistente: 'Código inválido',
@@ -134,14 +133,15 @@ class GuardService {
       final idEventoEntrada = entrada['id_evento'];
 
       if (estado == 'usado') {
-        // Ya fue utilizado
-        await _logScan(
-          codigoQR: codigoQR,
-          resultado: 'usado',
-          idGuardia: idGuardia,
-          idEvento: idEventoEntrada,
-          nombreAsistente: nombre,
-        );
+        if (idGuardia != null) {
+          await _logScan(
+            codigoQR: codigoQR,
+            resultado: 'usado',
+            idGuardia: idGuardia,
+            idEvento: idEventoEntrada,
+            nombreAsistente: nombre,
+          );
+        }
         return ScanResult(
           resultado: 'usado',
           nombreAsistente: nombre,
@@ -150,13 +150,15 @@ class GuardService {
       }
 
       if (estado == 'cancelado') {
-        await _logScan(
-          codigoQR: codigoQR,
-          resultado: 'invalido',
-          idGuardia: idGuardia,
-          idEvento: idEventoEntrada,
-          nombreAsistente: nombre,
-        );
+        if (idGuardia != null) {
+          await _logScan(
+            codigoQR: codigoQR,
+            resultado: 'invalido',
+            idGuardia: idGuardia,
+            idEvento: idEventoEntrada,
+            nombreAsistente: nombre,
+          );
+        }
         return ScanResult(
           resultado: 'invalido',
           nombreAsistente: '$nombre (cancelado)',
@@ -164,28 +166,30 @@ class GuardService {
         );
       }
 
-      // estado == 'valido' → registrar ingreso
-      // 2) Actualizar estado a 'usado'
+      // estado == 'activo' → marcar como usado
       await _client
           .from('entradas')
           .update({'estado': 'usado'})
           .eq('id_entrada', idEntrada);
 
-      // 3) Crear registro en asistencias
-      await _client.from('asistencias').insert({
-        'id_entrada': idEntrada,
-        'fecha_ingreso': DateTime.now().toIso8601String(),
-        'validado_por': idGuardia,
-      });
+      // Registrar en asistencias si la tabla existe (falla silenciosamente)
+      try {
+        await _client.from('asistencias').insert({
+          'id_entrada': idEntrada,
+          'fecha_ingreso': DateTime.now().toIso8601String(),
+          if (idGuardia case final g?) 'validado_por': g,
+        });
+      } catch (_) {}
 
-      // 4) Log del escaneo
-      await _logScan(
-        codigoQR: codigoQR,
-        resultado: 'valido',
-        idGuardia: idGuardia,
-        idEvento: idEventoEntrada,
-        nombreAsistente: nombre,
-      );
+      if (idGuardia != null) {
+        await _logScan(
+          codigoQR: codigoQR,
+          resultado: 'valido',
+          idGuardia: idGuardia,
+          idEvento: idEventoEntrada,
+          nombreAsistente: nombre,
+        );
+      }
 
       return ScanResult(
         resultado: 'valido',

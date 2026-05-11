@@ -5,6 +5,7 @@ import 'attendees_screen.dart';
 import 'import_students_screen.dart';
 import 'payment_vouchers_screen.dart';
 import 'student_list_screen.dart';
+import 'user_management_screen.dart';
 
 class AdminShellScreen extends StatefulWidget {
   final int initialIndex;
@@ -21,7 +22,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedIndex = widget.initialIndex.clamp(0, 4);
+    _selectedIndex = widget.initialIndex.clamp(0, 5);
   }
 
   void _selectTab(int index) {
@@ -37,6 +38,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       const ImportStudentsScreen(),
       const AttendeesScreen(),
       const PaymentVouchersScreen(),
+      const UserManagementScreen(),
     ];
 
     return Scaffold(
@@ -126,6 +128,11 @@ class _AdminBottomBar extends StatelessWidget {
                 icon: Icon(Icons.receipt_long_outlined),
                 selectedIcon: Icon(Icons.receipt_long_rounded),
                 label: 'Pagos',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.manage_accounts_outlined),
+                selectedIcon: Icon(Icons.manage_accounts_rounded),
+                label: 'Usuarios',
               ),
             ],
           ),

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/guard_service.dart';
 import '../services/supabase_service.dart';
+import '../theme/app_colors.dart';
 
 class GuardScreen extends StatefulWidget {
   const GuardScreen({super.key});
@@ -15,12 +16,7 @@ class GuardScreen extends StatefulWidget {
 
 class _GuardScreenState extends State<GuardScreen>
     with TickerProviderStateMixin {
-  // ── Paleta Sentry ──────────────────────────────────────────
-  static const Color sentryNavy = Color(0xFF0D2B6B);
-  static const Color sentryBlue = Color(0xFF1565C0);
-  static const Color sentryCyan = Color(0xFF29B6F6);
-  static const Color sentryGrey = Color(0xFF8FA3B1);
-  static const Color sentryBg = Color(0xFFEDF2F7);
+  // ── Paleta Sentry (extendida para tema oscuro) ──────────────
   static const Color sentryDarkBg = Color(0xFF0A1628);
   static const Color sentryDarkCard = Color(0xFF122240);
   static const Color sentrySuccess = Color(0xFF00E676);
@@ -33,7 +29,7 @@ class _GuardScreenState extends State<GuardScreen>
 
   int? _guardId;
   bool _isInitializing = true;
-  bool _isCameraActive = true;
+  final bool _isCameraActive = true;
   bool _isProcessingScan = false;
 
   // Estado del último escaneo
@@ -74,10 +70,14 @@ class _GuardScreenState extends State<GuardScreen>
   }
 
   Future<void> _initializeGuard() async {
-    final guardId = await GuardService.getCurrentGuardId();
-    if (guardId != null) {
-      _guardId = guardId;
-      await _refreshData();
+    try {
+      final guardId = await GuardService.getCurrentGuardId();
+      if (guardId != null) {
+        _guardId = guardId;
+        await _refreshData();
+      }
+    } catch (_) {
+      // Sin conexión Supabase — modo demo activo
     }
     if (mounted) {
       setState(() => _isInitializing = false);
@@ -116,13 +116,13 @@ class _GuardScreenState extends State<GuardScreen>
   // ── Manejar escaneo de QR ───────────────────────────────────
 
   Future<void> _handleScan(String code) async {
-    if (_isProcessingScan || _guardId == null) return;
+    if (_isProcessingScan) return;
 
     setState(() => _isProcessingScan = true);
 
     final result = await GuardService.validateQR(
       codigoQR: code,
-      idGuardia: _guardId!,
+      idGuardia: _guardId,
     );
 
     // Vibración según resultado
@@ -158,41 +158,6 @@ class _GuardScreenState extends State<GuardScreen>
     _handleScan(code);
   }
 
-  // ── Simulación demo ─────────────────────────────────────────
-
-  void _simulateScan(String resultado) {
-    final demoResults = {
-      'valido': ScanResult(
-        resultado: 'valido',
-        nombreAsistente: 'Ana Torres',
-        codigoQR: 'DEMO-VALID-001',
-      ),
-      'invalido': ScanResult(
-        resultado: 'invalido',
-        nombreAsistente: 'Código inválido',
-        codigoQR: 'DEMO-INVALID-001',
-      ),
-      'usado': ScanResult(
-        resultado: 'usado',
-        nombreAsistente: 'Diego Flores',
-        codigoQR: 'DEMO-USED-001',
-      ),
-    };
-
-    HapticFeedback.mediumImpact();
-
-    setState(() {
-      _lastScanResult = demoResults[resultado];
-    });
-
-    _resultAnimController.reset();
-    _resultAnimController.forward();
-
-    Future.delayed(const Duration(seconds: 4), () {
-      if (mounted) setState(() => _lastScanResult = null);
-    });
-  }
-
   // ── BUILD ───────────────────────────────────────────────────
 
   @override
@@ -204,11 +169,11 @@ class _GuardScreenState extends State<GuardScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const CircularProgressIndicator(color: sentryCyan),
+              const CircularProgressIndicator(color: AppColors.sentryCyan),
               const SizedBox(height: 16),
               Text(
                 'Inicializando validador...',
-                style: GoogleFonts.outfit(color: sentryGrey, fontSize: 14),
+                style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 14),
               ),
             ],
           ),
@@ -231,8 +196,6 @@ class _GuardScreenState extends State<GuardScreen>
                     _buildCameraSection(),
                     const SizedBox(height: 16),
                     _buildManualInput(),
-                    const SizedBox(height: 16),
-                    _buildSimulationButtons(),
                     const SizedBox(height: 20),
                     _buildRecentScans(),
                     const SizedBox(height: 20),
@@ -256,7 +219,7 @@ class _GuardScreenState extends State<GuardScreen>
       decoration: BoxDecoration(
         color: sentryDarkCard,
         border: Border(
-          bottom: BorderSide(color: sentryCyan.withOpacity(0.15), width: 1),
+          bottom: BorderSide(color: AppColors.sentryCyan.withValues(alpha:0.15), width: 1),
         ),
       ),
       child: Row(
@@ -297,13 +260,13 @@ class _GuardScreenState extends State<GuardScreen>
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: sentryCyan.withOpacity(0.15),
+                      color: AppColors.sentryCyan.withValues(alpha:0.15),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       'Validador',
                       style: GoogleFonts.outfit(
-                        color: sentryCyan,
+                        color: AppColors.sentryCyan,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -318,10 +281,10 @@ class _GuardScreenState extends State<GuardScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: sentrySuccess.withOpacity(0.15),
+              color: sentrySuccess.withValues(alpha:0.15),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: sentrySuccess.withOpacity(0.3),
+                color: sentrySuccess.withValues(alpha:0.3),
                 width: 1,
               ),
             ),
@@ -352,8 +315,10 @@ class _GuardScreenState extends State<GuardScreen>
           // Botón de cerrar sesión
           IconButton(
             onPressed: () async {
-              await SupabaseService.signOut();
-              if (context.mounted) {
+              try {
+                await SupabaseService.signOut();
+              } catch (_) {}
+              if (mounted) {
                 Navigator.of(context).pushReplacementNamed('/login');
               }
             },
@@ -378,7 +343,7 @@ class _GuardScreenState extends State<GuardScreen>
       decoration: BoxDecoration(
         color: sentryDarkCard,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: sentryCyan.withOpacity(0.1), width: 1),
+        border: Border.all(color: AppColors.sentryCyan.withValues(alpha:0.1), width: 1),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
@@ -442,7 +407,7 @@ class _GuardScreenState extends State<GuardScreen>
               Container(
                 color: Colors.black54,
                 child: const Center(
-                  child: CircularProgressIndicator(color: sentryCyan),
+                  child: CircularProgressIndicator(color: AppColors.sentryCyan),
                 ),
               ),
           ],
@@ -460,19 +425,19 @@ class _GuardScreenState extends State<GuardScreen>
           children: [
             Icon(
               Icons.videocam_off_outlined,
-              color: sentryGrey.withOpacity(0.5),
+              color: AppColors.sentryGrey.withValues(alpha:0.5),
               size: 48,
             ),
             const SizedBox(height: 8),
             Text(
               'Cámara no disponible',
-              style: GoogleFonts.outfit(color: sentryGrey, fontSize: 13),
+              style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 13),
             ),
             const SizedBox(height: 4),
             Text(
               'Usa el ingreso manual',
               style: GoogleFonts.outfit(
-                color: sentryGrey.withOpacity(0.6),
+                color: AppColors.sentryGrey.withValues(alpha:0.6),
                 fontSize: 11,
               ),
             ),
@@ -492,7 +457,7 @@ class _GuardScreenState extends State<GuardScreen>
         child: SizedBox(
           width: 180,
           height: 180,
-          child: CustomPaint(painter: _ScanFramePainter(color: sentryCyan)),
+          child: CustomPaint(painter: _ScanFramePainter(color: AppColors.sentryCyan)),
         ),
       ),
     );
@@ -507,19 +472,19 @@ class _GuardScreenState extends State<GuardScreen>
 
     switch (result.resultado) {
       case 'valido':
-        bgColor = sentrySuccess.withOpacity(0.9);
+        bgColor = sentrySuccess.withValues(alpha:0.9);
         iconColor = Colors.white;
         icon = Icons.check_circle;
         title = 'ACCESO PERMITIDO';
         break;
       case 'usado':
-        bgColor = sentryWarning.withOpacity(0.9);
+        bgColor = sentryWarning.withValues(alpha:0.9);
         iconColor = Colors.white;
         icon = Icons.warning_rounded;
         title = 'YA UTILIZADO';
         break;
       default:
-        bgColor = sentryError.withOpacity(0.9);
+        bgColor = sentryError.withValues(alpha:0.9);
         iconColor = Colors.white;
         icon = Icons.cancel;
         title = 'ACCESO DENEGADO';
@@ -548,7 +513,7 @@ class _GuardScreenState extends State<GuardScreen>
               Text(
                 result.nombreAsistente,
                 style: GoogleFonts.outfit(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha:0.9),
                   fontSize: 16,
                 ),
               ),
@@ -570,7 +535,7 @@ class _GuardScreenState extends State<GuardScreen>
           child: Text(
             'Ingreso manual del código',
             style: GoogleFonts.outfit(
-              color: sentryGrey,
+              color: AppColors.sentryGrey,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -585,7 +550,7 @@ class _GuardScreenState extends State<GuardScreen>
                   color: sentryDarkCard,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: sentryCyan.withOpacity(0.15),
+                    color: AppColors.sentryCyan.withValues(alpha:0.15),
                     width: 1,
                   ),
                 ),
@@ -595,7 +560,7 @@ class _GuardScreenState extends State<GuardScreen>
                   decoration: InputDecoration(
                     hintText: 'Pegar o escribir código QR...',
                     hintStyle: GoogleFonts.outfit(
-                      color: sentryGrey.withOpacity(0.5),
+                      color: AppColors.sentryGrey.withValues(alpha:0.5),
                       fontSize: 13,
                     ),
                     border: InputBorder.none,
@@ -616,12 +581,12 @@ class _GuardScreenState extends State<GuardScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [sentryBlue, sentryCyan],
+                    colors: [AppColors.sentryBlue, AppColors.sentryCyan],
                   ),
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: sentryCyan.withOpacity(0.3),
+                      color: AppColors.sentryCyan.withValues(alpha:0.3),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -642,87 +607,6 @@ class _GuardScreenState extends State<GuardScreen>
           ],
         ),
       ],
-    );
-  }
-
-  // ── Simulación Demo ───────────────────────────────────────────
-
-  Widget _buildSimulationButtons() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            'Simulación demo',
-            style: GoogleFonts.outfit(
-              color: sentryGrey,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        Row(
-          children: [
-            _buildSimButton(
-              'Válido',
-              sentrySuccess,
-              Icons.check_circle,
-              () => _simulateScan('valido'),
-            ),
-            const SizedBox(width: 8),
-            _buildSimButton(
-              'Inválido',
-              sentryError,
-              Icons.cancel,
-              () => _simulateScan('invalido'),
-            ),
-            const SizedBox(width: 8),
-            _buildSimButton(
-              'Usado',
-              sentryWarning,
-              Icons.warning_rounded,
-              () => _simulateScan('usado'),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSimButton(
-    String label,
-    Color color,
-    IconData icon,
-    VoidCallback onTap,
-  ) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withOpacity(0.3), width: 1),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: color, size: 16),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: GoogleFonts.outfit(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -750,12 +634,12 @@ class _GuardScreenState extends State<GuardScreen>
             decoration: BoxDecoration(
               color: sentryDarkCard,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: sentryCyan.withOpacity(0.08), width: 1),
+              border: Border.all(color: AppColors.sentryCyan.withValues(alpha:0.08), width: 1),
             ),
             child: Center(
               child: Text(
                 'Aún no hay escaneos registrados',
-                style: GoogleFonts.outfit(color: sentryGrey, fontSize: 13),
+                style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 13),
               ),
             ),
           )
@@ -792,7 +676,7 @@ class _GuardScreenState extends State<GuardScreen>
       decoration: BoxDecoration(
         color: sentryDarkCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: statusColor.withOpacity(0.15), width: 1),
+        border: Border.all(color: statusColor.withValues(alpha:0.15), width: 1),
       ),
       child: Row(
         children: [
@@ -802,7 +686,7 @@ class _GuardScreenState extends State<GuardScreen>
             height: 36,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: statusColor.withOpacity(0.15),
+              color: statusColor.withValues(alpha:0.15),
             ),
             child: Icon(statusIcon, color: statusColor, size: 20),
           ),
@@ -827,7 +711,7 @@ class _GuardScreenState extends State<GuardScreen>
                         ? '${scan.codigoQR!.substring(0, 20)}...'
                         : scan.codigoQR!,
                     style: GoogleFonts.outfit(
-                      color: sentryGrey.withOpacity(0.6),
+                      color: AppColors.sentryGrey.withValues(alpha:0.6),
                       fontSize: 11,
                     ),
                   ),
@@ -837,7 +721,7 @@ class _GuardScreenState extends State<GuardScreen>
           // Hora
           Text(
             timeStr,
-            style: GoogleFonts.outfit(color: sentryGrey, fontSize: 12),
+            style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 12),
           ),
         ],
       ),
@@ -885,7 +769,7 @@ class _GuardScreenState extends State<GuardScreen>
         decoration: BoxDecoration(
           color: sentryDarkCard,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.2), width: 1),
+          border: Border.all(color: color.withValues(alpha:0.2), width: 1),
         ),
         child: Column(
           children: [
@@ -901,7 +785,7 @@ class _GuardScreenState extends State<GuardScreen>
             Text(
               label,
               style: GoogleFonts.outfit(
-                color: sentryGrey,
+                color: AppColors.sentryGrey,
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
               ),

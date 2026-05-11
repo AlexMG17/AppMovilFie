@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/event_service.dart';
+import '../services/student_service.dart';
 import '../theme/app_colors.dart';
 
-// â”€â”€â”€ Dark palette â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Dark palette ─────────────────────────────────────────────────────────────
 const _kBg = AppColors.sentryBg;
 const _kCard = AppColors.cardBackground;
 const _kBorder = AppColors.cardBorder;
@@ -16,150 +18,7 @@ const _kWhite = Colors.white;
 const _kGrey = AppColors.sentryGrey;
 const _kNavy = AppColors.sentryNavy;
 
-// â”€â”€â”€ Modelo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-enum StudentStatus { ingresado, aprobado, pendiente }
-
-class Student {
-  final String id;
-  final String nombre;
-  final String email;
-  final String cedula;
-  final String carrera;
-  final StudentStatus status;
-  final bool tieneQR;
-
-  const Student({
-    required this.id,
-    required this.nombre,
-    required this.email,
-    required this.cedula,
-    required this.carrera,
-    required this.status,
-    required this.tieneQR,
-  });
-
-  Student copyWith({
-    String? nombre,
-    String? email,
-    String? cedula,
-    String? carrera,
-    StudentStatus? status,
-    bool? tieneQR,
-  }) => Student(
-    id: id,
-    nombre: nombre ?? this.nombre,
-    email: email ?? this.email,
-    cedula: cedula ?? this.cedula,
-    carrera: carrera ?? this.carrera,
-    status: status ?? this.status,
-    tieneQR: tieneQR ?? this.tieneQR,
-  );
-}
-
-// â”€â”€â”€ Mock data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-final _mockStudents = <Student>[
-  const Student(
-    id: '1',
-    nombre: 'Ana Torres Guzmán',
-    email: 'a.torres@espoch.edu.ec',
-    cedula: '0601234567',
-    carrera: 'Ing. Electrónica',
-    status: StudentStatus.ingresado,
-    tieneQR: true,
-  ),
-  const Student(
-    id: '2',
-    nombre: 'Carlos Mendoza Rivas',
-    email: 'c.mendoza@espoch.edu.ec',
-    cedula: '0609876543',
-    carrera: 'Ing. Sistemas',
-    status: StudentStatus.ingresado,
-    tieneQR: true,
-  ),
-  const Student(
-    id: '3',
-    nombre: 'Diego Flores Castillo',
-    email: 'd.flores@espoch.edu.ec',
-    cedula: '0612345678',
-    carrera: 'Ing. Telecom.',
-    status: StudentStatus.aprobado,
-    tieneQR: true,
-  ),
-  const Student(
-    id: '4',
-    nombre: 'Sofía Ramírez León',
-    email: 's.ramirez@espoch.edu.ec',
-    cedula: '0656789012',
-    carrera: 'Ing. Sistemas',
-    status: StudentStatus.pendiente,
-    tieneQR: false,
-  ),
-  const Student(
-    id: '5',
-    nombre: 'Luis Cáceres Mora',
-    email: 'l.caceres@espoch.edu.ec',
-    cedula: '0645678901',
-    carrera: 'Ing. Electrónica',
-    status: StudentStatus.ingresado,
-    tieneQR: true,
-  ),
-  const Student(
-    id: '6',
-    nombre: 'María Salinas Cruz',
-    email: 'm.salinas@espoch.edu.ec',
-    cedula: '0601122334',
-    carrera: 'Ing. Sistemas',
-    status: StudentStatus.ingresado,
-    tieneQR: true,
-  ),
-  const Student(
-    id: '7',
-    nombre: 'Pedro Aguirre Vega',
-    email: 'p.aguirre@espoch.edu.ec',
-    cedula: '0612233445',
-    carrera: 'Ing. Civil',
-    status: StudentStatus.aprobado,
-    tieneQR: true,
-  ),
-  const Student(
-    id: '8',
-    nombre: 'Valentina Ríos Ponce',
-    email: 'v.rios@espoch.edu.ec',
-    cedula: '0623344556',
-    carrera: 'Ing. Industrial',
-    status: StudentStatus.aprobado,
-    tieneQR: true,
-  ),
-  const Student(
-    id: '9',
-    nombre: 'Jorge Salas Trujillo',
-    email: 'j.salas@espoch.edu.ec',
-    cedula: '0634455667',
-    carrera: 'Ing. Mecánica',
-    status: StudentStatus.pendiente,
-    tieneQR: false,
-  ),
-  const Student(
-    id: '10',
-    nombre: 'Camila Vera Dávalos',
-    email: 'c.vera@espoch.edu.ec',
-    cedula: '0645566778',
-    carrera: 'Ing. Electrónica',
-    status: StudentStatus.ingresado,
-    tieneQR: true,
-  ),
-];
-
-const _kCareers = [
-  'Todas las carreras',
-  'Ing. Electrónica',
-  'Ing. Sistemas',
-  'Ing. Telecom.',
-  'Ing. Civil',
-  'Ing. Industrial',
-  'Ing. Mecánica',
-];
-
+// ─── Color de avatar ──────────────────────────────────────────────────────────
 const _kAvatarColors = [
   AppColors.sentryNavy,
   AppColors.sentryBlue,
@@ -168,11 +27,10 @@ const _kAvatarColors = [
   AppColors.warning,
   AppColors.error,
 ];
-
 Color _avatarColor(String name) =>
     _kAvatarColors[name.codeUnitAt(0) % _kAvatarColors.length];
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═════════════════════════════════════════════════════════════════════════════
 class StudentListScreen extends StatefulWidget {
   const StudentListScreen({super.key});
   @override
@@ -181,29 +39,26 @@ class StudentListScreen extends StatefulWidget {
 
 class _StudentListScreenState extends State<StudentListScreen>
     with SingleTickerProviderStateMixin {
-  late List<Student> _students;
+  List<StudentRecord> _students = [];
+  List<String> _careers = ['Todas las carreras'];
   String _query = '';
   String _selectedCareer = 'Todas las carreras';
+  bool _loading = true;
 
   final _searchCtrl = TextEditingController();
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
 
-  // â”€â”€ Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Stats ──────────────────────────────────────────────────────────────────
   int get _total => _students.length;
   int get _conQR => _students.where((s) => s.tieneQR).length;
-  int get _aprobados => _students
-      .where(
-        (s) =>
-            s.status == StudentStatus.aprobado ||
-            s.status == StudentStatus.ingresado,
-      )
-      .length;
+  int get _aprobados =>
+      _students.where((s) => s.status == 'aprobado' || s.status == 'ingresado').length;
   int get _pendientes =>
-      _students.where((s) => s.status == StudentStatus.pendiente).length;
+      _students.where((s) => s.status == 'pendiente' || s.status == 'revision').length;
 
-  // â”€â”€ Filtered â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  List<Student> get _filtered => _students.where((s) {
+  // ── Filtered ───────────────────────────────────────────────────────────────
+  List<StudentRecord> get _filtered => _students.where((s) {
     final q = _query.toLowerCase();
     final matchQ =
         q.isEmpty ||
@@ -218,13 +73,10 @@ class _StudentListScreenState extends State<StudentListScreen>
   @override
   void initState() {
     super.initState();
-    _students = List.from(_mockStudents);
-    _fadeCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
+    _fadeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _fadeCtrl.forward();
+    _load();
   }
 
   @override
@@ -234,24 +86,40 @@ class _StudentListScreenState extends State<StudentListScreen>
     super.dispose();
   }
 
-  TextStyle _ts(double size, {FontWeight fw = FontWeight.w400, Color? color}) =>
-      GoogleFonts.outfit(
-        fontSize: size,
-        fontWeight: fw,
-        color: color ?? _kNavy,
-      );
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final event = await EventService.getActiveEvent();
 
-  // â”€â”€ RF33: Descargar CSV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      final results = await Future.wait([
+        StudentService.getStudentsWithStatus(idEvento: event?.id ?? 0),
+        StudentService.getCareers(),
+      ]);
+
+      final students = results[0] as List<StudentRecord>;
+      final careers = ['Todas las carreras', ...(results[1] as List<String>)];
+
+      if (mounted) {
+        setState(() {
+          _students = students;
+          _careers = careers;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  TextStyle _ts(double size, {FontWeight fw = FontWeight.w400, Color? color}) =>
+      GoogleFonts.outfit(fontSize: size, fontWeight: fw, color: color ?? _kNavy);
+
+  // ── RF33: Descargar CSV ────────────────────────────────────────────────────
   Future<void> _downloadCsv() async {
     final buf = StringBuffer()
       ..writeln('nombre,correo_electronico,cedula,carrera,estado');
     for (final s in _students) {
-      final est = switch (s.status) {
-        StudentStatus.ingresado => 'Ingresado',
-        StudentStatus.aprobado => 'Aprobado',
-        StudentStatus.pendiente => 'Pendiente',
-      };
-      buf.writeln('"${s.nombre}",${s.email},${s.cedula},"${s.carrera}",$est');
+      buf.writeln('"${s.nombre}",${s.email},${s.cedula},"${s.carrera}",${s.status}');
     }
     await Clipboard.setData(ClipboardData(text: buf.toString()));
     if (!mounted) return;
@@ -261,10 +129,7 @@ class _StudentListScreenState extends State<StudentListScreen>
           children: [
             const Icon(Icons.check_circle_rounded, color: _kGreen, size: 16),
             const SizedBox(width: 8),
-            Text(
-              'CSV copiado Â· ${_students.length} registros',
-              style: _ts(13),
-            ),
+            Text('CSV copiado · ${_students.length} registros', style: _ts(13)),
           ],
         ),
         backgroundColor: _kCard,
@@ -274,14 +139,14 @@ class _StudentListScreenState extends State<StudentListScreen>
     );
   }
 
-  // â”€â”€ RF25: Agregar / Editar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  Future<void> _showStudentDialog(Student? existing) async {
+  // ── RF25: Agregar / Editar ─────────────────────────────────────────────────
+  Future<void> _showStudentDialog(StudentRecord? existing) async {
     final isEdit = existing != null;
     final nombreCtrl = TextEditingController(text: existing?.nombre);
     final emailCtrl = TextEditingController(text: existing?.email);
     final cedulaCtrl = TextEditingController(text: existing?.cedula);
-    String selCareer = existing?.carrera ?? 'Ing. Sistemas';
-    StudentStatus selStatus = existing?.status ?? StudentStatus.pendiente;
+    String selCareer = existing?.carrera ?? (_careers.length > 1 ? _careers[1] : '');
+    bool saving = false;
 
     await showModalBottomSheet(
       context: context,
@@ -293,88 +158,35 @@ class _StudentListScreenState extends State<StudentListScreen>
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModal) => Padding(
           padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 16,
+            left: 20, right: 20, top: 16,
             bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Handle
               Center(
                 child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: _kBorder,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(color: _kBorder, borderRadius: BorderRadius.circular(2)),
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
-                isEdit ? 'Editar Estudiante' : 'Agregar Estudiante',
-                style: _ts(18, fw: FontWeight.w800),
-              ),
-              Text(
-                isEdit
-                    ? 'RF25 â€” Modificar registro'
-                    : 'RF25 â€” Nuevo registro',
-                style: _ts(11, color: _kGrey),
-              ),
+              Text(isEdit ? 'Editar Estudiante' : 'Agregar Estudiante', style: _ts(18, fw: FontWeight.w800)),
+              Text(isEdit ? 'Modificar registro' : 'Nuevo registro', style: _ts(11, color: _kGrey)),
               const SizedBox(height: 20),
-              _field(
-                'Nombre completo',
-                nombreCtrl,
-                Icons.person_outline_rounded,
-              ),
+              _field('Nombre completo', nombreCtrl, Icons.person_outline_rounded),
               const SizedBox(height: 12),
-              _field(
-                'Correo electrónico',
-                emailCtrl,
-                Icons.email_outlined,
-                keyboardType: TextInputType.emailAddress,
-              ),
+              _field('Correo electrónico', emailCtrl, Icons.email_outlined, keyboardType: TextInputType.emailAddress),
               const SizedBox(height: 12),
-              _field(
-                'Cédula',
-                cedulaCtrl,
-                Icons.badge_outlined,
-                keyboardType: TextInputType.number,
-                maxLength: 10,
-              ),
+              _field('Cédula', cedulaCtrl, Icons.badge_outlined, keyboardType: TextInputType.number, maxLength: 10),
               const SizedBox(height: 12),
-              _dropdown<String>(
-                value: selCareer,
-                items: _kCareers
-                    .skip(1)
-                    .map(
-                      (c) => DropdownMenuItem(
-                        value: c,
-                        child: Text(c, style: _ts(13)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setModal(() => selCareer = v!),
-              ),
-              const SizedBox(height: 12),
-              _dropdown<StudentStatus>(
-                value: selStatus,
-                items: StudentStatus.values.map((s) {
-                  final label = switch (s) {
-                    StudentStatus.ingresado => 'Ingresado',
-                    StudentStatus.aprobado => 'Aprobado',
-                    StudentStatus.pendiente => 'Pendiente',
-                  };
-                  return DropdownMenuItem(
-                    value: s,
-                    child: Text(label, style: _ts(13)),
-                  );
-                }).toList(),
-                onChanged: (v) => setModal(() => selStatus = v!),
-              ),
+              if (_careers.length > 1)
+                _dropdown<String>(
+                  value: selCareer.isEmpty ? _careers[1] : selCareer,
+                  items: _careers.skip(1).map((c) => DropdownMenuItem(value: c, child: Text(c, style: _ts(13)))).toList(),
+                  onChanged: (v) => setModal(() => selCareer = v!),
+                ),
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -384,9 +196,7 @@ class _StudentListScreenState extends State<StudentListScreen>
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: _kBorder),
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       child: Text('Cancelar', style: _ts(14, color: _kGrey)),
                     ),
@@ -394,58 +204,45 @@ class _StudentListScreenState extends State<StudentListScreen>
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () {
+                      onPressed: saving ? null : () async {
                         final nombre = nombreCtrl.text.trim();
                         final email = emailCtrl.text.trim();
                         final cedula = cedulaCtrl.text.trim();
-                        if (nombre.isEmpty || email.isEmpty || cedula.isEmpty) {
-                          return;
-                        }
-
-                        setState(() {
-                          if (isEdit) {
-                            final idx = _students.indexWhere(
-                              (s) => s.id == existing.id,
+                        if (nombre.isEmpty || email.isEmpty) return;
+                        setModal(() => saving = true);
+                        try {
+                          if (isEdit && existing.idDetalle != null) {
+                            await StudentService.updateStudent(
+                              idDetalle: existing.idDetalle!,
+                              nombre: nombre, email: email,
+                              carrera: selCareer, cedula: cedula,
                             );
-                            if (idx >= 0) {
-                              _students[idx] = existing.copyWith(
-                                nombre: nombre,
-                                email: email,
-                                cedula: cedula,
-                                carrera: selCareer,
-                                status: selStatus,
-                              );
-                            }
                           } else {
-                            _students.add(
-                              Student(
-                                id: DateTime.now().millisecondsSinceEpoch
-                                    .toString(),
-                                nombre: nombre,
-                                email: email,
-                                cedula: cedula,
-                                carrera: selCareer,
-                                status: selStatus,
-                                tieneQR: false,
-                              ),
+                            await StudentService.addStudent(
+                              nombre: nombre, email: email,
+                              carrera: selCareer, cedula: cedula,
                             );
                           }
-                        });
-                        Navigator.pop(ctx);
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          await _load();
+                        } catch (e) {
+                          setModal(() => saving = false);
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(content: Text('Error: $e'), backgroundColor: _kRed),
+                            );
+                          }
+                        }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _kPurple,
-                        foregroundColor: _kWhite,
+                        backgroundColor: _kPurple, foregroundColor: _kWhite,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
                       ),
-                      child: Text(
-                        isEdit ? 'Guardar' : 'Agregar',
-                        style: _ts(14, fw: FontWeight.w700, color: _kWhite),
-                      ),
+                      child: saving
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: _kWhite))
+                          : Text(isEdit ? 'Guardar' : 'Agregar', style: _ts(14, fw: FontWeight.w700, color: _kWhite)),
                     ),
                   ),
                 ],
@@ -461,8 +258,8 @@ class _StudentListScreenState extends State<StudentListScreen>
     cedulaCtrl.dispose();
   }
 
-  // â”€â”€ RF25: Eliminar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  Future<bool> _confirmDelete(Student s) async {
+  // ── RF25: Eliminar ─────────────────────────────────────────────────────────
+  Future<bool> _confirmDelete(StudentRecord s) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -470,7 +267,7 @@ class _StudentListScreenState extends State<StudentListScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Eliminar estudiante', style: _ts(16, fw: FontWeight.w700)),
         content: Text(
-          'Â¿Eliminar a ${s.nombre}?\nEsta acción no se puede deshacer.',
+          '¿Eliminar a ${s.nombre}?\nEsta acción no se puede deshacer.',
           style: _ts(13, color: _kGrey),
         ),
         actions: [
@@ -481,16 +278,10 @@ class _StudentListScreenState extends State<StudentListScreen>
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: _kRed,
-              foregroundColor: _kWhite,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+              backgroundColor: _kRed, foregroundColor: _kWhite,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: Text(
-              'Eliminar',
-              style: _ts(13, fw: FontWeight.w700, color: _kWhite),
-            ),
+            child: Text('Eliminar', style: _ts(13, fw: FontWeight.w700, color: _kWhite)),
           ),
         ],
       ),
@@ -498,7 +289,7 @@ class _StudentListScreenState extends State<StudentListScreen>
     return ok ?? false;
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     final list = _filtered;
@@ -528,8 +319,17 @@ class _StudentListScreenState extends State<StudentListScreen>
                     const SizedBox(height: 16),
                     _buildColumnHeader(),
                     const SizedBox(height: 6),
-                    ...list.map(_buildStudentRow),
-                    if (list.isEmpty) _buildEmptyState(),
+                    if (_loading)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.only(top: 40),
+                          child: CircularProgressIndicator(color: AppColors.sentryBlue),
+                        ),
+                      )
+                    else ...[
+                      ...list.map(_buildStudentRow),
+                      if (list.isEmpty) _buildEmptyState(),
+                    ],
                     const SizedBox(height: 32),
                   ]),
                 ),
@@ -541,7 +341,7 @@ class _StudentListScreenState extends State<StudentListScreen>
     );
   }
 
-  // â”€â”€ AppBar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── AppBar ─────────────────────────────────────────────────────────────────
   SliverAppBar _buildAppBar() => SliverAppBar(
     backgroundColor: _kBg,
     elevation: 0,
@@ -568,19 +368,9 @@ class _StudentListScreenState extends State<StudentListScreen>
         ),
         child: Row(
           children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: const BoxDecoration(
-                color: _kGreen,
-                shape: BoxShape.circle,
-              ),
-            ),
+            Container(width: 6, height: 6, decoration: const BoxDecoration(color: _kGreen, shape: BoxShape.circle)),
             const SizedBox(width: 4),
-            Text(
-              'En línea',
-              style: _ts(10, color: _kGreen, fw: FontWeight.w600),
-            ),
+            Text('En línea', style: _ts(10, color: _kGreen, fw: FontWeight.w600)),
           ],
         ),
       ),
@@ -591,45 +381,36 @@ class _StudentListScreenState extends State<StudentListScreen>
         child: const Icon(Icons.person_rounded, size: 18, color: _kPurple),
       ),
       IconButton(
-        icon: Icon(Icons.logout_rounded, color: _kGrey, size: 20),
-        onPressed: () => Navigator.of(context).pop(),
+        icon: Icon(Icons.refresh_rounded, color: _kGrey, size: 20),
+        onPressed: _load,
       ),
     ],
   );
 
-  // â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Header ─────────────────────────────────────────────────────────────────
   Widget _buildHeader() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text('Lista de Estudiantes', style: _ts(22, fw: FontWeight.w800)),
       const SizedBox(height: 4),
-      Text(
-        'RF25 Â· RF32 Â· RF33 â€” CRUD y descarga del listado',
-        style: _ts(11, color: _kGrey),
-      ),
+      Text('Gestión y descarga del listado', style: _ts(11, color: _kGrey)),
     ],
   );
 
-  // â”€â”€ RF33/RF25: Botones de acción â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Botones de acción ──────────────────────────────────────────────────────
   Widget _buildActionButtons() => Row(
     children: [
       Expanded(
         child: OutlinedButton.icon(
           onPressed: _downloadCsv,
           icon: const Icon(Icons.download_rounded, size: 18, color: _kPurple),
-          label: Text(
-            'Descargar CSV\n(RF33)',
-            style: _ts(12, fw: FontWeight.w600, color: _kPurple),
-            textAlign: TextAlign.center,
-          ),
+          label: Text('Descargar CSV', style: _ts(12, fw: FontWeight.w600, color: _kPurple), textAlign: TextAlign.center),
           style: OutlinedButton.styleFrom(
             side: const BorderSide(color: _kBorder),
             backgroundColor: _kCard,
             foregroundColor: _kPurple,
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
       ),
@@ -638,18 +419,11 @@ class _StudentListScreenState extends State<StudentListScreen>
         child: ElevatedButton.icon(
           onPressed: () => _showStudentDialog(null),
           icon: const Icon(Icons.add_rounded, size: 20, color: _kWhite),
-          label: Text(
-            'Agregar\n(RF25)',
-            style: _ts(12, fw: FontWeight.w700, color: _kWhite),
-            textAlign: TextAlign.center,
-          ),
+          label: Text('Agregar', style: _ts(12, fw: FontWeight.w700, color: _kWhite), textAlign: TextAlign.center),
           style: ElevatedButton.styleFrom(
-            backgroundColor: _kPurple,
-            foregroundColor: _kWhite,
+            backgroundColor: _kPurple, foregroundColor: _kWhite,
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             elevation: 0,
           ),
         ),
@@ -657,7 +431,7 @@ class _StudentListScreenState extends State<StudentListScreen>
     ],
   );
 
-  // â”€â”€ RF23: Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Stats ──────────────────────────────────────────────────────────────────
   Widget _buildStats() => Wrap(
     spacing: 8,
     runSpacing: 8,
@@ -669,7 +443,7 @@ class _StudentListScreenState extends State<StudentListScreen>
     ],
   );
 
-  // â”€â”€ RF32: Barra de búsqueda â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Barra de búsqueda ──────────────────────────────────────────────────────
   Widget _buildSearchBar() => TextField(
     controller: _searchCtrl,
     style: _ts(13),
@@ -682,30 +456,18 @@ class _StudentListScreenState extends State<StudentListScreen>
       suffixIcon: _query.isNotEmpty
           ? IconButton(
               icon: const Icon(Icons.close_rounded, color: _kGrey, size: 18),
-              onPressed: () {
-                _searchCtrl.clear();
-                setState(() => _query = '');
-              },
+              onPressed: () { _searchCtrl.clear(); setState(() => _query = ''); },
             )
           : null,
       filled: true,
       fillColor: _kCard,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _kBorder),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _kBorder),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _kPurple),
-      ),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kBorder)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kBorder)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kPurple)),
     ),
   );
 
-  // â”€â”€ Filtro por carrera â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Filtro por carrera ──────────────────────────────────────────────────────
   Widget _buildCareerFilter() => Row(
     children: [
       const Icon(Icons.filter_list_rounded, color: _kGrey, size: 18),
@@ -713,29 +475,15 @@ class _StudentListScreenState extends State<StudentListScreen>
       Expanded(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          decoration: BoxDecoration(
-            color: _kCard,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _kBorder),
-          ),
+          decoration: BoxDecoration(color: _kCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: _kBorder)),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _selectedCareer,
               dropdownColor: _kCard,
               style: _ts(13),
               isExpanded: true,
-              icon: const Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: _kGrey,
-              ),
-              items: _kCareers
-                  .map(
-                    (c) => DropdownMenuItem(
-                      value: c,
-                      child: Text(c, style: _ts(13)),
-                    ),
-                  )
-                  .toList(),
+              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _kGrey),
+              items: _careers.map((c) => DropdownMenuItem(value: c, child: Text(c, style: _ts(13)))).toList(),
               onChanged: (v) => setState(() => _selectedCareer = v!),
             ),
           ),
@@ -744,7 +492,7 @@ class _StudentListScreenState extends State<StudentListScreen>
     ],
   );
 
-  // â”€â”€ Encabezado de tabla â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Encabezado de tabla ─────────────────────────────────────────────────────
   Widget _buildColumnHeader() => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 12),
     child: Row(
@@ -756,29 +504,31 @@ class _StudentListScreenState extends State<StudentListScreen>
     ),
   );
 
-  Widget _colLabel(String t) => Text(
-    t,
-    style: _ts(11, fw: FontWeight.w600, color: _kGrey),
-  );
+  Widget _colLabel(String t) => Text(t, style: _ts(11, fw: FontWeight.w600, color: _kGrey));
 
-  // â”€â”€ RF21: Fila de estudiante â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  Widget _buildStudentRow(Student s) {
+  // ── Fila de estudiante ──────────────────────────────────────────────────────
+  Widget _buildStudentRow(StudentRecord s) {
     return Dismissible(
-      key: ValueKey(s.id),
+      key: ValueKey(s.idDetalle ?? s.email),
       direction: DismissDirection.endToStart,
       confirmDismiss: (_) => _confirmDelete(s),
-      onDismissed: (_) {
-        setState(() => _students.removeWhere((st) => st.id == s.id));
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${s.nombre} eliminado Â· RF25', style: _ts(13)),
-            backgroundColor: _kCard,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      onDismissed: (_) async {
+        if (s.idDetalle != null) {
+          try {
+            await StudentService.deleteStudent(s.idDetalle!);
+          } catch (_) {}
+        }
+        setState(() => _students.removeWhere((st) => st.idDetalle == s.idDetalle && st.email == s.email));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${s.nombre} eliminado', style: _ts(13)),
+              backgroundColor: _kCard,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-          ),
-        );
+          );
+        }
       },
       background: Container(
         alignment: Alignment.centerRight,
@@ -810,16 +560,10 @@ class _StudentListScreenState extends State<StudentListScreen>
                   children: [
                     CircleAvatar(
                       radius: 20,
-                      backgroundColor: _avatarColor(
-                        s.nombre,
-                      ).withValues(alpha: 0.2),
+                      backgroundColor: _avatarColor(s.nombre).withValues(alpha: 0.2),
                       child: Text(
-                        s.nombre[0].toUpperCase(),
-                        style: GoogleFonts.outfit(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: _avatarColor(s.nombre),
-                        ),
+                        s.nombre.isNotEmpty ? s.nombre[0].toUpperCase() : '?',
+                        style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w800, color: _avatarColor(s.nombre)),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -827,16 +571,8 @@ class _StudentListScreenState extends State<StudentListScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            s.nombre,
-                            style: _ts(13, fw: FontWeight.w700),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            s.email,
-                            style: _ts(10, color: _kGrey),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          Text(s.nombre, style: _ts(13, fw: FontWeight.w700), overflow: TextOverflow.ellipsis),
+                          Text(s.email, style: _ts(10, color: _kGrey), overflow: TextOverflow.ellipsis),
                         ],
                       ),
                     ),
@@ -846,11 +582,7 @@ class _StudentListScreenState extends State<StudentListScreen>
               // Cédula
               Expanded(
                 flex: 5,
-                child: Text(
-                  s.cedula,
-                  style: _ts(11, color: _kGrey),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                child: Text(s.cedula.isNotEmpty ? s.cedula : '—', style: _ts(11, color: _kGrey), overflow: TextOverflow.ellipsis),
               ),
               // Carrera + status
               Expanded(
@@ -858,12 +590,7 @@ class _StudentListScreenState extends State<StudentListScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      s.carrera,
-                      style: _ts(9, color: _kGrey),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
+                    Text(s.carrera, style: _ts(9, color: _kGrey), overflow: TextOverflow.ellipsis, maxLines: 1),
                     const SizedBox(height: 4),
                     _StatusChip(status: s.status),
                   ],
@@ -876,7 +603,7 @@ class _StudentListScreenState extends State<StudentListScreen>
     );
   }
 
-  // â”€â”€ Estado vacío â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Estado vacío ───────────────────────────────────────────────────────────
   Widget _buildEmptyState() => Container(
     padding: const EdgeInsets.all(36),
     alignment: Alignment.center,
@@ -891,7 +618,7 @@ class _StudentListScreenState extends State<StudentListScreen>
     ),
   );
 
-  // â”€â”€ Helpers UI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Helpers UI ─────────────────────────────────────────────────────────────
   Widget _field(
     String label,
     TextEditingController ctrl,
@@ -911,18 +638,9 @@ class _StudentListScreenState extends State<StudentListScreen>
       prefixIcon: Icon(icon, color: _kGrey, size: 18),
       filled: true,
       fillColor: _kBg,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _kBorder),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _kBorder),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _kPurple),
-      ),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kBorder)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kBorder)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kPurple)),
     ),
   );
 
@@ -932,11 +650,7 @@ class _StudentListScreenState extends State<StudentListScreen>
     required ValueChanged<T?> onChanged,
   }) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-    decoration: BoxDecoration(
-      color: _kBg,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: _kBorder),
-    ),
+    decoration: BoxDecoration(color: _kBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: _kBorder)),
     child: DropdownButtonHideUnderline(
       child: DropdownButton<T>(
         value: value,
@@ -950,19 +664,12 @@ class _StudentListScreenState extends State<StudentListScreen>
   );
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Widgets auxiliares
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-
+// ─── Tarjeta de estadística ───────────────────────────────────────────────────
 class _StatBadge extends StatelessWidget {
   final int value;
   final String label;
   final Color color;
-  const _StatBadge({
-    required this.value,
-    required this.label,
-    required this.color,
-  });
+  const _StatBadge({required this.value, required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -976,39 +683,27 @@ class _StatBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            '$value',
-            style: GoogleFonts.outfit(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-          ),
+          Text('$value', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w800, color: color)),
           const SizedBox(width: 5),
-          Text(
-            label,
-            style: GoogleFonts.outfit(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: _kNavy,
-            ),
-          ),
+          Text(label, style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: _kNavy)),
         ],
       ),
     );
   }
 }
 
+// ─── Chip de estado ───────────────────────────────────────────────────────────
 class _StatusChip extends StatelessWidget {
-  final StudentStatus status;
+  final String status;
   const _StatusChip({required this.status});
 
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
-      StudentStatus.ingresado => ('Ingresado', _kCyan),
-      StudentStatus.aprobado => ('Aprobado', _kGreen),
-      StudentStatus.pendiente => ('Pendiente', _kYellow),
+      'ingresado' => ('Ingresado', _kCyan),
+      'aprobado'  => ('Aprobado', _kGreen),
+      'revision'  => ('En revisión', _kYellow),
+      _           => ('Pendiente', _kYellow),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1019,11 +714,7 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: GoogleFonts.outfit(
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          color: color,
-        ),
+        style: GoogleFonts.outfit(fontSize: 9, fontWeight: FontWeight.w700, color: color),
       ),
     );
   }
