@@ -21,20 +21,17 @@ class AuthService {
     required String nombre,
     required int idRol, // Ej: 1 para Estudiante, 2 para Externo
   }) async {
-    // 1. Crea el usuario en el sistema de autenticación seguro de Supabase
-    final AuthResponse res = await supabase.auth.signUp(
+    // 1. Crea el usuario en el sistema seguro y enviamos la información extra
+    // en el parámetro "data" (metadatos).
+    // El Trigger de Supabase (on_auth_user_created) leerá estos datos
+    // y los insertará de forma automática y segura en la tabla 'usuarios'.
+    await supabase.auth.signUp(
       email: email,
       password: password,
+      data: {'nombre': nombre, 'id_rol': idRol},
     );
 
-    // 2. Si se creó exitosamente, guardamos los datos extra en tu tabla pública 'usuarios'
-    if (res.user != null) {
-      await supabase.from('usuarios').insert({
-        // No mandamos el 'id_usuario' porque en tu diagrama es 'Identity' (se autogenera)
-        'nombre': nombre,
-        'email': email,
-        'id_rol': idRol,
-      });
-    }
+    // Nota: ¡Eliminamos el "supabase.from('usuarios').insert(...)" de aquí
+    // para no chocar con el Trigger y evitar el Error 500!
   }
 }
