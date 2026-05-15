@@ -263,10 +263,14 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       // La navegación la maneja el listener _authSubscription
-    } on GoogleSignInException {
+    } on GoogleSignInException catch (e) {
       _googleSignInInProgress = false;
       if (mounted) {
-        _showTopToast('Inicio de sesión con Google cancelado.', isError: true);
+        if (e.code == GoogleSignInExceptionCode.canceled) {
+          _showTopToast('Inicio de sesión con Google cancelado.', isError: true);
+        } else {
+          _showTopToast('Error Google: ${e.code.name}', isError: true);
+        }
       }
     } catch (error) {
       _googleSignInInProgress = false;
