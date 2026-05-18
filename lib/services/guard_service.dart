@@ -96,7 +96,7 @@ class GuardService {
   /// - Si estado == 'activo'     → valido (marca como usado)
   static Future<ScanResult> validateQR({
     required String codigoQR,
-    int? idGuardia,   // nullable: si no hay sesión igual valida
+    int? idGuardia, // nullable: si no hay sesión igual valida
     int? idEvento,
   }) async {
     try {
@@ -177,7 +177,7 @@ class GuardService {
         await _client.from('asistencias').insert({
           'id_entrada': idEntrada,
           'fecha_ingreso': DateTime.now().toIso8601String(),
-          if (idGuardia case final g?) 'validado_por': g,
+          'validado_por': ?idGuardia,
         });
       } catch (_) {}
 
