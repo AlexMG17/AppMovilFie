@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:math'; // Restaurado por precaución
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:geolocator/geolocator.dart'; // Restaurado por precaución
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import '../services/event_service.dart';
@@ -11,6 +11,9 @@ import '../theme/app_colors.dart';
 import 'upload_payment_screen.dart';
 import 'payment_status_screen.dart';
 import 'my_qr_screen.dart';
+
+// NUESTRO NUEVO SERVICIO
+import '../services/geofence_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -106,8 +109,10 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon,
-                color: active ? AppColors.sentryBlue : AppColors.sentryGrey),
+            Icon(
+              icon,
+              color: active ? AppColors.sentryBlue : AppColors.sentryGrey,
+            ),
             Text(
               label,
               style: TextStyle(
@@ -138,15 +143,17 @@ class _HomeContentState extends State<_HomeContent> {
   int _capacidad = 350;
   bool _loading = true;
 
-  // Countdown
   Timer? _countdownTimer;
   Duration _remaining = Duration.zero;
 
-  // Geofencing
+  // Variables de Geofencing
+  GeofenceService? _geofenceService;
+  GeofenceState _geoState = GeofenceState.afuera;
   double? _distanceMeters;
-  bool _insideZone = false;
-  bool _loadingGps = false;
-  String _gpsStatus = 'No verificado';
+  LatLng? _userLocation; // <-- Para pintar el punto azul
+  String _gpsStatus = 'Buscando señal...';
+  int _segundosSalida = 0;
+  bool _isUpdatingGps = false;
 
   final _mapController = MapController();
 
@@ -154,13 +161,61 @@ class _HomeContentState extends State<_HomeContent> {
   void initState() {
     super.initState();
     _loadEvent();
+    _iniciarGeocercaAutomatica();
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _geofenceService?.dispose();
     _mapController.dispose();
     super.dispose();
+  }
+
+  void _iniciarGeocercaAutomatica() {
+    _geofenceService = GeofenceService(
+      onStateChanged: (estado, distancia, ubicacion) {
+        if (!mounted) return;
+        setState(() {
+          _geoState = estado;
+          _distanceMeters = distancia;
+          _userLocation = ubicacion;
+
+          if (estado == GeofenceState.adentro) {
+            _gpsStatus = 'Adentro de la zona ✓';
+          } else if (estado == GeofenceState.cerca) {
+            _gpsStatus = 'Cerca (Zona advertencia)';
+          } else {
+            _gpsStatus = '¡Fuera de la zona!';
+          }
+        });
+      },
+      onTimerTick: (segundos) {
+        if (!mounted) return;
+        setState(() => _segundosSalida = segundos);
+      },
+      onTimerExpired: () {
+        if (!mounted) return;
+        setState(() {
+          _gpsStatus = 'Salida registrada. QR Invalidado.';
+        });
+      },
+    );
+
+    _geofenceService!.startMonitoring();
+    _geofenceService!.forceUpdate();
+  }
+
+  Future<void> _forzarActualizacionGPS() async {
+    setState(() => _isUpdatingGps = true);
+
+    await _geofenceService?.forceUpdate();
+
+    if (_userLocation != null) {
+      _mapController.move(_userLocation!, 16.5);
+    }
+
+    setState(() => _isUpdatingGps = false);
   }
 
   Future<void> _loadEvent() async {
@@ -195,86 +250,6 @@ class _HomeContentState extends State<_HomeContent> {
   void _updateRemaining(DateTime eventDate) {
     final diff = eventDate.difference(DateTime.now());
     setState(() => _remaining = diff.isNegative ? Duration.zero : diff);
-  }
-
-  Future<void> _checkLocation() async {
-    if (_event == null) return;
-    setState(() {
-      _loadingGps = true;
-      _gpsStatus = 'Verificando...';
-    });
-
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        setState(() {
-          _gpsStatus = 'GPS desactivado';
-          _loadingGps = false;
-        });
-        return;
-      }
-
-      LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-        if (perm == LocationPermission.denied) {
-          setState(() {
-            _gpsStatus = 'Permiso denegado';
-            _loadingGps = false;
-          });
-          return;
-        }
-      }
-      if (perm == LocationPermission.deniedForever) {
-        setState(() {
-          _gpsStatus = 'Permiso bloqueado';
-          _loadingGps = false;
-        });
-        return;
-      }
-
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
-
-      final dist = _haversineDistance(
-        pos.latitude,
-        pos.longitude,
-        _event!.lat,
-        _event!.lng,
-      );
-
-      final inside = dist <= EventModel.radioMetros;
-
-      setState(() {
-        _distanceMeters = dist;
-        _insideZone = inside;
-        _gpsStatus = inside ? 'Dentro de la zona ✓' : 'Fuera de la zona';
-        _loadingGps = false;
-      });
-
-      _mapController.move(LatLng(pos.latitude, pos.longitude), 16);
-    } catch (e) {
-      setState(() {
-        _gpsStatus = 'Error: ${e.toString()}';
-        _loadingGps = false;
-      });
-    }
-  }
-
-  /// Distancia entre dos coordenadas en metros (Haversine).
-  double _haversineDistance(
-      double lat1, double lon1, double lat2, double lon2) {
-    const r = 6371000.0;
-    final phi1 = lat1 * pi / 180;
-    final phi2 = lat2 * pi / 180;
-    final dPhi = (lat2 - lat1) * pi / 180;
-    final dLambda = (lon2 - lon1) * pi / 180;
-    final a = sin(dPhi / 2) * sin(dPhi / 2) +
-        cos(phi1) * cos(phi2) * sin(dLambda / 2) * sin(dLambda / 2);
-    return r * 2 * atan2(sqrt(a), sqrt(1 - a));
   }
 
   String _pad(int n) => n.toString().padLeft(2, '0');
@@ -353,10 +328,7 @@ class _HomeContentState extends State<_HomeContent> {
           ],
           const SizedBox(height: 20),
           if (event != null) ...[
-            _infoRow(
-              Icons.calendar_today,
-              _formatDate(event.fecha),
-            ),
+            _infoRow(Icons.calendar_today, _formatDate(event.fecha)),
             _infoRow(Icons.access_time, '19:00 – 23:00'),
             _infoRow(Icons.location_on, event.lugar),
           ],
@@ -454,8 +426,10 @@ class _HomeContentState extends State<_HomeContent> {
 
   Widget _buildGeofenceCard() {
     final event = _event;
-    final Color statusColor =
-        _insideZone ? AppColors.success : AppColors.error;
+
+    final Color statusColor = _geoState == GeofenceState.adentro
+        ? AppColors.success
+        : (_geoState == GeofenceState.cerca ? Colors.orange : AppColors.error);
 
     return _baseCard(
       child: Column(
@@ -465,12 +439,51 @@ class _HomeContentState extends State<_HomeContent> {
             children: [
               const Icon(Icons.near_me, color: AppColors.sentryCyan, size: 20),
               const SizedBox(width: 8),
-              Text(
-                'Validación de ubicación',
-                style: GoogleFonts.outfit(
-                  color: AppColors.sentryNavy,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
+              Expanded(
+                child: Text(
+                  'Validación de ubicación',
+                  style: GoogleFonts.outfit(
+                    color: AppColors.sentryNavy,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: _isUpdatingGps ? null : _forzarActualizacionGPS,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.sentryBg,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      _isUpdatingGps
+                          ? const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(
+                              Icons.my_location,
+                              size: 14,
+                              color: AppColors.sentryBlue,
+                            ),
+                      const SizedBox(width: 6),
+                      Text(
+                        "Centrar",
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: AppColors.sentryBlue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -485,20 +498,21 @@ class _HomeContentState extends State<_HomeContent> {
             ),
           const SizedBox(height: 14),
 
-          // Mapa con OpenStreetMap (flutter_map)
           ClipRRect(
             borderRadius: BorderRadius.circular(14),
             child: SizedBox(
-              height: 160,
+              height: 200,
               child: event != null
                   ? FlutterMap(
                       mapController: _mapController,
                       options: MapOptions(
-                        initialCenter: LatLng(event.lat, event.lng),
-                        initialZoom: 16,
+                        initialCenter:
+                            _geofenceService?.eventCenter ??
+                            LatLng(event.lat, event.lng),
+                        initialZoom: 16.0,
                         interactionOptions: const InteractionOptions(
-                          flags: InteractiveFlag.pinchZoom |
-                              InteractiveFlag.drag,
+                          flags:
+                              InteractiveFlag.pinchZoom | InteractiveFlag.drag,
                         ),
                       ),
                       children: [
@@ -507,28 +521,76 @@ class _HomeContentState extends State<_HomeContent> {
                               'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
                           userAgentPackageName: 'com.fie.sentry_app',
                         ),
+                        PolygonLayer(
+                          polygons: [
+                            if (_geofenceService != null)
+                              Polygon(
+                                points: _geofenceService!.eventPolygon,
+                                color: AppColors.sentryCyan.withValues(
+                                  alpha: 0.2,
+                                ),
+                                borderColor: AppColors.sentryBlue,
+                                borderStrokeWidth: 2.5,
+                              ),
+                          ],
+                        ),
                         CircleLayer(
                           circles: [
-                            CircleMarker(
-                              point: LatLng(event.lat, event.lng),
-                              radius: EventModel.radioMetros.toDouble(),
-                              useRadiusInMeter: true,
-                              color: AppColors.sentryCyan.withValues(alpha: 0.15),
-                              borderColor: AppColors.sentryCyan,
-                              borderStrokeWidth: 2,
-                            ),
+                            if (_geofenceService != null)
+                              CircleMarker(
+                                point: _geofenceService!.eventCenter,
+                                radius: _geofenceService!.radioCerca,
+                                useRadiusInMeter: true,
+                                color: Colors.orange.withValues(alpha: 0.05),
+                                borderColor: Colors.orange.withValues(
+                                  alpha: 0.5,
+                                ),
+                                borderStrokeWidth: 1,
+                              ),
                           ],
                         ),
                         MarkerLayer(
                           markers: [
-                            Marker(
-                              point: LatLng(event.lat, event.lng),
-                              child: const Icon(
-                                Icons.location_pin,
-                                color: AppColors.error,
-                                size: 36,
+                            if (_geofenceService != null)
+                              Marker(
+                                point: _geofenceService!.eventCenter,
+                                child: const Icon(
+                                  Icons.flag,
+                                  color: AppColors.error,
+                                  size: 24,
+                                ),
                               ),
-                            ),
+                            if (_userLocation != null)
+                              Marker(
+                                point: _userLocation!,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    Container(
+                                      width: 24,
+                                      height: 24,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.sentryBlue.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    Container(
+                                      width: 14,
+                                      height: 14,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.sentryBlue,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 2,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                           ],
                         ),
                       ],
@@ -536,8 +598,11 @@ class _HomeContentState extends State<_HomeContent> {
                   : Container(
                       color: AppColors.sentryBg,
                       child: const Center(
-                        child: Icon(Icons.map_outlined,
-                            size: 48, color: AppColors.sentryGrey),
+                        child: Icon(
+                          Icons.map_outlined,
+                          size: 48,
+                          color: AppColors.sentryGrey,
+                        ),
                       ),
                     ),
             ),
@@ -545,62 +610,61 @@ class _HomeContentState extends State<_HomeContent> {
 
           const SizedBox(height: 14),
 
-          // Estado de geofencing
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _gpsStatus,
-                    style: GoogleFonts.outfit(
-                      color: statusColor,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                  if (_distanceMeters != null)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      '${_distanceMeters!.toStringAsFixed(0)} m del evento',
+                      _gpsStatus,
                       style: GoogleFonts.outfit(
-                        color: AppColors.sentryGrey,
-                        fontSize: 11,
+                        color: statusColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
                       ),
                     ),
-                ],
-              ),
-              ElevatedButton.icon(
-                onPressed: _loadingGps ? null : _checkLocation,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.sentryBlue,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                ),
-                icon: _loadingGps
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
+                    if (_distanceMeters != null)
+                      Text(
+                        _geoState == GeofenceState.adentro
+                            ? 'Estás en zona segura'
+                            : 'A ${_distanceMeters!.toStringAsFixed(0)} m del centro',
+                        style: GoogleFonts.outfit(
+                          color: AppColors.sentryGrey,
+                          fontSize: 12,
                         ),
-                      )
-                    : const Icon(Icons.gps_fixed, color: Colors.white, size: 16),
-                label: Text(
-                  'Verificar GPS',
-                  style: GoogleFonts.outfit(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
+                      ),
+                  ],
                 ),
               ),
+
+              if (_geoState == GeofenceState.afuera && _segundosSalida > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.error),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.timer, color: AppColors.error, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        '00:${_segundosSalida.toString().padLeft(2, '0')}',
+                        style: GoogleFonts.outfit(
+                          color: AppColors.error,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ],
@@ -642,93 +706,107 @@ class _HomeContentState extends State<_HomeContent> {
 
   String _formatDate(DateTime d) {
     const months = [
-      '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+      '',
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
     ];
     const days = [
-      '', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo',
+      '',
+      'Lunes',
+      'Martes',
+      'Miércoles',
+      'Jueves',
+      'Viernes',
+      'Sábado',
+      'Domingo',
     ];
     return '${days[d.weekday]}, ${d.day} de ${months[d.month]} de ${d.year}';
   }
 
   Widget _baseCard({required Widget child}) => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.02),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
         ),
-        child: child,
-      );
+      ],
+    ),
+    child: child,
+  );
 
   Widget _badge(String text) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white24,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          text,
-          style: GoogleFonts.outfit(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(
+      color: Colors.white24,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Text(
+      text,
+      style: GoogleFonts.outfit(
+        color: Colors.white,
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
 
   Widget _infoRow(IconData icon, String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.white70, size: 18),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                text,
-                style: GoogleFonts.outfit(color: Colors.white, fontSize: 14),
-              ),
-            ),
-          ],
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      children: [
+        Icon(icon, color: Colors.white70, size: 18),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.outfit(color: Colors.white, fontSize: 14),
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   Widget _timeUnit(String val, String label) => Container(
-        width: 75,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+    width: 75,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Column(
+      children: [
+        Text(
+          val,
+          style: GoogleFonts.outfit(
+            color: AppColors.sentryNavy,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+          ),
         ),
-        child: Column(
-          children: [
-            Text(
-              val,
-              style: GoogleFonts.outfit(
-                color: AppColors.sentryNavy,
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            Text(
-              label,
-              style: GoogleFonts.outfit(
-                color: AppColors.sentryGrey,
-                fontSize: 10,
-              ),
-            ),
-          ],
+        Text(
+          label,
+          style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 10),
         ),
-      );
+      ],
+    ),
+  );
 
-  Widget _actionBtn(
-          String title, String sub, IconData icon, Color color) =>
+  Widget _actionBtn(String title, String sub, IconData icon, Color color) =>
       Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
