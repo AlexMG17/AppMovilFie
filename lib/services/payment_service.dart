@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'qr_unique_service.dart';
 import 'supabase_service.dart';
 
 /// Modelo que mapea la tabla `pagos`.
@@ -180,7 +181,7 @@ class PaymentService {
     return (data as List).map((e) => PagoAdminModel.fromMap(e)).toList();
   }
 
-  /// Aprueba el pago y genera (o actualiza) la entrada con QR.
+  /// Aprueba el pago y genera (o renueva) la entrada con QR único (UUID v4).
   /// Retorna el código QR generado.
   static Future<String> approvePago({
     required int idPago,
@@ -192,9 +193,6 @@ class PaymentService {
         .update({'estado': 'aprobado'})
         .eq('id_pago', idPago);
 
-    final qrCode =
-        'FIE-$idUsuario-$idEvento-${DateTime.now().millisecondsSinceEpoch}';
-
     final existing = await _client
         .from('entradas')
         .select('id_entrada')
@@ -202,23 +200,11 @@ class PaymentService {
         .eq('id_evento', idEvento)
         .maybeSingle();
 
-    if (existing != null) {
-      await _client.from('entradas').update({
-        'codigo_qr': qrCode,
-        'estado': 'activo',
-        'fecha_generacion': DateTime.now().toIso8601String(),
-      }).eq('id_entrada', existing['id_entrada'] as int);
-    } else {
-      await _client.from('entradas').insert({
-        'id_usuario': idUsuario,
-        'id_evento': idEvento,
-        'codigo_qr': qrCode,
-        'estado': 'activo',
-        'fecha_generacion': DateTime.now().toIso8601String(),
-      });
-    }
-
-    return qrCode;
+    return QrUniqueService.createOrRenewEntry(
+      idUsuario: idUsuario,
+      idEvento: idEvento,
+      existingEntradaId: existing?['id_entrada'] as int?,
+    );
   }
 
   /// Rechaza el pago.
@@ -262,7 +248,7 @@ class PaymentService {
     try {
       final data = await _client
           .from('entradas')
-          .select('codigo_qr, estado, fecha_generacion')
+          .select('codigo_qr, estado, fecha_generacion, fecha_expiracion, version_qr')
           .eq('id_usuario', idUsuario)
           .eq('id_evento', idEvento)
           .neq('estado', 'cancelado')

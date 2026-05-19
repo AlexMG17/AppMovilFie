@@ -24,6 +24,7 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
   String _eventName = 'Gala FIE';
   final Set<int> _processing = {};
   RealtimeChannel? _channel;
+  String _userName = '';
 
   // ── computed ──────────────────────────────────────────────────────────────
 
@@ -44,6 +45,12 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
   void initState() {
     super.initState();
     _loadData();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    final name = await EventService.getCurrentUserName();
+    if (mounted) setState(() => _userName = name ?? SupabaseService.currentUser?.email ?? '');
   }
 
   @override
@@ -409,8 +416,11 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
     return Scaffold(
       backgroundColor: AppColors.sentryBg,
       body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
+        child: RefreshIndicator(
+          onRefresh: _loadData,
+          color: AppColors.sentryBlue,
+          child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             _buildAppBar(),
             SliverPadding(
@@ -429,6 +439,7 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );
@@ -457,10 +468,7 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
         backgroundColor: AppColors.sentryBg,
         elevation: 0,
         pinned: true,
-        leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.sentryNavy),
-          onPressed: () {},
-        ),
+        automaticallyImplyLeading: false,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -470,6 +478,55 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
           ],
         ),
         actions: [
+          PopupMenuButton<String>(
+            offset: const Offset(0, 44),
+            onSelected: (value) async {
+              if (value == 'logout') {
+                final nav = Navigator.of(context);
+                await SupabaseService.signOut();
+                nav.pushReplacementNamed('/login');
+              }
+            },
+            child: const CircleAvatar(
+              radius: 16,
+              backgroundColor: AppColors.sentryCyan,
+              child: Icon(Icons.person_rounded, color: Colors.white, size: 18),
+            ),
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                enabled: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _userName,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: Colors.black87),
+                    ),
+                    Text(
+                      SupabaseService.currentUser?.email ?? '',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded, size: 16, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Cerrar sesión',
+                        style: TextStyle(color: Colors.red, fontSize: 14)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.refresh_rounded,
                 color: AppColors.sentryBlue),

@@ -3,22 +3,24 @@ import 'package:excel/excel.dart' show Excel;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/event_service.dart';
 import '../services/student_service.dart';
+import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 
-// ─── Dark palette (pantalla de importación) ───────────────────────────────────
-const _kBg = Color(0xFF0B0F1A);
-const _kCard = Color(0xFF111827);
-const _kBorder = Color(0xFF1E2A45);
-const _kPurple = Color(0xFF7C3AED);
-const _kPurp2 = Color(0xFF5B21B6);
-const _kCyan = Color(0xFF06B6D4);
-const _kGreen = Color(0xFF22C55E);
-const _kRed = Color(0xFFEF4444);
+// ─── Paleta Sentry ────────────────────────────────────────────────────────────
+const _kBg     = AppColors.sentryBg;       // Fondo gris muy claro
+const _kCard   = Color(0xFFFFFFFF);        // Tarjeta blanca
+const _kBorder = Color(0xFFE2E8F0);        // Borde sutil claro
+const _kPurple = AppColors.sentryBlue;     // Acción primaria azul
+const _kPurp2  = AppColors.sentryNavy;     // Degradado oscuro
+const _kCyan   = AppColors.sentryCyan;     // Celeste claro
+const _kGreen  = Color(0xFF22C55E);
+const _kRed    = Color(0xFFEF4444);
 const _kYellow = Color(0xFFF59E0B);
-const _kWhite = Color(0xFFFFFFFF);
-const _kGrey = Color(0xFF8FA3B1);
-const _kNavy = Color(0xFF1E1B4B);
+const _kWhite  = Color(0xFFFFFFFF);        // Texto/iconos sobre fondos de color
+const _kGrey   = AppColors.sentryGrey;     // Texto secundario
+const _kNavy   = AppColors.sentryNavy;     // Encabezados y fondos primarios
 
 const _kRequiredCols = ['nombre', 'correo_electronico', 'carrera'];
 
@@ -65,6 +67,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
 
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
+  String _userName = '';
 
   @override
   void initState() {
@@ -75,6 +78,12 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     );
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _fadeCtrl.forward();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    final name = await EventService.getCurrentUserName();
+    if (mounted) setState(() => _userName = name ?? SupabaseService.currentUser?.email ?? '');
   }
 
   @override
@@ -87,7 +96,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       GoogleFonts.outfit(
         fontSize: size,
         fontWeight: fw,
-        color: color ?? _kWhite,
+        color: color ?? _kNavy,
       );
 
   // ── RF24/RF26: Seleccionar archivo ────────────────────────────────────────
@@ -341,10 +350,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       backgroundColor: _kBg,
       elevation: 0,
       pinned: true,
-      leading: IconButton(
-        icon: const Icon(Icons.menu_rounded, color: _kWhite),
-        onPressed: () {},
-      ),
+      automaticallyImplyLeading: false,
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -380,15 +386,54 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
           ),
         ),
         const SizedBox(width: 4),
-        CircleAvatar(
-          radius: 16,
-          backgroundColor: Color(0x337C3AED),
-          child: const Icon(Icons.person_rounded, size: 18, color: _kPurple),
+        PopupMenuButton<String>(
+          offset: const Offset(0, 44),
+          onSelected: (value) async {
+            if (value == 'logout') {
+              await SupabaseService.signOut();
+              if (mounted) Navigator.pushReplacementNamed(context, '/login');
+            }
+          },
+          child: const CircleAvatar(
+            radius: 16,
+            backgroundColor: Color(0x221565C0),
+            child: Icon(Icons.person_rounded, size: 18, color: _kPurple),
+          ),
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              enabled: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _userName,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.black87),
+                  ),
+                  Text(
+                    SupabaseService.currentUser?.email ?? '',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'logout',
+              child: Row(
+                children: [
+                  Icon(Icons.logout_rounded, size: 16, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Cerrar sesión',
+                      style: TextStyle(color: Colors.red, fontSize: 14)),
+                ],
+              ),
+            ),
+          ],
         ),
-        IconButton(
-          icon: Icon(Icons.logout_rounded, color: _kGrey, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        const SizedBox(width: 4),
       ],
     );
   }
@@ -695,19 +740,19 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                       Expanded(
                         child: Text(
                           'Nombre',
-                          style: _ts(11, fw: FontWeight.w700),
+                          style: _ts(11, fw: FontWeight.w700, color: _kWhite),
                         ),
                       ),
                       Expanded(
                         child: Text(
                           'Correo',
-                          style: _ts(11, fw: FontWeight.w700),
+                          style: _ts(11, fw: FontWeight.w700, color: _kWhite),
                         ),
                       ),
                       Expanded(
                         child: Text(
                           'Carrera',
-                          style: _ts(11, fw: FontWeight.w700),
+                          style: _ts(11, fw: FontWeight.w700, color: _kWhite),
                         ),
                       ),
                     ],

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -93,7 +94,7 @@ class GeofenceService {
       );
       _procesarUbicacion(position);
     } catch (e) {
-      print("Error obteniendo ubicación manual: $e");
+      debugPrint("Error obteniendo ubicación manual: $e");
     }
   }
 

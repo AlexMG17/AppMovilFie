@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../services/event_service.dart';
 import '../services/payment_service.dart';
+import '../services/qr_cache_service.dart';
 import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 
@@ -19,33 +20,67 @@ class _MyQrScreenState extends State<MyQrScreen> {
   String? _userName;
   String? _userEmail;
   String? _entradaEstado;
+  DateTime? _expiresAt;
+  int _versionQr = 1;
+
   bool _loading = true;
+  bool _isOffline = false;
+  bool _syncing = false;
   String? _message;
+  DateTime? _cachedAt;
+
+  bool get _isExpired =>
+      _expiresAt != null && DateTime.now().isAfter(_expiresAt!);
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadWithCache();
   }
 
-  Future<void> _load() async {
+  Future<void> _loadWithCache() async {
     setState(() {
       _loading = true;
       _message = null;
+      _isOffline = false;
     });
 
+    final userId = SupabaseService.currentUser?.id ?? '';
+
+    // ── Paso 1: mostrar caché inmediatamente ──────────────────────────────
+    final cached = await QrCacheService.load(userId);
+    if (cached != null && cached.codigoQr.isNotEmpty) {
+      setState(() {
+        _codigoQr = cached.codigoQr;
+        _entradaEstado = cached.estado;
+        _userName = cached.userName;
+        _userEmail = cached.userEmail;
+        _cachedAt = cached.cachedAt;
+        _expiresAt = cached.expiresAt;
+        _versionQr = cached.versionQr;
+        _loading = false;
+        _isOffline = true;
+        _syncing = true;
+      });
+    }
+
+    // ── Paso 2: intentar sincronizar con Supabase ─────────────────────────
     try {
       final user = SupabaseService.currentUser;
-      _userEmail = user?.email ?? '';
-      _userName = await EventService.getCurrentUserName() ?? _userEmail;
-
+      final freshEmail = user?.email ?? '';
+      final freshName =
+          await EventService.getCurrentUserName() ?? freshEmail;
       final uid = await EventService.getCurrentUserId();
       final event = await EventService.getActiveEvent();
 
       if (uid == null || event == null) {
+        if (!mounted) return;
         setState(() {
+          _syncing = false;
           _loading = false;
-          _message = 'No hay evento activo en este momento.';
+          if (_codigoQr == null) {
+            _message = 'No hay evento activo en este momento.';
+          }
         });
         return;
       }
@@ -56,23 +91,64 @@ class _MyQrScreenState extends State<MyQrScreen> {
       );
 
       if (entry == null) {
+        if (!mounted) return;
         setState(() {
+          _syncing = false;
           _loading = false;
-          _message =
-              'No tienes una entrada asignada. Verifica el estado de tu pago.';
+          if (_codigoQr == null) {
+            _message =
+                'No tienes una entrada asignada.\nVerifica el estado de tu pago.';
+          }
         });
         return;
       }
 
+      final newQr = entry['codigo_qr'] as String? ?? '';
+      final newEstado = entry['estado'] as String? ?? 'activo';
+      final newExpiresAt = entry['fecha_expiracion'] != null
+          ? DateTime.tryParse(entry['fecha_expiracion'].toString())
+          : null;
+      final newVersion = entry['version_qr'] as int? ?? 1;
+      final now = DateTime.now();
+
+      await QrCacheService.save(
+        userId: userId,
+        data: QrCacheData(
+          codigoQr: newQr,
+          estado: newEstado,
+          userName: freshName,
+          userEmail: freshEmail,
+          eventId: event.id,
+          cachedAt: now,
+          expiresAt: newExpiresAt,
+          versionQr: newVersion,
+        ),
+      );
+
+      if (!mounted) return;
       setState(() {
-        _codigoQr = entry['codigo_qr'] as String?;
-        _entradaEstado = entry['estado'] as String?;
+        _codigoQr = newQr;
+        _entradaEstado = newEstado;
+        _expiresAt = newExpiresAt;
+        _versionQr = newVersion;
+        _userName = freshName;
+        _userEmail = freshEmail;
+        _cachedAt = now;
         _loading = false;
+        _isOffline = false;
+        _syncing = false;
       });
-    } catch (e) {
+    } catch (_) {
+      // Sin red — si ya teníamos caché lo seguimos mostrando
+      if (!mounted) return;
       setState(() {
+        _syncing = false;
         _loading = false;
-        _message = 'Error al cargar: ${e.toString()}';
+        if (_codigoQr == null) {
+          _message =
+              'Sin conexión a internet y no hay QR guardado en este dispositivo.';
+        }
+        // _isOffline ya es true desde que cargamos caché
       });
     }
   }
@@ -89,12 +165,20 @@ class _MyQrScreenState extends State<MyQrScreen> {
     );
   }
 
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'justo ahora';
+    if (diff.inMinutes < 60) return 'hace ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'hace ${diff.inHours} h';
+    return 'hace ${diff.inDays} días';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.sentryBg,
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: _loadWithCache,
         color: AppColors.sentryBlue,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -102,6 +186,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Header ────────────────────────────────────────────────
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -125,17 +210,26 @@ class _MyQrScreenState extends State<MyQrScreen> {
                       ),
                     ],
                   ),
-                  _statusBadge(
-                    _codigoQr != null ? 'En línea' : 'Sin entrada',
-                    _codigoQr != null ? AppColors.success : AppColors.sentryGrey,
-                  ),
+                  _statusBadge(),
                 ],
               ),
+
+              // ── Banner offline ────────────────────────────────────────
+              if (_isOffline && _codigoQr != null) ...[
+                const SizedBox(height: 14),
+                _offlineBanner(),
+              ],
+
               const SizedBox(height: 25),
 
+              // ── Contenido principal ───────────────────────────────────
               if (_loading)
                 const Center(
-                  child: CircularProgressIndicator(color: AppColors.sentryBlue),
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 60),
+                    child: CircularProgressIndicator(
+                        color: AppColors.sentryBlue),
+                  ),
                 )
               else if (_message != null)
                 _buildMessageCard(_message!)
@@ -155,10 +249,12 @@ class _MyQrScreenState extends State<MyQrScreen> {
                     const SizedBox(width: 15),
                     Expanded(
                       child: _actionButton(
-                        'Actualizar',
-                        Icons.refresh_rounded,
+                        _syncing ? 'Sincronizando…' : 'Actualizar',
+                        _syncing
+                            ? Icons.sync_rounded
+                            : Icons.refresh_rounded,
                         AppColors.sentryGrey,
-                        _load,
+                        _syncing ? () {} : _loadWithCache,
                       ),
                     ),
                   ],
@@ -188,38 +284,91 @@ class _MyQrScreenState extends State<MyQrScreen> {
     );
   }
 
-  Widget _buildMessageCard(String msg) {
-    return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          const Icon(Icons.qr_code_2_rounded,
-              size: 56, color: AppColors.sentryGrey),
-          const SizedBox(height: 16),
-          Text(
-            'QR no disponible',
-            style: GoogleFonts.outfit(
-              color: AppColors.sentryNavy,
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
+  // ── Banner de modo offline ──────────────────────────────────────────────
+
+  Widget _offlineBanner() => Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.warning.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: AppColors.warning.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.wifi_off_rounded,
+                color: AppColors.warning, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Modo sin conexión',
+                    style: GoogleFonts.outfit(
+                      color: AppColors.warning,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  if (_cachedAt != null)
+                    Text(
+                      'Guardado ${_timeAgo(_cachedAt!)} · desliza para intentar actualizar',
+                      style: GoogleFonts.outfit(
+                        color: AppColors.warning.withValues(alpha: 0.8),
+                        fontSize: 11,
+                      ),
+                    ),
+                ],
+              ),
             ),
+            if (_syncing)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.warning,
+                ),
+              ),
+          ],
+        ),
+      );
+
+  // ── Badge de estado superior ────────────────────────────────────────────
+
+  Widget _statusBadge() {
+    if (_isOffline && _codigoQr != null) {
+      return _badge('Sin conexión', AppColors.warning);
+    }
+    if (_codigoQr != null) return _badge('En línea', AppColors.success);
+    return _badge('Sin entrada', AppColors.sentryGrey);
+  }
+
+  Widget _badge(String label, Color color) => Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.outfit(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
           ),
-          const SizedBox(height: 8),
-          Text(
-            msg,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.outfit(
-              color: AppColors.sentryGrey,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-    );
+        ),
+      );
+
+  // ── Tarjeta principal del QR ────────────────────────────────────────────
+
+  String _formatDate(DateTime dt) {
+    return '${dt.day.toString().padLeft(2, '0')}/'
+        '${dt.month.toString().padLeft(2, '0')}/'
+        '${dt.year}';
   }
 
   Widget _buildQrMainCard() {
@@ -238,7 +387,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
       ),
       child: Column(
         children: [
-          // User info
+          // Info del usuario
           Row(
             children: [
               CircleAvatar(
@@ -279,44 +428,28 @@ class _MyQrScreenState extends State<MyQrScreen> {
                   ],
                 ),
               ),
-              _statusBadge(
-                isUsed ? 'Usado' : 'Válido',
-                isUsed ? AppColors.warning : AppColors.sentryBlue,
-              ),
+              _entradaStatusChip(isUsed),
             ],
           ),
+
           const Divider(height: 30, color: AppColors.divider),
 
-          // QR Code
+          // QR, expirado o ya usado
           if (isUsed)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.sentryBg,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  const Icon(Icons.check_circle_outline_rounded,
-                      size: 64, color: AppColors.success),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Entrada utilizada',
-                    style: GoogleFonts.outfit(
-                      color: AppColors.sentryNavy,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                    ),
-                  ),
-                  Text(
-                    'Este QR ya fue escaneado en el evento.',
-                    style: GoogleFonts.outfit(
-                      color: AppColors.sentryGrey,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
+            _buildStatusCard(
+              icon: Icons.check_circle_outline_rounded,
+              color: AppColors.success,
+              title: 'Entrada utilizada',
+              subtitle: 'Este QR ya fue escaneado en el evento.',
+            )
+          else if (_isExpired)
+            _buildStatusCard(
+              icon: Icons.timer_off_rounded,
+              color: AppColors.warning,
+              title: 'QR Expirado',
+              subtitle: _expiresAt != null
+                  ? 'Venció el ${_formatDate(_expiresAt!)}. Contacta al administrador.'
+                  : 'Este QR ya no es válido.',
             )
           else
             Container(
@@ -341,9 +474,9 @@ class _MyQrScreenState extends State<MyQrScreen> {
             ),
 
           const SizedBox(height: 15),
-          if (!isUsed)
+          if (!isUsed && !_isExpired)
             Text(
-              'Toca para ampliar',
+              'Muestra este código al entrar al evento',
               style: GoogleFonts.outfit(
                 color: AppColors.sentryGrey,
                 fontSize: 12,
@@ -353,30 +486,166 @@ class _MyQrScreenState extends State<MyQrScreen> {
           const SizedBox(height: 20),
 
           _qrDataRow(
-            'Código único',
+            'Código',
             _codigoQr != null
-                ? '${_codigoQr!.substring(0, _codigoQr!.length.clamp(0, 16))}...'
+                ? '${_codigoQr!.substring(0, _codigoQr!.length.clamp(0, 16))}…'
                 : '—',
           ),
           _qrDataRow('Estado', _entradaEstado ?? '—'),
+          _qrDataRow('Versión', 'v$_versionQr'),
+          if (_expiresAt != null)
+            _qrDataRow('Expira', _formatDate(_expiresAt!)),
+          if (_cachedAt != null)
+            _qrDataRow('Última sync', _timeAgo(_cachedAt!)),
         ],
       ),
     );
   }
 
-  Widget _statusBadge(String label, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+  Widget _buildStatusCard({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+  }) =>
+      Container(
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
+          color: color.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
-        child: Text(
-          label,
-          style: GoogleFonts.outfit(
-            color: color,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-          ),
+        child: Column(
+          children: [
+            Icon(icon, size: 64, color: color),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: GoogleFonts.outfit(
+                color: AppColors.sentryNavy,
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.outfit(
+                color: AppColors.sentryGrey,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _entradaStatusChip(bool isUsed) {
+    final Color color;
+    final String label;
+    if (isUsed) {
+      color = AppColors.warning;
+      label = 'Usado';
+    } else if (_isExpired) {
+      color = AppColors.warning;
+      label = 'Expirado';
+    } else {
+      color = AppColors.sentryBlue;
+      label = 'Válido';
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.outfit(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  // ── Tarjeta de mensaje (sin QR) ─────────────────────────────────────────
+
+  Widget _buildMessageCard(String msg) => Container(
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.qr_code_2_rounded,
+                size: 56, color: AppColors.sentryGrey),
+            const SizedBox(height: 16),
+            Text(
+              'QR no disponible',
+              style: GoogleFonts.outfit(
+                color: AppColors.sentryNavy,
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              msg,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.outfit(
+                color: AppColors.sentryGrey,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _loadWithCache,
+              icon: const Icon(Icons.refresh_rounded,
+                  color: Colors.white, size: 18),
+              label: Text(
+                'Reintentar',
+                style:
+                    GoogleFonts.outfit(color: Colors.white, fontSize: 14),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.sentryBlue,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  // ── Helpers ─────────────────────────────────────────────────────────────
+
+  Widget _buildInfoNotice() => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.sentryNavy.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+              color: AppColors.sentryNavy.withValues(alpha: 0.05)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.shield_outlined,
+                color: AppColors.sentryNavy, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Este QR es personal e intransferible. El sistema detecta y rechaza usos duplicados automáticamente.',
+                style: GoogleFonts.outfit(
+                  color: AppColors.sentryNavy,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
         ),
       );
 
@@ -415,35 +684,8 @@ class _MyQrScreenState extends State<MyQrScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           padding: const EdgeInsets.symmetric(vertical: 12),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
-
-  Widget _buildInfoNotice() => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.sentryNavy.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-              color: AppColors.sentryNavy.withValues(alpha: 0.05)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.shield_outlined,
-                color: AppColors.sentryNavy, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Este QR es personal e intransferible. El sistema detecta y rechaza usos duplicados automáticamente.',
-                style: GoogleFonts.outfit(
-                  color: AppColors.sentryNavy,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ],
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
         ),
       );
 

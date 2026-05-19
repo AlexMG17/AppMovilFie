@@ -1,7 +1,11 @@
-// SOLO PARA DESARROLLO â€” eliminar antes de producción
+// SOLO PARA DESARROLLO — eliminar antes de producción
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'admin_shell_screen.dart';
+import 'admin_dashboard_screen.dart';
+import 'attendees_screen.dart';
+import 'import_students_screen.dart';
+import 'payment_vouchers_screen.dart';
+import 'student_list_screen.dart';
 
 class DevLauncherScreen extends StatelessWidget {
   const DevLauncherScreen({super.key});
@@ -135,7 +139,14 @@ class DevLauncherScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildScreen(int i) => AdminShellScreen(initialIndex: i);
+  Widget _buildScreen(int i) => switch (i) {
+    0 => const AdminDashboardScreen(),
+    1 => const StudentListScreen(),
+    2 => const ImportStudentsScreen(),
+    3 => const AttendeesScreen(),
+    4 => const PaymentVouchersScreen(),
+    _ => const SizedBox(),
+  };
 }
 
 class _Entry {

@@ -1,13 +1,14 @@
 import 'dart:async';
-import 'dart:math'; // Restaurado por precaución
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:geolocator/geolocator.dart'; // Restaurado por precaución
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/event_service.dart';
+import '../services/qr_cache_service.dart';
 import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
+import 'support_chat_screen.dart';
 import 'upload_payment_screen.dart';
 import 'payment_status_screen.dart';
 import 'my_qr_screen.dart';
@@ -24,12 +25,27 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  String _userName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    final name = await EventService.getCurrentUserName();
+    if (mounted) setState(() => _userName = name ?? SupabaseService.currentUser?.email ?? '');
+  }
 
   void _onItemTapped(int index) => setState(() => _selectedIndex = index);
 
   Future<void> _logout() async {
+    final userId = SupabaseService.currentUser?.id ?? '';
+    final nav = Navigator.of(context);
+    await QrCacheService.clear(userId);
     await SupabaseService.signOut();
-    if (mounted) Navigator.pushReplacementNamed(context, '/login');
+    nav.pushReplacementNamed('/login');
   }
 
   @override
@@ -55,17 +71,62 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         actions: [
-          const CircleAvatar(
-            radius: 18,
-            backgroundColor: AppColors.sentryCyan,
-            child: Icon(Icons.person, color: Colors.white, size: 20),
-          ),
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: _logout,
-            tooltip: 'Cerrar sesión',
+            icon: const Icon(Icons.support_agent_rounded, color: Colors.white),
+            tooltip: 'Soporte',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const SupportChatScreen(isAdmin: false),
+              ),
+            ),
           ),
-          const SizedBox(width: 8),
+          PopupMenuButton<String>(
+            offset: const Offset(0, 44),
+            onSelected: (value) async {
+              if (value == 'logout') await _logout();
+            },
+            child: const CircleAvatar(
+              radius: 18,
+              backgroundColor: AppColors.sentryCyan,
+              child: Icon(Icons.person, color: Colors.white, size: 20),
+            ),
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                enabled: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _userName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Text(
+                      SupabaseService.currentUser?.email ?? '',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded, size: 16, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Cerrar sesión',
+                        style: TextStyle(color: Colors.red, fontSize: 14)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
         ],
       ),
       body: IndexedStack(index: _selectedIndex, children: pages),
@@ -143,6 +204,8 @@ class _HomeContentState extends State<_HomeContent> {
   int _capacidad = 350;
   bool _loading = true;
 
+  RealtimeChannel? _eventChannel;
+
   Timer? _countdownTimer;
   Duration _remaining = Duration.zero;
 
@@ -162,12 +225,14 @@ class _HomeContentState extends State<_HomeContent> {
     super.initState();
     _loadEvent();
     _iniciarGeocercaAutomatica();
+    _subscribeToEvents();
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
     _geofenceService?.dispose();
+    _eventChannel?.unsubscribe();
     _mapController.dispose();
     super.dispose();
   }
@@ -208,14 +273,23 @@ class _HomeContentState extends State<_HomeContent> {
 
   Future<void> _forzarActualizacionGPS() async {
     setState(() => _isUpdatingGps = true);
-
     await _geofenceService?.forceUpdate();
-
     if (_userLocation != null) {
       _mapController.move(_userLocation!, 16.5);
     }
-
     setState(() => _isUpdatingGps = false);
+  }
+
+  void _subscribeToEvents() {
+    _eventChannel = SupabaseService.client
+        .channel('public:eventos')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'eventos',
+          callback: (_) { if (mounted) _loadEvent(); },
+        )
+        .subscribe();
   }
 
   Future<void> _loadEvent() async {

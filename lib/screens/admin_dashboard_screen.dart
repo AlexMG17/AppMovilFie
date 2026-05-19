@@ -66,6 +66,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   int ingresaron = 0;
   int qrGenerados = 0;
   String _eventName = 'Gala FIE';
+  String _userName = '';
+  EventModel? _activeEvent;
   RealtimeChannel? _realtimeChannel;
 
   // â”€â”€ Actividad reciente â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -121,6 +123,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     });
 
     _loadStats();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    final name = await EventService.getCurrentUserName();
+    if (mounted) setState(() => _userName = name ?? SupabaseService.currentUser?.email ?? '');
   }
 
   @override
@@ -144,7 +152,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             .from('scan_logs')
             .select('nombre_asistente, resultado, escaneado_en')
             .order('escaneado_en', ascending: false)
-            .limit(5),
+            .limit(3),
       ]);
 
       if (!mounted) return;
@@ -185,6 +193,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       }).toList();
 
       setState(() {
+        _activeEvent = event;
         _eventName = event.nombre;
         totalCapacidad = cap > 0 ? cap : 350;
         totalRegistrados = totalCapacidad;
@@ -223,6 +232,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   // â”€â”€ Helpers de texto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   TextStyle _ts(double size, {FontWeight fw = FontWeight.w400, Color? color}) =>
       GoogleFonts.outfit(fontSize: size, fontWeight: fw, color: color ?? _navy);
+
+  Future<void> _showEventForm() async {
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EventFormSheet(event: _activeEvent),
+    );
+    if (saved == true && mounted) _loadStats();
+  }
 
   void _openAdminTab(int index, Widget fallback) {
     if (widget.onSelectTab != null) {
@@ -291,10 +310,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           ],
         ),
       ),
-      leading: IconButton(
-        icon: Icon(Icons.menu_rounded, color: _navy),
-        onPressed: () {},
-      ),
+      automaticallyImplyLeading: false,
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -330,20 +346,54 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ],
           ),
         ),
-        // Avatar
-        CircleAvatar(
-          radius: 16,
-          backgroundColor: _blue.withValues(alpha: 0.15),
-          child: Icon(Icons.person_rounded, size: 18, color: _blue),
-        ),
-        // Logout
-        IconButton(
-          icon: Icon(Icons.logout_rounded, color: _grey, size: 20),
-          onPressed: () async {
-            await SupabaseService.signOut();
-            if (mounted) Navigator.pushReplacementNamed(context, '/login');
+        PopupMenuButton<String>(
+          offset: const Offset(0, 44),
+          onSelected: (value) async {
+            if (value == 'logout') {
+              await SupabaseService.signOut();
+              if (mounted) Navigator.pushReplacementNamed(context, '/login');
+            }
           },
+          child: CircleAvatar(
+            radius: 16,
+            backgroundColor: _blue.withValues(alpha: 0.15),
+            child: Icon(Icons.person_rounded, size: 18, color: _blue),
+          ),
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              enabled: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _userName,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.black87),
+                  ),
+                  Text(
+                    SupabaseService.currentUser?.email ?? '',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'logout',
+              child: Row(
+                children: [
+                  Icon(Icons.logout_rounded, size: 16, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Cerrar sesión',
+                      style: TextStyle(color: Colors.red, fontSize: 14)),
+                ],
+              ),
+            ),
+          ],
         ),
+        const SizedBox(width: 4),
       ],
     );
   }
@@ -360,6 +410,40 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               Text(
                 'Estadísticas generales — $_eventName',
                 style: _ts(11, color: _grey),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _showEventForm,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: _blue.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: _blue.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _activeEvent != null
+                            ? Icons.edit_rounded
+                            : Icons.add_rounded,
+                        size: 13,
+                        color: _blue,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        _activeEvent != null
+                            ? 'Editar evento'
+                            : 'Crear evento',
+                        style: _ts(11,
+                            fw: FontWeight.w600, color: _blue),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -771,7 +855,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 color: _blue,
                 title: 'Asistentes',
                 subtitle: 'Lista en tiempo real',
-                onTap: () => _openAdminTab(3, const AttendeesScreen()),
+                onTap: () => _openAdminTab(1, const AttendeesScreen()),
               ),
             ),
             const SizedBox(width: 12),
@@ -781,7 +865,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 color: _cyan,
                 title: 'Comprobantes',
                 subtitle: 'Gestión de pagos',
-                onTap: () => _openAdminTab(4, const PaymentVouchersScreen()),
+                onTap: () => _openAdminTab(2, const PaymentVouchersScreen()),
               ),
             ),
           ],
@@ -795,7 +879,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 color: const Color(0xFF06B6D4),
                 title: 'Lista Estudiantes',
                 subtitle: 'CRUD y descarga',
-                onTap: () => _openAdminTab(1, const StudentListScreen()),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentListScreen())),
               ),
             ),
             const SizedBox(width: 12),
@@ -805,7 +889,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 color: const Color(0xFF7C3AED),
                 title: 'Importar',
                 subtitle: 'Carga masiva Excel/CSV',
-                onTap: () => _openAdminTab(2, const ImportStudentsScreen()),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ImportStudentsScreen())),
               ),
             ),
           ],
@@ -1149,4 +1233,231 @@ class _QuickCard extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Event Create / Edit Bottom Sheet ──────────────────────────────────────────
+
+class _EventFormSheet extends StatefulWidget {
+  final EventModel? event;
+  const _EventFormSheet({this.event});
+
+  @override
+  State<_EventFormSheet> createState() => _EventFormSheetState();
+}
+
+class _EventFormSheetState extends State<_EventFormSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nombre;
+  late final TextEditingController _descripcion;
+  late final TextEditingController _lugar;
+  late final TextEditingController _lat;
+  late final TextEditingController _lng;
+  DateTime? _fecha;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.event;
+    _nombre = TextEditingController(text: e?.nombre ?? '');
+    _descripcion = TextEditingController(text: e?.descripcion ?? '');
+    _lugar = TextEditingController(text: e?.lugar ?? '');
+    _lat = TextEditingController(text: e != null ? e.lat.toString() : '');
+    _lng = TextEditingController(text: e != null ? e.lng.toString() : '');
+    _fecha = e?.fecha;
+  }
+
+  @override
+  void dispose() {
+    _nombre.dispose();
+    _descripcion.dispose();
+    _lugar.dispose();
+    _lat.dispose();
+    _lng.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _fecha ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_fecha ?? DateTime.now()),
+    );
+    if (!mounted) return;
+    setState(() {
+      _fecha = DateTime(
+        date.year, date.month, date.day,
+        time?.hour ?? 0, time?.minute ?? 0,
+      );
+    });
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_fecha == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Selecciona la fecha del evento')));
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final lat = double.tryParse(_lat.text.trim()) ?? -1.6489;
+      final lng = double.tryParse(_lng.text.trim()) ?? -78.6480;
+      if (widget.event == null) {
+        await EventService.createEvent(
+          nombre: _nombre.text.trim(),
+          descripcion: _descripcion.text.trim(),
+          fecha: _fecha!,
+          lugar: _lugar.text.trim(),
+          lat: lat,
+          lng: lng,
+        );
+      } else {
+        await EventService.updateEvent(
+          id: widget.event!.id,
+          nombre: _nombre.text.trim(),
+          descripcion: _descripcion.text.trim(),
+          fecha: _fecha!,
+          lugar: _lugar.text.trim(),
+          lat: lat,
+          lng: lng,
+        );
+      }
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEdit = widget.event != null;
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(24, 16, 24, 24 + bottom),
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                isEdit ? 'Editar evento' : 'Crear evento',
+                style: GoogleFonts.outfit(
+                  fontSize: 20, fontWeight: FontWeight.w700,
+                  color: const Color(0xFF0D1B4B),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _field(_nombre, 'Nombre del evento', Icons.event_rounded),
+              const SizedBox(height: 12),
+              _field(_descripcion, 'Descripción', Icons.notes_rounded, maxLines: 3),
+              const SizedBox(height: 12),
+              _field(_lugar, 'Lugar / Ubicación', Icons.location_on_rounded),
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(child: _field(_lat, 'Latitud', Icons.pin_drop_rounded,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true))),
+                const SizedBox(width: 12),
+                Expanded(child: _field(_lng, 'Longitud', Icons.pin_drop_rounded,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true))),
+              ]),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: _pickDate,
+                borderRadius: BorderRadius.circular(12),
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.calendar_today_rounded),
+                    labelText: 'Fecha y hora del evento',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    filled: true,
+                    fillColor: const Color(0xFFF5F6FA),
+                  ),
+                  child: Text(
+                    _fecha == null
+                        ? 'Seleccionar fecha y hora'
+                        : '${_fecha!.day.toString().padLeft(2, '0')}/'
+                          '${_fecha!.month.toString().padLeft(2, '0')}/'
+                          '${_fecha!.year}  '
+                          '${_fecha!.hour.toString().padLeft(2, '0')}:'
+                          '${_fecha!.minute.toString().padLeft(2, '0')}',
+                    style: TextStyle(
+                      color: _fecha == null ? Colors.grey[600] : const Color(0xFF0D1B4B),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _saving ? null : _save,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF0D1B4B),
+                  minimumSize: const Size(double.infinity, 52),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: _saving
+                    ? const SizedBox(
+                        width: 22, height: 22,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                      )
+                    : Text(
+                        isEdit ? 'Guardar cambios' : 'Crear evento',
+                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _field(
+    TextEditingController ctrl,
+    String label,
+    IconData icon, {
+    int maxLines = 1,
+    TextInputType? keyboardType,
+  }) =>
+      TextFormField(
+        controller: ctrl,
+        maxLines: maxLines,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(
+          prefixIcon: Icon(icon),
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          filled: true,
+          fillColor: const Color(0xFFF5F6FA),
+        ),
+        validator: (v) => (v == null || v.trim().isEmpty) ? 'Campo requerido' : null,
+      );
 }

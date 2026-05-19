@@ -244,13 +244,25 @@ class _LoginScreenState extends State<LoginScreen> {
   // =========================================================================
   Future<void> _handleGoogleSignIn() async {
     try {
-      _googleSignInInProgress = true;
+      setState(() => _googleSignInInProgress = true);
 
-      final account = await GoogleSignIn.instance.authenticate();
-      final idToken = account.authentication.idToken;
+      final googleSignIn = GoogleSignIn(
+        serverClientId:
+            '20543870962-g64kl64vhdu5dlthkmlglgq5qfl6ocg0.apps.googleusercontent.com',
+      );
+
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        // Usuario canceló
+        setState(() => _googleSignInInProgress = false);
+        return;
+      }
+
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
 
       if (idToken == null) {
-        _googleSignInInProgress = false;
+        setState(() => _googleSignInInProgress = false);
         if (mounted) {
           _showTopToast('No se pudo obtener el token de Google.', isError: true);
         }
@@ -263,15 +275,10 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       // La navegación la maneja el listener _authSubscription
-    } on GoogleSignInException {
-      _googleSignInInProgress = false;
-      if (mounted) {
-        _showTopToast('Inicio de sesión con Google cancelado.', isError: true);
-      }
     } catch (error) {
-      _googleSignInInProgress = false;
+      setState(() => _googleSignInInProgress = false);
       if (mounted) {
-        _showTopToast('Error al conectar con Google.', isError: true);
+        _showTopToast('Error al iniciar sesión con Google.', isError: true);
       }
     }
   }

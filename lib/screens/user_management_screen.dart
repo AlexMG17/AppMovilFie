@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/event_service.dart';
 import '../services/supabase_service.dart';
 import '../services/user_management_service.dart';
 import '../theme/app_colors.dart';
@@ -19,6 +20,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   String _roleFilter = 'todos';
   bool _loading = true;
   String? _error;
+  String _userName = '';
 
   final _searchController = TextEditingController();
   final _currentEmail = SupabaseService.currentUser?.email ?? '';
@@ -27,6 +29,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   void initState() {
     super.initState();
     _load();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    final name = await EventService.getCurrentUserName();
+    if (mounted) setState(() => _userName = name ?? SupabaseService.currentUser?.email ?? '');
   }
 
   @override
@@ -278,6 +286,55 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ),
       ),
       actions: [
+        PopupMenuButton<String>(
+          offset: const Offset(0, 44),
+          onSelected: (value) async {
+            if (value == 'logout') {
+              final nav = Navigator.of(context);
+              await SupabaseService.signOut();
+              nav.pushReplacementNamed('/login');
+            }
+          },
+          child: const CircleAvatar(
+            radius: 16,
+            backgroundColor: AppColors.sentryCyan,
+            child: Icon(Icons.person_rounded, color: Colors.white, size: 18),
+          ),
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              enabled: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _userName,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.black87),
+                  ),
+                  Text(
+                    SupabaseService.currentUser?.email ?? '',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'logout',
+              child: Row(
+                children: [
+                  Icon(Icons.logout_rounded, size: 16, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Cerrar sesión',
+                      style: TextStyle(color: Colors.red, fontSize: 14)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(width: 4),
         IconButton(
           icon: const Icon(Icons.refresh_rounded, color: Colors.white),
           onPressed: _load,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../services/event_service.dart';
 import '../services/guard_service.dart';
 import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
@@ -16,21 +17,23 @@ class GuardScreen extends StatefulWidget {
 
 class _GuardScreenState extends State<GuardScreen>
     with TickerProviderStateMixin {
-  // ── Paleta Sentry (extendida para tema oscuro) ──────────────
-  static const Color sentryDarkBg = Color(0xFF0A1628);
-  static const Color sentryDarkCard = Color(0xFF122240);
-  static const Color sentrySuccess = Color(0xFF00E676);
-  static const Color sentryError = Color(0xFFFF5252);
-  static const Color sentryWarning = Color(0xFFFFCA28);
+  // ── Paleta Sentry ───────────────────────────────────────────
+  static const Color sentryDarkBg   = AppColors.sentryBg;    // Fondo claro
+  static const Color sentryDarkCard = Color(0xFFFFFFFF);     // Tarjeta blanca
+  static const Color sentrySuccess  = Color(0xFF00E676);
+  static const Color sentryError    = Color(0xFFFF5252);
+  static const Color sentryWarning  = Color(0xFFFFCA28);
   // ────────────────────────────────────────────────────────────
 
   final TextEditingController _manualCodeController = TextEditingController();
   MobileScannerController? _scannerController;
 
   int? _guardId;
+  int? _eventoId;
   bool _isInitializing = true;
   final bool _isCameraActive = true;
   bool _isProcessingScan = false;
+  String _userName = '';
 
   // Estado del último escaneo
   ScanResult? _lastScanResult;
@@ -67,15 +70,27 @@ class _GuardScreenState extends State<GuardScreen>
     );
 
     _initializeGuard();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    final name = await EventService.getCurrentUserName();
+    if (mounted) setState(() => _userName = name ?? SupabaseService.currentUser?.email ?? '');
   }
 
   Future<void> _initializeGuard() async {
     try {
-      final guardId = await GuardService.getCurrentGuardId();
+      final results = await Future.wait([
+        GuardService.getCurrentGuardId(),
+        EventService.getActiveEvent(),
+      ]);
+      final guardId = results[0] as int?;
+      final event = results[1] as dynamic;
       if (guardId != null) {
         _guardId = guardId;
         await _refreshData();
       }
+      if (event != null) _eventoId = event.id as int?;
     } catch (_) {
       // Sin conexión Supabase — modo demo activo
     }
@@ -123,6 +138,7 @@ class _GuardScreenState extends State<GuardScreen>
     final result = await GuardService.validateQR(
       codigoQR: code,
       idGuardia: _guardId,
+      idEvento: _eventoId,
     );
 
     // Vibración según resultado
@@ -248,7 +264,7 @@ class _GuardScreenState extends State<GuardScreen>
                   Text(
                     'Sentry',
                     style: GoogleFonts.outfit(
-                      color: Colors.white,
+                      color: AppColors.sentryNavy,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -312,22 +328,54 @@ class _GuardScreenState extends State<GuardScreen>
             ),
           ),
           const SizedBox(width: 8),
-          // Botón de cerrar sesión
-          IconButton(
-            onPressed: () async {
-              try {
-                await SupabaseService.signOut();
-              } catch (_) {}
-              if (mounted) {
-                Navigator.of(context).pushReplacementNamed('/login');
+          PopupMenuButton<String>(
+            offset: const Offset(0, 44),
+            onSelected: (value) async {
+              if (value == 'logout') {
+                try {
+                  await SupabaseService.signOut();
+                } catch (_) {}
+                if (mounted) Navigator.pushReplacementNamed(context, '/login');
               }
             },
-            icon: const Icon(
-              Icons.logout_rounded,
-              color: sentryError,
-              size: 24,
+            child: const CircleAvatar(
+              radius: 18,
+              backgroundColor: AppColors.sentryCyan,
+              child: Icon(Icons.person_rounded, color: Colors.white, size: 20),
             ),
-            tooltip: 'Cerrar sesión',
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                enabled: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _userName,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: Colors.black87),
+                    ),
+                    Text(
+                      SupabaseService.currentUser?.email ?? '',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded, size: 16, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Cerrar sesión',
+                        style: TextStyle(color: Colors.red, fontSize: 14)),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -472,19 +520,31 @@ class _GuardScreenState extends State<GuardScreen>
 
     switch (result.resultado) {
       case 'valido':
-        bgColor = sentrySuccess.withValues(alpha:0.9);
+        bgColor = sentrySuccess.withValues(alpha: 0.9);
         iconColor = Colors.white;
         icon = Icons.check_circle;
         title = 'ACCESO PERMITIDO';
         break;
       case 'usado':
-        bgColor = sentryWarning.withValues(alpha:0.9);
+        bgColor = sentryWarning.withValues(alpha: 0.9);
         iconColor = Colors.white;
         icon = Icons.warning_rounded;
         title = 'YA UTILIZADO';
         break;
+      case 'expirado':
+        bgColor = sentryWarning.withValues(alpha: 0.9);
+        iconColor = Colors.white;
+        icon = Icons.timer_off_rounded;
+        title = 'QR EXPIRADO';
+        break;
+      case 'evento_incorrecto':
+        bgColor = sentryError.withValues(alpha: 0.9);
+        iconColor = Colors.white;
+        icon = Icons.event_busy_rounded;
+        title = 'EVENTO INCORRECTO';
+        break;
       default:
-        bgColor = sentryError.withValues(alpha:0.9);
+        bgColor = sentryError.withValues(alpha: 0.9);
         iconColor = Colors.white;
         icon = Icons.cancel;
         title = 'ACCESO DENEGADO';
@@ -513,10 +573,20 @@ class _GuardScreenState extends State<GuardScreen>
               Text(
                 result.nombreAsistente,
                 style: GoogleFonts.outfit(
-                  color: Colors.white.withValues(alpha:0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 16,
                 ),
               ),
+              if (result.razon != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  result.razon!,
+                  style: GoogleFonts.outfit(
+                    color: Colors.white.withValues(alpha: 0.75),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -556,7 +626,7 @@ class _GuardScreenState extends State<GuardScreen>
                 ),
                 child: TextField(
                   controller: _manualCodeController,
-                  style: GoogleFonts.outfit(color: Colors.white, fontSize: 14),
+                  style: GoogleFonts.outfit(color: AppColors.sentryNavy, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Pegar o escribir código QR...',
                     hintStyle: GoogleFonts.outfit(
@@ -621,7 +691,7 @@ class _GuardScreenState extends State<GuardScreen>
           child: Text(
             'Escaneos recientes',
             style: GoogleFonts.outfit(
-              color: Colors.white,
+              color: AppColors.sentryNavy,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -662,6 +732,14 @@ class _GuardScreenState extends State<GuardScreen>
         statusColor = sentryWarning;
         statusIcon = Icons.warning_rounded;
         break;
+      case 'expirado':
+        statusColor = sentryWarning;
+        statusIcon = Icons.timer_off_rounded;
+        break;
+      case 'evento_incorrecto':
+        statusColor = sentryError;
+        statusIcon = Icons.event_busy_rounded;
+        break;
       default:
         statusColor = sentryError;
         statusIcon = Icons.cancel;
@@ -699,7 +777,7 @@ class _GuardScreenState extends State<GuardScreen>
                 Text(
                   scan.nombreAsistente,
                   style: GoogleFonts.outfit(
-                    color: Colors.white,
+                    color: AppColors.sentryNavy,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
