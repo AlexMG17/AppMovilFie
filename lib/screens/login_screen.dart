@@ -27,8 +27,11 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isStudentLogin = true;
   bool _isExternalLogin = true;
 
-  // NUEVO: Lógica para mostrar los campos del código OTP
+  // Lógica para mostrar los campos del código OTP (Recuperar Contraseña)
   bool _isResetPasswordFlow = false;
+
+  // Lógica para mostrar la verificación de cuenta nueva
+  bool _isVerificationFlow = false;
 
   // Control para nuestra notificación superior
   OverlayEntry? _activeToast;
@@ -43,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
-  // NUEVO: Controladores para la recuperación
+  // Controladores para la recuperación / verificación OTP
   final TextEditingController _otpController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
 
@@ -172,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // =========================================================================
-  // PASO 1: PEDIR EL CÓDIGO (Recuperación)
+  // PASO 1: PEDIR EL CÓDIGO (Recuperación de contraseña)
   // =========================================================================
   Future<void> _handleForgotPassword(bool isStudentFlow) async {
     final email = _emailController.text.trim();
@@ -192,30 +195,20 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // Supabase envía el correo con el OTP
       await Supabase.instance.client.auth.resetPasswordForEmail(email);
 
       if (mounted) {
         _showTopToast('Te enviamos un código de recuperación al correo.');
         setState(() {
-          _isResetPasswordFlow =
-              true; // Cambiamos la interfaz a "Ingresar Código"
+          _isResetPasswordFlow = true;
         });
       }
     } on AuthException catch (e) {
-      if (mounted) {
-        _showTopToast('Error: ${e.message}', isError: true);
-      }
+      if (mounted) _showTopToast('Error: ${e.message}', isError: true);
     } catch (e) {
-      if (mounted) {
-        _showTopToast('Error al enviar el correo.', isError: true);
-      }
+      if (mounted) _showTopToast('Error al enviar el correo.', isError: true);
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -243,7 +236,6 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Verificamos el código (Esto inicia una sesión temporal automáticamente)
       final AuthResponse res = await Supabase.instance.client.auth.verifyOTP(
         type: OtpType.recovery,
         token: otpCode,
@@ -251,12 +243,9 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (res.session != null) {
-        // 2. Si el código es correcto, actualizamos la contraseña nativamente
         await Supabase.instance.client.auth.updateUser(
           UserAttributes(password: newPassword),
         );
-
-        // 3. Cerramos la sesión temporal para forzarlos a iniciar sesión bien
         await Supabase.instance.client.auth.signOut();
 
         if (mounted) {
@@ -268,18 +257,83 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } on AuthException catch (e) {
-      // Con este AuthException sabrás exactamente por qué falla
-      if (mounted) {
-        _showTopToast('Error: ${e.message}', isError: true);
-      }
+      if (mounted) _showTopToast('Error: ${e.message}', isError: true);
     } catch (e) {
-      if (mounted) {
-        _showTopToast('Ocurrió un error inesperado.', isError: true);
-      }
+      if (mounted) _showTopToast('Ocurrió un error inesperado.', isError: true);
     } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // =========================================================================
+  // REENVIAR CÓDIGO DE VERIFICACIÓN
+  // =========================================================================
+  Future<void> _resendVerificationCode() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await Supabase.instance.client.auth.resend(
+        type: OtpType.signup,
+        email: email,
+      );
       if (mounted) {
-        setState(() => _isLoading = false);
+        _showTopToast('¡Nuevo código enviado a tu correo!');
       }
+    } on AuthException catch (e) {
+      if (mounted) _showTopToast('Error: ${e.message}', isError: true);
+    } catch (e) {
+      if (mounted) _showTopToast('Error al reenviar el código.', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // =========================================================================
+  // VERIFICAR CUENTA NUEVA CON OTP
+  // =========================================================================
+  Future<void> _handleVerifySignUp() async {
+    final email = _emailController.text.trim();
+    final otpCode = _otpController.text.trim();
+
+    if (otpCode.isEmpty) {
+      _showTopToast('Por favor, ingresa el código', isError: true);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Validamos el código de registro (signup)
+      final AuthResponse res = await Supabase.instance.client.auth.verifyOTP(
+        type: OtpType.signup,
+        token: otpCode,
+        email: email,
+      );
+
+      if (res.session != null && mounted) {
+        _showTopToast('¡Cuenta verificada exitosamente!');
+
+        final role = await GuardService.getCurrentUserRole();
+        if (!mounted) return;
+
+        switch (role) {
+          case 'validador':
+            Navigator.pushReplacementNamed(context, '/guard');
+          case 'admin':
+          case 'administrador':
+            Navigator.pushReplacementNamed(context, '/admin');
+          default:
+            Navigator.pushReplacementNamed(context, '/home');
+        }
+      }
+    } on AuthException catch (e) {
+      if (mounted) _showTopToast('Error: ${e.message}', isError: true);
+    } catch (e) {
+      if (mounted) _showTopToast('Ocurrió un error inesperado.', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -303,6 +357,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final int idRol = isStudentFlow ? 1 : 2;
 
       if (isLoginFlow) {
+        // INICIAR SESIÓN
         await _authService.signIn(email: email, password: password);
 
         if (mounted) {
@@ -322,6 +377,7 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         }
       } else {
+        // REGISTRO
         await _authService.signUp(
           email: email,
           password: password,
@@ -331,32 +387,35 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (mounted) {
           _showTopToast(
-            '¡Cuenta creada! Por favor revisa tu correo para confirmar.',
+            '¡Cuenta pre-creada! Hemos enviado un código a tu correo.',
           );
           setState(() {
-            if (isStudentFlow) {
-              _isStudentLogin = true;
-            } else {
-              _isExternalLogin = true;
-            }
-            _clearControllers();
+            _isVerificationFlow = true;
           });
         }
       }
     } on AuthException catch (e) {
-      if (mounted) {
-        _showTopToast('Error: ${e.message}', isError: true);
+      // MEJORA UX: Si el usuario intenta iniciar sesión pero olvidó verificar su correo
+      if (e.message.contains("Email not confirmed")) {
+        if (mounted) {
+          _showTopToast(
+            'Debes verificar tu correo. Ingresa el código que te enviamos.',
+            isError: true,
+          );
+          setState(() {
+            _isVerificationFlow =
+                true; // Lo mandamos automáticamente a verificar
+          });
+        }
+      } else {
+        if (mounted) _showTopToast('Error: ${e.message}', isError: true);
       }
     } catch (e) {
       if (mounted) {
-        _showTopToast('Error inesperado al iniciar sesión.', isError: true);
+        _showTopToast('Error inesperado.', isError: true);
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -374,7 +433,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final account = await googleSignIn.signIn();
       if (account == null) {
-        // Usuario canceló
         setState(() => _googleSignInInProgress = false);
         return;
       }
@@ -509,9 +567,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               ? _buildInitialQuestion()
                               : (_isResetPasswordFlow
                                     ? _buildResetPasswordForm()
-                                    : (isStudent == true
-                                          ? _buildStudentLogin()
-                                          : _buildNormalLogin())),
+                                    : (_isVerificationFlow
+                                          ? _buildVerificationForm()
+                                          : (isStudent == true
+                                                ? _buildStudentLogin()
+                                                : _buildNormalLogin()))),
                         ),
                       ),
 
@@ -620,7 +680,7 @@ class _LoginScreenState extends State<LoginScreen> {
           _buildEpicTextField(
             controller: _otpController,
             label: 'Código de recuperación',
-            hint: 'Ej: 12345678',
+            hint: 'Ej: 123456',
             icon: Icons.pin_outlined,
             validator: (value) {
               if (value == null || value.isEmpty) return 'Ingresa el código';
@@ -648,6 +708,81 @@ class _LoginScreenState extends State<LoginScreen> {
           _buildEpicButton(
             text: 'Cambiar Contraseña',
             onPressed: _handleResetPassword,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================================
+  // PANTALLA: VERIFICAR REGISTRO (OTP)
+  // =========================================================================
+  Widget _buildVerificationForm() {
+    return Form(
+      child: Column(
+        key: const ValueKey("verification_flow"),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: AppColors.sentryNavy,
+                  size: 20,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isVerificationFlow = false;
+                    _clearControllers();
+                  });
+                },
+              ),
+              const Text(
+                'Verificar Cuenta',
+                style: TextStyle(
+                  color: AppColors.sentryNavy,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Enviamos un código de validación al correo:\n${_emailController.text}',
+            style: const TextStyle(color: AppColors.sentryGrey, fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+
+          _buildEpicTextField(
+            controller: _otpController,
+            label: 'Código de validación',
+            hint: 'Ej: 123456',
+            icon: Icons.mark_email_read_outlined,
+            validator: (value) {
+              if (value == null || value.isEmpty) return 'Ingresa el código';
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+
+          _buildEpicButton(
+            text: 'Completar Registro',
+            onPressed: _handleVerifySignUp,
+          ),
+          const SizedBox(height: 16),
+
+          // BOTÓN DE REENVIAR CÓDIGO
+          TextButton(
+            onPressed: _isLoading ? null : _resendVerificationCode,
+            child: const Text(
+              '¿No recibiste el código? Reenviar',
+              style: TextStyle(
+                color: AppColors.sentryBlue,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
