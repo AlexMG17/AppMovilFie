@@ -35,7 +35,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadUserName() async {
     final name = await EventService.getCurrentUserName();
-    if (mounted) setState(() => _userName = name ?? SupabaseService.currentUser?.email ?? '');
+    if (mounted)
+      setState(
+        () => _userName = name ?? SupabaseService.currentUser?.email ?? '',
+      );
   }
 
   void _onItemTapped(int index) => setState(() => _selectedIndex = index);
@@ -119,8 +122,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Icon(Icons.logout_rounded, size: 16, color: Colors.red),
                     SizedBox(width: 8),
-                    Text('Cerrar sesión',
-                        style: TextStyle(color: Colors.red, fontSize: 14)),
+                    Text(
+                      'Cerrar sesión',
+                      style: TextStyle(color: Colors.red, fontSize: 14),
+                    ),
                   ],
                 ),
               ),
@@ -287,7 +292,9 @@ class _HomeContentState extends State<_HomeContent> {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'eventos',
-          callback: (_) { if (mounted) _loadEvent(); },
+          callback: (_) {
+            if (mounted) _loadEvent();
+          },
         )
         .subscribe();
   }

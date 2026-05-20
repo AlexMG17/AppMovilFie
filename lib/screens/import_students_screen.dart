@@ -243,7 +243,6 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       final carrera = data['carrera'] ?? '';
       final cedula = data['cedula'] ?? '';
 
-
       if (nombre.isEmpty || email.isEmpty) continue;
 
       result.add(
@@ -539,6 +538,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                 0: FlexColumnWidth(1.2),
                 1: FlexColumnWidth(1.8),
                 2: FlexColumnWidth(1.0),
+                3: FlexColumnWidth(1.0),
               },
               children: [
                 TableRow(
@@ -772,7 +772,8 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                           'Carrera',
                           style: _ts(11, fw: FontWeight.w700, color: _kWhite),
                         ),
-                      ),Expanded(
+                      ),
+                      Expanded(
                         child: Text(
                           'Cédula',
                           style: _ts(11, fw: FontWeight.w700, color: _kWhite),
@@ -894,7 +895,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
           ),
           const SizedBox(height: 6),
           Text(
-            'Procesando y verificando duplicados...',
+            'Procesando y verifying duplicados...',
             style: _ts(11, color: _kGrey),
             textAlign: TextAlign.center,
           ),

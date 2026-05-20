@@ -128,7 +128,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   Future<void> _loadUserName() async {
     final name = await EventService.getCurrentUserName();
-    if (mounted) setState(() => _userName = name ?? SupabaseService.currentUser?.email ?? '');
+    if (mounted)
+      setState(
+        () => _userName = name ?? SupabaseService.currentUser?.email ?? '',
+      );
   }
 
   @override
@@ -168,27 +171,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         final timeLabel = diff.inMinutes < 1
             ? 'Ahora'
             : diff.inHours < 1
-                ? 'Hace ${diff.inMinutes} min'
-                : 'Hace ${diff.inHours} h';
+            ? 'Hace ${diff.inMinutes} min'
+            : 'Hace ${diff.inHours} h';
         return switch (resultado) {
           'valido' => _Activity(
-              icon: Icons.login_rounded,
-              iconColor: _green,
-              title: '$nombre ingresó',
-              time: timeLabel,
-            ),
+            icon: Icons.login_rounded,
+            iconColor: _green,
+            title: '$nombre ingresó',
+            time: timeLabel,
+          ),
           'usado' => _Activity(
-              icon: Icons.warning_rounded,
-              iconColor: _yellow,
-              title: '$nombre (QR ya usado)',
-              time: timeLabel,
-            ),
+            icon: Icons.warning_rounded,
+            iconColor: _yellow,
+            title: '$nombre (QR ya usado)',
+            time: timeLabel,
+          ),
           _ => _Activity(
-              icon: Icons.cancel_outlined,
-              iconColor: _red,
-              title: 'QR inválido – $nombre',
-              time: timeLabel,
-            ),
+            icon: Icons.cancel_outlined,
+            iconColor: _red,
+            title: 'QR inválido – $nombre',
+            time: timeLabel,
+          ),
         };
       }).toList();
 
@@ -218,13 +221,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'pagos',
-          callback: (_) { if (mounted) _loadStats(); },
+          callback: (_) {
+            if (mounted) _loadStats();
+          },
         )
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'entradas',
-          callback: (_) { if (mounted) _loadStats(); },
+          callback: (_) {
+            if (mounted) _loadStats();
+          },
         )
         .subscribe();
   }
@@ -368,9 +375,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   Text(
                     _userName,
                     style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: Colors.black87),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
                   ),
                   Text(
                     SupabaseService.currentUser?.email ?? '',
@@ -386,8 +394,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 children: [
                   Icon(Icons.logout_rounded, size: 16, color: Colors.red),
                   SizedBox(width: 8),
-                  Text('Cerrar sesión',
-                      style: TextStyle(color: Colors.red, fontSize: 14)),
+                  Text(
+                    'Cerrar sesión',
+                    style: TextStyle(color: Colors.red, fontSize: 14),
+                  ),
                 ],
               ),
             ),
@@ -416,12 +426,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 onTap: _showEventForm,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 5),
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: _blue.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: _blue.withValues(alpha: 0.25)),
+                    border: Border.all(color: _blue.withValues(alpha: 0.25)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -435,11 +446,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        _activeEvent != null
-                            ? 'Editar evento'
-                            : 'Crear evento',
-                        style: _ts(11,
-                            fw: FontWeight.w600, color: _blue),
+                        _activeEvent != null ? 'Editar evento' : 'Crear evento',
+                        style: _ts(11, fw: FontWeight.w600, color: _blue),
                       ),
                     ],
                   ),
@@ -826,11 +834,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _DonutLegend(color: _green, value: '$ingresaron', label: 'Ingresaron'),
+                  _DonutLegend(
+                    color: _green,
+                    value: '$ingresaron',
+                    label: 'Ingresaron',
+                  ),
                   const SizedBox(height: 14),
-                  _DonutLegend(color: _blue, value: '$aprobados', label: 'Aprobados'),
+                  _DonutLegend(
+                    color: _blue,
+                    value: '$aprobados',
+                    label: 'Aprobados',
+                  ),
                   const SizedBox(height: 14),
-                  _DonutLegend(color: _cyan, value: '$pendientes', label: 'Pendientes'),
+                  _DonutLegend(
+                    color: _cyan,
+                    value: '$pendientes',
+                    label: 'Pendientes',
+                  ),
                 ],
               ),
             ],
@@ -879,7 +899,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 color: const Color(0xFF06B6D4),
                 title: 'Lista Estudiantes',
                 subtitle: 'CRUD y descarga',
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentListScreen())),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const StudentListScreen()),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -889,7 +912,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 color: const Color(0xFF7C3AED),
                 title: 'Importar',
                 subtitle: 'Carga masiva Excel/CSV',
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ImportStudentsScreen())),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ImportStudentsScreen(),
+                  ),
+                ),
               ),
             ),
           ],
@@ -1292,8 +1320,11 @@ class _EventFormSheetState extends State<_EventFormSheet> {
     if (!mounted) return;
     setState(() {
       _fecha = DateTime(
-        date.year, date.month, date.day,
-        time?.hour ?? 0, time?.minute ?? 0,
+        date.year,
+        date.month,
+        date.day,
+        time?.hour ?? 0,
+        time?.minute ?? 0,
       );
     });
   }
@@ -1301,8 +1332,9 @@ class _EventFormSheetState extends State<_EventFormSheet> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_fecha == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Selecciona la fecha del evento')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona la fecha del evento')),
+      );
       return;
     }
     setState(() => _saving = true);
@@ -1332,8 +1364,9 @@ class _EventFormSheetState extends State<_EventFormSheet> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -1360,7 +1393,8 @@ class _EventFormSheetState extends State<_EventFormSheet> {
             children: [
               Center(
                 child: Container(
-                  width: 40, height: 4,
+                  width: 40,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: Colors.grey[300],
                     borderRadius: BorderRadius.circular(2),
@@ -1371,24 +1405,50 @@ class _EventFormSheetState extends State<_EventFormSheet> {
               Text(
                 isEdit ? 'Editar evento' : 'Crear evento',
                 style: GoogleFonts.outfit(
-                  fontSize: 20, fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
                   color: const Color(0xFF0D1B4B),
                 ),
               ),
               const SizedBox(height: 20),
               _field(_nombre, 'Nombre del evento', Icons.event_rounded),
               const SizedBox(height: 12),
-              _field(_descripcion, 'Descripción', Icons.notes_rounded, maxLines: 3),
+              _field(
+                _descripcion,
+                'Descripción',
+                Icons.notes_rounded,
+                maxLines: 3,
+              ),
               const SizedBox(height: 12),
               _field(_lugar, 'Lugar / Ubicación', Icons.location_on_rounded),
               const SizedBox(height: 12),
-              Row(children: [
-                Expanded(child: _field(_lat, 'Latitud', Icons.pin_drop_rounded,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true))),
-                const SizedBox(width: 12),
-                Expanded(child: _field(_lng, 'Longitud', Icons.pin_drop_rounded,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true))),
-              ]),
+              Row(
+                children: [
+                  Expanded(
+                    child: _field(
+                      _lat,
+                      'Latitud',
+                      Icons.pin_drop_rounded,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                        signed: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _field(
+                      _lng,
+                      'Longitud',
+                      Icons.pin_drop_rounded,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                        signed: true,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 12),
               InkWell(
                 onTap: _pickDate,
@@ -1397,7 +1457,9 @@ class _EventFormSheetState extends State<_EventFormSheet> {
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.calendar_today_rounded),
                     labelText: 'Fecha y hora del evento',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     filled: true,
                     fillColor: const Color(0xFFF5F6FA),
                   ),
@@ -1405,12 +1467,14 @@ class _EventFormSheetState extends State<_EventFormSheet> {
                     _fecha == null
                         ? 'Seleccionar fecha y hora'
                         : '${_fecha!.day.toString().padLeft(2, '0')}/'
-                          '${_fecha!.month.toString().padLeft(2, '0')}/'
-                          '${_fecha!.year}  '
-                          '${_fecha!.hour.toString().padLeft(2, '0')}:'
-                          '${_fecha!.minute.toString().padLeft(2, '0')}',
+                              '${_fecha!.month.toString().padLeft(2, '0')}/'
+                              '${_fecha!.year}  '
+                              '${_fecha!.hour.toString().padLeft(2, '0')}:'
+                              '${_fecha!.minute.toString().padLeft(2, '0')}',
                     style: TextStyle(
-                      color: _fecha == null ? Colors.grey[600] : const Color(0xFF0D1B4B),
+                      color: _fecha == null
+                          ? Colors.grey[600]
+                          : const Color(0xFF0D1B4B),
                     ),
                   ),
                 ),
@@ -1421,16 +1485,25 @@ class _EventFormSheetState extends State<_EventFormSheet> {
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF0D1B4B),
                   minimumSize: const Size(double.infinity, 52),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 child: _saving
                     ? const SizedBox(
-                        width: 22, height: 22,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.5,
+                        ),
                       )
                     : Text(
                         isEdit ? 'Guardar cambios' : 'Crear evento',
-                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600),
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
               ),
             ],
@@ -1446,18 +1519,18 @@ class _EventFormSheetState extends State<_EventFormSheet> {
     IconData icon, {
     int maxLines = 1,
     TextInputType? keyboardType,
-  }) =>
-      TextFormField(
-        controller: ctrl,
-        maxLines: maxLines,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(
-          prefixIcon: Icon(icon),
-          labelText: label,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          filled: true,
-          fillColor: const Color(0xFFF5F6FA),
-        ),
-        validator: (v) => (v == null || v.trim().isEmpty) ? 'Campo requerido' : null,
-      );
+  }) => TextFormField(
+    controller: ctrl,
+    maxLines: maxLines,
+    keyboardType: keyboardType,
+    decoration: InputDecoration(
+      prefixIcon: Icon(icon),
+      labelText: label,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      filled: true,
+      fillColor: const Color(0xFFF5F6FA),
+    ),
+    validator: (v) =>
+        (v == null || v.trim().isEmpty) ? 'Campo requerido' : null,
+  );
 }
