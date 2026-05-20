@@ -7,14 +7,11 @@ class SupabaseService {
 
   static const String supabaseUrl = 'https://nnglhmbldffzlsnraryv.supabase.co';
   static const String supabaseAnonKey =
-      'sb_publishable_h065qIIpntclT4c8gjLqyQ_bXdZ97aU';
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5uZ2xobWJsZGZmemxzbnJhcnl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4Mjk3MjksImV4cCI6MjA5MTQwNTcyOX0.aIH1G7t7UKty6lQE0RSx0EDxHWjgHAuLBd5GecCP1Gg';
 
   /// Inicializa Supabase. Llamar una sola vez en main().
   static Future<void> initialize() async {
-    await Supabase.initialize(
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-    );
+    await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
   }
 
   /// Cliente Supabase listo para usar en cualquier parte de la app.
@@ -24,7 +21,8 @@ class SupabaseService {
   static User? get currentUser => client.auth.currentUser;
 
   /// Stream de cambios de sesión.
-  static Stream<AuthState> get authStateChanges => client.auth.onAuthStateChange;
+  static Stream<AuthState> get authStateChanges =>
+      client.auth.onAuthStateChange;
 
   // ── Auth helpers ──────────────────────────────────────────────
 
