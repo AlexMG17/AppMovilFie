@@ -200,7 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         _showTopToast('Te enviamos un código de recuperación al correo.');
         setState(() {
-          _isResetPasswordFlow = true;
+          _isResetPasswordFlow = true; // Cambiamos la interfaz a "Ingresar Código"
         });
       }
     } on AuthException catch (e) {
@@ -233,7 +233,9 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
       final AuthResponse res = await Supabase.instance.client.auth.verifyOTP(
@@ -257,7 +259,9 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } on AuthException catch (e) {
-      if (mounted) _showTopToast('Error: ${e.message}', isError: true);
+      if (mounted) {
+        _showTopToast('Error: ${e.message}', isError: true);
+      }
     } catch (e) {
       if (mounted) _showTopToast('Ocurrió un error inesperado.', isError: true);
     } finally {
@@ -357,7 +361,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final int idRol = isStudentFlow ? 1 : 2;
 
       if (isLoginFlow) {
-        // INICIAR SESIÓN
+        // ------------------ INICIAR SESIÓN ------------------
         await _authService.signIn(email: email, password: password);
 
         if (mounted) {
@@ -377,7 +381,7 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         }
       } else {
-        // REGISTRO
+        // ------------------ REGISTRO ------------------
         await _authService.signUp(
           email: email,
           password: password,
@@ -412,7 +416,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showTopToast('Error inesperado.', isError: true);
+        _showTopToast('Error: ${e.toString()}', isError: true);
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -456,7 +460,7 @@ class _LoginScreenState extends State<LoginScreen> {
         idToken: idToken,
       );
     } catch (error) {
-      _googleSignInInProgress = false;
+      setState(() => _googleSignInInProgress = false);
       if (mounted) {
         _showTopToast('Error al conectar con Google.', isError: true);
       }
@@ -826,6 +830,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 24),
 
+          // Campo de Nombre (Solo visible en Registro)
           if (!_isStudentLogin) ...[
             _buildEpicTextField(
               controller: _nameController,
@@ -833,7 +838,9 @@ class _LoginScreenState extends State<LoginScreen> {
               hint: 'Ej. Juan Pérez',
               icon: Icons.person_outline,
               validator: (value) {
-                if (value == null || value.isEmpty) return 'Ingresa tu nombre';
+                if (value == null || value.isEmpty) {
+                  return 'Ingresa tu nombre';
+                }
                 return null;
               },
             ),
@@ -846,9 +853,11 @@ class _LoginScreenState extends State<LoginScreen> {
             hint: 'ejemplo@espoch.edu.ec',
             icon: Icons.alternate_email,
             validator: (value) {
-              if (value == null || value.isEmpty) return 'Ingresa tu correo';
+              if (value == null || value.isEmpty) {
+                return 'Ingresa tu correo';
+              }
               if (!value.endsWith('@espoch.edu.ec')) {
-                return 'Debe ser @espoch.edu.ec';
+                return 'Debe ser un correo @espoch.edu.ec válido';
               }
               return null;
             },
@@ -865,13 +874,18 @@ class _LoginScreenState extends State<LoginScreen> {
               if (value == null || value.isEmpty) {
                 return 'Ingresa tu contraseña';
               }
+              // Validaciones estrictas solo aplicables durante el registro
               if (!_isStudentLogin) {
-                if (value.length < 8) return 'Mínimo 8 caracteres';
+                if (value.length < 8) { return 'Debe tener al menos 8 caracteres'; }
+                if (!value.contains(RegExp(r'[A-Z]'))) { return 'Debe contener al menos una mayúscula'; }
+                if (!value.contains(RegExp(r'[0-9]'))) { return 'Debe contener al menos un número'; }
+                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]'))) { return 'Debe contener un símbolo especial (ej. !@#\$&*)'; }
               }
               return null;
             },
           ),
 
+          // Confirmar Contraseña (Solo visible en Registro)
           if (!_isStudentLogin) ...[
             const SizedBox(height: 20),
             _buildEpicTextField(
@@ -892,6 +906,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
 
+          // Olvidaste contraseña (Solo visible en Login)
           if (_isStudentLogin) ...[
             Align(
               alignment: Alignment.centerRight,
@@ -917,6 +932,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 24),
 
+          // Botón para alternar entre Login y Registro
           Center(
             child: InkWell(
               onTap: () {
@@ -931,10 +947,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   text: _isStudentLogin
                       ? '¿No tienes cuenta? '
                       : '¿Ya tienes cuenta? ',
-                  style: const TextStyle(
-                    color: AppColors.sentryGrey,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: AppColors.sentryGrey, fontSize: 14),
                   children: [
                     TextSpan(
                       text: _isStudentLogin ? 'Regístrate' : 'Inicia Sesión',
@@ -1028,12 +1041,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 return 'Ingresa tu contraseña';
               }
               if (!_isExternalLogin) {
-                if (value.length < 8) return 'Mínimo 8 caracteres';
+                if (value.length < 8) { return 'Debe tener al menos 8 caracteres'; }
+                if (!value.contains(RegExp(r'[A-Z]'))) { return 'Debe contener al menos una mayúscula'; }
+                if (!value.contains(RegExp(r'[0-9]'))) { return 'Debe contener al menos un número'; }
+                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]'))) { return 'Debe contener un símbolo especial (ej. !@#\$&*)'; }
               }
               return null;
             },
           ),
 
+          // Confirmar Contraseña (Solo visible en Registro)
           if (!_isExternalLogin) ...[
             const SizedBox(height: 20),
             _buildEpicTextField(
@@ -1054,6 +1071,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
 
+          // Olvidaste contraseña (Solo visible en Login)
           if (_isExternalLogin) ...[
             Align(
               alignment: Alignment.centerRight,
@@ -1079,6 +1097,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 24),
 
+          // Sección de Google siempre visible en usuario externo
           Row(
             children: [
               Expanded(
@@ -1128,6 +1147,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 24),
 
+          // Botón para alternar entre Login y Registro Externo
           Center(
             child: InkWell(
               onTap: () {

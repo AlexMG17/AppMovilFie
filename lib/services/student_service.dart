@@ -140,14 +140,39 @@ class StudentService {
     });
   }
 
-  /// Batch-upserts a list of students (insert or update on email conflict).
-  /// Returns the number of rows successfully upserted.
+  /// Batch-inserts a list of students linked to a new listado record.
+  /// Returns the number of rows successfully inserted.
   static Future<int> batchUpsert(List<Map<String, String>> students) async {
     if (students.isEmpty) return 0;
-    await _client.from('listado_estudiantes').upsert(
-      students,
-      onConflict: 'correo_electronico',
-    );
+
+    // 1. Crear registro padre en 'listados'
+    final listadoResponse = await _client
+        .from('listados')
+        .insert({
+      'nombre_archivo':
+      'importacion_${DateTime.now().millisecondsSinceEpoch}',
+      'cargado_por':
+      SupabaseService.currentUser?.email ?? 'admin',
+    })
+        .select('id_listado')
+        .single();
+
+    final idListado = listadoResponse['id_listado'] as int;
+
+    // 2. Insertar estudiantes vinculados al listado
+    final rows = students
+        .map((s) => {
+      'id_listado': idListado,
+      'nombre': s['nombre'],
+      'correo_electronico': s['correo_electronico'],
+      'carrera': s['carrera'],
+      'procesado': false,
+      if ((s['cedula'] ?? '').isNotEmpty) 'cedula': s['cedula'],
+    })
+        .toList();
+
+    await _client.from('listado_estudiantes').insert(rows);
+
     return students.length;
   }
 
