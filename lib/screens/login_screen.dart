@@ -27,6 +27,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isStudentLogin = true;
   bool _isExternalLogin = true;
 
+  // NUEVO: Lógica para mostrar los campos del código OTP
+  bool _isResetPasswordFlow = false;
+
   // Control para nuestra notificación superior
   OverlayEntry? _activeToast;
 
@@ -39,6 +42,11 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
+
+  // NUEVO: Controladores para la recuperación
+  final TextEditingController _otpController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
+
   bool _obscurePassword = true;
 
   @override
@@ -68,37 +76,36 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void dispose() {
     _authSubscription?.cancel();
-    // Si cerramos la pantalla, eliminamos cualquier notificación flotante que haya quedado
     _activeToast?.remove();
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _otpController.dispose();
+    _newPasswordController.dispose();
     super.dispose();
   }
 
-  // Limpia los campos al cambiar de pantalla
   void _clearControllers() {
     _nameController.clear();
     _emailController.clear();
     _passwordController.clear();
     _confirmPasswordController.clear();
+    _otpController.clear();
+    _newPasswordController.clear();
   }
 
   // =========================================================================
   // NOTIFICACIÓN FLOTANTE PERSONALIZADA (SUPERIOR)
   // =========================================================================
   void _showTopToast(String message, {bool isError = false}) {
-    // Si ya hay un mensaje en pantalla, lo quitamos para poner el nuevo
     _activeToast?.remove();
     _activeToast = null;
 
     final overlay = Overlay.of(context);
     final overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
-        top:
-            MediaQuery.of(context).padding.top +
-            20, // Lo pone arriba, debajo de la hora/batería
+        top: MediaQuery.of(context).padding.top + 20,
         left: 24,
         right: 24,
         child: Material(
@@ -106,10 +113,10 @@ class _LoginScreenState extends State<LoginScreen> {
           child: TweenAnimationBuilder<double>(
             tween: Tween(begin: 0.0, end: 1.0),
             duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOutBack, // Animación de rebote suave
+            curve: Curves.easeOutBack,
             builder: (context, value, child) {
               return Transform.translate(
-                offset: Offset(0, -50 * (1 - value)), // Desliza desde arriba
+                offset: Offset(0, -50 * (1 - value)),
                 child: Opacity(opacity: value.clamp(0.0, 1.0), child: child),
               );
             },
@@ -156,7 +163,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _activeToast = overlayEntry;
     overlay.insert(overlayEntry);
 
-    // Se oculta automáticamente después de 4 segundos
     Future.delayed(const Duration(seconds: 4), () {
       if (_activeToast == overlayEntry) {
         _activeToast?.remove();
@@ -166,7 +172,119 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // =========================================================================
-  // LÓGICA DE AUTENTICACIÓN CON SUPABASE
+  // PASO 1: PEDIR EL CÓDIGO (Recuperación)
+  // =========================================================================
+  Future<void> _handleForgotPassword(bool isStudentFlow) async {
+    final email = _emailController.text.trim();
+
+    if (email.isEmpty) {
+      _showTopToast('Por favor, ingresa tu correo primero', isError: true);
+      return;
+    }
+
+    if (isStudentFlow && !email.endsWith('@espoch.edu.ec')) {
+      _showTopToast('Ingresa un correo @espoch.edu.ec válido', isError: true);
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Supabase envía el correo con el OTP
+      await Supabase.instance.client.auth.resetPasswordForEmail(email);
+
+      if (mounted) {
+        _showTopToast('Te enviamos un código de recuperación al correo.');
+        setState(() {
+          _isResetPasswordFlow =
+              true; // Cambiamos la interfaz a "Ingresar Código"
+        });
+      }
+    } on AuthException catch (e) {
+      if (mounted) {
+        _showTopToast('Error: ${e.message}', isError: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        _showTopToast('Error al enviar el correo.', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // =========================================================================
+  // PASO 2: VERIFICAR CÓDIGO Y CAMBIAR CONTRASEÑA
+  // =========================================================================
+  Future<void> _handleResetPassword() async {
+    final email = _emailController.text.trim();
+    final otpCode = _otpController.text.trim();
+    final newPassword = _newPasswordController.text.trim();
+
+    if (otpCode.isEmpty || newPassword.isEmpty) {
+      _showTopToast('Por favor completa todos los campos', isError: true);
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      _showTopToast(
+        'La contraseña debe tener al menos 8 caracteres',
+        isError: true,
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Verificamos el código (Esto inicia una sesión temporal automáticamente)
+      final AuthResponse res = await Supabase.instance.client.auth.verifyOTP(
+        type: OtpType.recovery,
+        token: otpCode,
+        email: email,
+      );
+
+      if (res.session != null) {
+        // 2. Si el código es correcto, actualizamos la contraseña nativamente
+        await Supabase.instance.client.auth.updateUser(
+          UserAttributes(password: newPassword),
+        );
+
+        // 3. Cerramos la sesión temporal para forzarlos a iniciar sesión bien
+        await Supabase.instance.client.auth.signOut();
+
+        if (mounted) {
+          _showTopToast('¡Contraseña actualizada con éxito! Inicia sesión.');
+          setState(() {
+            _isResetPasswordFlow = false;
+            _clearControllers();
+          });
+        }
+      }
+    } on AuthException catch (e) {
+      // Con este AuthException sabrás exactamente por qué falla
+      if (mounted) {
+        _showTopToast('Error: ${e.message}', isError: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        _showTopToast('Ocurrió un error inesperado.', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // =========================================================================
+  // LÓGICA DE AUTENTICACIÓN NORMAL (SUPABASE)
   // =========================================================================
   Future<void> _handleAuth(bool isStudentFlow, bool isLoginFlow) async {
     if (!_formKey.currentState!.validate()) {
@@ -185,7 +303,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final int idRol = isStudentFlow ? 1 : 2;
 
       if (isLoginFlow) {
-        // ------------------ INICIAR SESIÓN ------------------
         await _authService.signIn(email: email, password: password);
 
         if (mounted) {
@@ -205,7 +322,6 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         }
       } else {
-        // ------------------ REGISTRO ------------------
         await _authService.signUp(
           email: email,
           password: password,
@@ -227,9 +343,13 @@ class _LoginScreenState extends State<LoginScreen> {
           });
         }
       }
+    } on AuthException catch (e) {
+      if (mounted) {
+        _showTopToast('Error: ${e.message}', isError: true);
+      }
     } catch (e) {
       if (mounted) {
-        _showTopToast('Error: ${e.toString()}', isError: true);
+        _showTopToast('Error inesperado al iniciar sesión.', isError: true);
       }
     } finally {
       if (mounted) {
@@ -277,12 +397,10 @@ class _LoginScreenState extends State<LoginScreen> {
         provider: OAuthProvider.google,
         idToken: idToken,
       );
-
-      // La navegación la maneja el listener _authSubscription
     } catch (error) {
-      setState(() => _googleSignInInProgress = false);
+      _googleSignInInProgress = false;
       if (mounted) {
-        _showTopToast('Error al iniciar sesión con Google.', isError: true);
+        _showTopToast('Error al conectar con Google.', isError: true);
       }
     }
   }
@@ -293,13 +411,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-      // ESTO CONGELA EL FONDO PARA QUE NO SE MUEVA CON EL TECLADO
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          // =========================================================
           // 1. DISEÑO DE FONDO
-          // =========================================================
           Container(
             height: size.height * 0.45,
             decoration: const BoxDecoration(
@@ -335,9 +450,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
 
-          // =========================================================
           // 2. GIF DE LLAMAS FIESTERAS
-          // =========================================================
           Positioned(
             bottom: 0,
             left: 0,
@@ -355,10 +468,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
 
-          // =========================================================
           // 3. CONTENIDO PRINCIPAL
-          // =========================================================
-          // EL PADDING DINÁMICO PERMITE QUE SOLO EL FORMULARIO SUBA AL ABRIR EL TECLADO
           Padding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -397,13 +507,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           duration: const Duration(milliseconds: 300),
                           child: isStudent == null
                               ? _buildInitialQuestion()
-                              : (isStudent == true
-                                    ? _buildStudentLogin()
-                                    : _buildNormalLogin()),
+                              : (_isResetPasswordFlow
+                                    ? _buildResetPasswordForm()
+                                    : (isStudent == true
+                                          ? _buildStudentLogin()
+                                          : _buildNormalLogin())),
                         ),
                       ),
 
-                      // Espacio reservado para las llamas
                       const SizedBox(height: 200),
                     ],
                   ),
@@ -466,6 +577,84 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // =========================================================================
+  // PANTALLA: RESTABLECER CONTRASEÑA (OTP NATIVO)
+  // =========================================================================
+  Widget _buildResetPasswordForm() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        key: const ValueKey("reset_flow"),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: AppColors.sentryNavy,
+                  size: 20,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isResetPasswordFlow = false;
+                  });
+                },
+              ),
+              const Text(
+                'Nueva Contraseña',
+                style: TextStyle(
+                  color: AppColors.sentryNavy,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Revisa tu correo electrónico. Te enviamos un código de recuperación.',
+            style: TextStyle(color: AppColors.sentryGrey, fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+
+          _buildEpicTextField(
+            controller: _otpController,
+            label: 'Código de recuperación',
+            hint: 'Ej: 12345678',
+            icon: Icons.pin_outlined,
+            validator: (value) {
+              if (value == null || value.isEmpty) return 'Ingresa el código';
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+
+          _buildEpicTextField(
+            controller: _newPasswordController,
+            label: 'Tu nueva contraseña',
+            hint: '••••••••',
+            icon: Icons.lock_outline,
+            isPassword: true,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Ingresa tu nueva contraseña';
+              }
+              if (value.length < 8) return 'Mínimo 8 caracteres';
+              return null;
+            },
+          ),
+          const SizedBox(height: 30),
+
+          _buildEpicButton(
+            text: 'Cambiar Contraseña',
+            onPressed: _handleResetPassword,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =========================================================================
   // PANTALLA 2: Login / Registro Estudiante
   // =========================================================================
   Widget _buildStudentLogin() {
@@ -502,7 +691,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Campo de Nombre (Solo visible en Registro)
           if (!_isStudentLogin) ...[
             _buildEpicTextField(
               controller: _nameController,
@@ -510,9 +698,7 @@ class _LoginScreenState extends State<LoginScreen> {
               hint: 'Ej. Juan Pérez',
               icon: Icons.person_outline,
               validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Ingresa tu nombre';
-                }
+                if (value == null || value.isEmpty) return 'Ingresa tu nombre';
                 return null;
               },
             ),
@@ -525,11 +711,9 @@ class _LoginScreenState extends State<LoginScreen> {
             hint: 'ejemplo@espoch.edu.ec',
             icon: Icons.alternate_email,
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Ingresa tu correo';
-              }
+              if (value == null || value.isEmpty) return 'Ingresa tu correo';
               if (!value.endsWith('@espoch.edu.ec')) {
-                return 'Debe ser un correo @espoch.edu.ec válido';
+                return 'Debe ser @espoch.edu.ec';
               }
               return null;
             },
@@ -546,26 +730,13 @@ class _LoginScreenState extends State<LoginScreen> {
               if (value == null || value.isEmpty) {
                 return 'Ingresa tu contraseña';
               }
-              // Validaciones estrictas solo aplicables durante el registro
               if (!_isStudentLogin) {
-                if (value.length < 8) {
-                  return 'Debe tener al menos 8 caracteres';
-                }
-                if (!value.contains(RegExp(r'[A-Z]'))) {
-                  return 'Debe contener al menos una mayúscula';
-                }
-                if (!value.contains(RegExp(r'[0-9]'))) {
-                  return 'Debe contener al menos un número';
-                }
-                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]'))) {
-                  return 'Debe contener un símbolo especial (ej. !@#\$&*)';
-                }
+                if (value.length < 8) return 'Mínimo 8 caracteres';
               }
               return null;
             },
           ),
 
-          // Confirmar Contraseña (Solo visible en Registro)
           if (!_isStudentLogin) ...[
             const SizedBox(height: 20),
             _buildEpicTextField(
@@ -586,12 +757,11 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
 
-          // Olvidaste contraseña (Solo visible en Login)
           if (_isStudentLogin) ...[
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: () {},
+                onPressed: () => _handleForgotPassword(true),
                 child: const Text(
                   '¿Olvidaste tu contraseña?',
                   style: TextStyle(
@@ -612,7 +782,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Botón para alternar entre Login y Registro
           Center(
             child: InkWell(
               onTap: () {
@@ -687,7 +856,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Campo de Nombre (Solo visible en Registro)
           if (!_isExternalLogin) ...[
             _buildEpicTextField(
               controller: _nameController,
@@ -695,9 +863,7 @@ class _LoginScreenState extends State<LoginScreen> {
               hint: 'Ej. María Gómez',
               icon: Icons.person_outline,
               validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Ingresa tu nombre';
-                }
+                if (value == null || value.isEmpty) return 'Ingresa tu nombre';
                 return null;
               },
             ),
@@ -710,9 +876,7 @@ class _LoginScreenState extends State<LoginScreen> {
             hint: 'ejemplo@correo.com',
             icon: Icons.email_outlined,
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Ingresa tu correo';
-              }
+              if (value == null || value.isEmpty) return 'Ingresa tu correo';
               return null;
             },
           ),
@@ -728,26 +892,13 @@ class _LoginScreenState extends State<LoginScreen> {
               if (value == null || value.isEmpty) {
                 return 'Ingresa tu contraseña';
               }
-              // Validaciones estrictas solo aplicables durante el registro
               if (!_isExternalLogin) {
-                if (value.length < 8) {
-                  return 'Debe tener al menos 8 caracteres';
-                }
-                if (!value.contains(RegExp(r'[A-Z]'))) {
-                  return 'Debe contener al menos una mayúscula';
-                }
-                if (!value.contains(RegExp(r'[0-9]'))) {
-                  return 'Debe contener al menos un número';
-                }
-                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]'))) {
-                  return 'Debe contener un símbolo especial (ej. !@#\$&*)';
-                }
+                if (value.length < 8) return 'Mínimo 8 caracteres';
               }
               return null;
             },
           ),
 
-          // Confirmar Contraseña (Solo visible en Registro)
           if (!_isExternalLogin) ...[
             const SizedBox(height: 20),
             _buildEpicTextField(
@@ -768,12 +919,11 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
 
-          // Olvidaste contraseña (Solo visible en Login)
           if (_isExternalLogin) ...[
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: () {},
+                onPressed: () => _handleForgotPassword(false),
                 child: const Text(
                   '¿Olvidaste tu contraseña?',
                   style: TextStyle(
@@ -794,7 +944,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Sección de Google siempre visible en usuario externo
           Row(
             children: [
               Expanded(
@@ -844,7 +993,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Botón para alternar entre Login y Registro Externo
           Center(
             child: InkWell(
               onTap: () {

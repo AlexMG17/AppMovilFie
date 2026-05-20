@@ -195,7 +195,7 @@ class QrUniqueService {
         await _client.from('asistencias').insert({
           'id_entrada': idEntrada,
           'fecha_ingreso': DateTime.now().toIso8601String(),
-          'validado_por': ?idGuardia,
+          'validado_por': idGuardia,
         });
       } catch (_) {}
 
