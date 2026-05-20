@@ -44,24 +44,25 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _authSubscription =
-        Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
-          if (!_googleSignInInProgress) return;
-          if (data.event == AuthChangeEvent.signedIn && mounted) {
-            _googleSignInInProgress = false;
-            final role = await GuardService.getCurrentUserRole();
-            if (!mounted) return;
-            switch (role) {
-              case 'validador':
-                Navigator.pushReplacementNamed(context, '/guard');
-              case 'admin':
-              case 'administrador':
-                Navigator.pushReplacementNamed(context, '/admin');
-              default:
-                Navigator.pushReplacementNamed(context, '/home');
-            }
-          }
-        });
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      data,
+    ) async {
+      if (!_googleSignInInProgress) return;
+      if (data.event == AuthChangeEvent.signedIn && mounted) {
+        _googleSignInInProgress = false;
+        final role = await GuardService.getCurrentUserRole();
+        if (!mounted) return;
+        switch (role) {
+          case 'validador':
+            Navigator.pushReplacementNamed(context, '/guard');
+          case 'admin':
+          case 'administrador':
+            Navigator.pushReplacementNamed(context, '/admin');
+          default:
+            Navigator.pushReplacementNamed(context, '/home');
+        }
+      }
+    });
   }
 
   @override
@@ -264,7 +265,10 @@ class _LoginScreenState extends State<LoginScreen> {
       if (idToken == null) {
         setState(() => _googleSignInInProgress = false);
         if (mounted) {
-          _showTopToast('No se pudo obtener el token de Google.', isError: true);
+          _showTopToast(
+            'No se pudo obtener el token de Google.',
+            isError: true,
+          );
         }
         return;
       }
@@ -544,10 +548,18 @@ class _LoginScreenState extends State<LoginScreen> {
               }
               // Validaciones estrictas solo aplicables durante el registro
               if (!_isStudentLogin) {
-                if (value.length < 8) { return 'Debe tener al menos 8 caracteres'; }
-                if (!value.contains(RegExp(r'[A-Z]'))) { return 'Debe contener al menos una mayúscula'; }
-                if (!value.contains(RegExp(r'[0-9]'))) { return 'Debe contener al menos un número'; }
-                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]'))) { return 'Debe contener un símbolo especial (ej. !@#\$&*)'; }
+                if (value.length < 8) {
+                  return 'Debe tener al menos 8 caracteres';
+                }
+                if (!value.contains(RegExp(r'[A-Z]'))) {
+                  return 'Debe contener al menos una mayúscula';
+                }
+                if (!value.contains(RegExp(r'[0-9]'))) {
+                  return 'Debe contener al menos un número';
+                }
+                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]'))) {
+                  return 'Debe contener un símbolo especial (ej. !@#\$&*)';
+                }
               }
               return null;
             },
@@ -615,7 +627,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   text: _isStudentLogin
                       ? '¿No tienes cuenta? '
                       : '¿Ya tienes cuenta? ',
-                  style: const TextStyle(color: AppColors.sentryGrey, fontSize: 14),
+                  style: const TextStyle(
+                    color: AppColors.sentryGrey,
+                    fontSize: 14,
+                  ),
                   children: [
                     TextSpan(
                       text: _isStudentLogin ? 'Regístrate' : 'Inicia Sesión',
@@ -715,10 +730,18 @@ class _LoginScreenState extends State<LoginScreen> {
               }
               // Validaciones estrictas solo aplicables durante el registro
               if (!_isExternalLogin) {
-                if (value.length < 8) { return 'Debe tener al menos 8 caracteres'; }
-                if (!value.contains(RegExp(r'[A-Z]'))) { return 'Debe contener al menos una mayúscula'; }
-                if (!value.contains(RegExp(r'[0-9]'))) { return 'Debe contener al menos un número'; }
-                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]'))) { return 'Debe contener un símbolo especial (ej. !@#\$&*)'; }
+                if (value.length < 8) {
+                  return 'Debe tener al menos 8 caracteres';
+                }
+                if (!value.contains(RegExp(r'[A-Z]'))) {
+                  return 'Debe contener al menos una mayúscula';
+                }
+                if (!value.contains(RegExp(r'[0-9]'))) {
+                  return 'Debe contener al menos un número';
+                }
+                if (!value.contains(RegExp(r'[!@#\$&*~%^().,]'))) {
+                  return 'Debe contener un símbolo especial (ej. !@#\$&*)';
+                }
               }
               return null;
             },
@@ -775,7 +798,10 @@ class _LoginScreenState extends State<LoginScreen> {
           Row(
             children: [
               Expanded(
-                child: Divider(color: AppColors.sentryGrey.withAlpha(128), thickness: 1),
+                child: Divider(
+                  color: AppColors.sentryGrey.withAlpha(128),
+                  thickness: 1,
+                ),
               ),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
@@ -789,7 +815,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               Expanded(
-                child: Divider(color: AppColors.sentryGrey.withAlpha(128), thickness: 1),
+                child: Divider(
+                  color: AppColors.sentryGrey.withAlpha(128),
+                  thickness: 1,
+                ),
               ),
             ],
           ),
@@ -830,7 +859,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   text: _isExternalLogin
                       ? '¿No tienes cuenta? '
                       : '¿Ya tienes cuenta? ',
-                  style: const TextStyle(color: AppColors.sentryGrey, fontSize: 14),
+                  style: const TextStyle(
+                    color: AppColors.sentryGrey,
+                    fontSize: 14,
+                  ),
                   children: [
                     TextSpan(
                       text: _isExternalLogin ? 'Regístrate' : 'Inicia Sesión',
@@ -868,7 +900,10 @@ class _LoginScreenState extends State<LoginScreen> {
         decoration: BoxDecoration(
           color: AppColors.sentryBg,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.sentryCyan.withAlpha(77), width: 1.5),
+          border: Border.all(
+            color: AppColors.sentryCyan.withAlpha(77),
+            width: 1.5,
+          ),
         ),
         child: Row(
           children: [
@@ -878,7 +913,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
-                  BoxShadow(color: AppColors.sentryNavy.withAlpha(13), blurRadius: 8),
+                  BoxShadow(
+                    color: AppColors.sentryNavy.withAlpha(13),
+                    blurRadius: 8,
+                  ),
                 ],
               ),
               child: Icon(icon, color: AppColors.sentryBlue, size: 28),
@@ -899,12 +937,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: const TextStyle(color: AppColors.sentryGrey, fontSize: 13),
+                    style: const TextStyle(
+                      color: AppColors.sentryGrey,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, color: AppColors.sentryGrey, size: 18),
+            const Icon(
+              Icons.arrow_forward_ios,
+              color: AppColors.sentryGrey,
+              size: 18,
+            ),
           ],
         ),
       ),
@@ -967,7 +1012,10 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: AppColors.sentryCyan, width: 2),
+              borderSide: const BorderSide(
+                color: AppColors.sentryCyan,
+                width: 2,
+              ),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),

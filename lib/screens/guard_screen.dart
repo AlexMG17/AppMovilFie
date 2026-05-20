@@ -38,6 +38,11 @@ class _GuardScreenState extends State<GuardScreen>
   // Estado del último escaneo
   ScanResult? _lastScanResult;
 
+  // Cooldown y de-duplicación del escáner
+  String? _lastScannedCode;
+  DateTime? _lastScanTime;
+  int _scanSessionId = 0;
+
   // Historial y estadísticas
   List<ScanResult> _recentScans = [];
   ScanStats _stats = ScanStats(ingresados: 0, invalidos: 0, usados: 0);
@@ -130,8 +135,26 @@ class _GuardScreenState extends State<GuardScreen>
 
   // ── Manejar escaneo de QR ───────────────────────────────────
 
-  Future<void> _handleScan(String code) async {
-    if (_isProcessingScan) return;
+  Future<void> _handleScan(String code, {bool isManual = false}) async {
+    if (_isProcessingScan || _lastScanResult != null) return;
+
+    final now = DateTime.now();
+    if (!isManual) {
+      // Cooldown de 4 segundos si es el mismo código escaneado con la cámara
+      if (code == _lastScannedCode &&
+          _lastScanTime != null &&
+          now.difference(_lastScanTime!) < const Duration(seconds: 4)) {
+        return;
+      }
+      // Cooldown general de 1.2 segundos para evitar capturas accidentales muy rápidas
+      if (_lastScanTime != null &&
+          now.difference(_lastScanTime!) < const Duration(milliseconds: 1200)) {
+        return;
+      }
+    }
+
+    _lastScannedCode = code;
+    _lastScanTime = now;
 
     setState(() => _isProcessingScan = true);
 
@@ -148,6 +171,9 @@ class _GuardScreenState extends State<GuardScreen>
       HapticFeedback.vibrate();
     }
 
+    _scanSessionId++;
+    final currentSession = _scanSessionId;
+
     setState(() {
       _lastScanResult = result;
       _isProcessingScan = false;
@@ -161,7 +187,7 @@ class _GuardScreenState extends State<GuardScreen>
 
     // Limpiar resultado después de 4 segundos
     await Future.delayed(const Duration(seconds: 4));
-    if (mounted) {
+    if (mounted && _scanSessionId == currentSession) {
       setState(() => _lastScanResult = null);
     }
   }
@@ -171,7 +197,7 @@ class _GuardScreenState extends State<GuardScreen>
     if (code.isEmpty) return;
     _manualCodeController.clear();
     FocusScope.of(context).unfocus();
-    _handleScan(code);
+    _handleScan(code, isManual: true);
   }
 
   // ── BUILD ───────────────────────────────────────────────────
@@ -550,44 +576,61 @@ class _GuardScreenState extends State<GuardScreen>
         title = 'ACCESO DENEGADO';
     }
 
-    return ScaleTransition(
-      scale: _resultScaleAnim,
-      child: Container(
-        color: bgColor,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: iconColor, size: 64),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: GoogleFonts.outfit(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                result.nombreAsistente,
-                style: GoogleFonts.outfit(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 16,
-                ),
-              ),
-              if (result.razon != null) ...[
-                const SizedBox(height: 4),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        setState(() {
+          _lastScanResult = null;
+        });
+      },
+      child: ScaleTransition(
+        scale: _resultScaleAnim,
+        child: Container(
+          color: bgColor,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: iconColor, size: 64),
+                const SizedBox(height: 12),
                 Text(
-                  result.razon!,
+                  title,
                   style: GoogleFonts.outfit(
-                    color: Colors.white.withValues(alpha: 0.75),
-                    fontSize: 12,
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  result.nombreAsistente,
+                  style: GoogleFonts.outfit(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 16,
+                  ),
+                ),
+                if (result.razon != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    result.razon!,
+                    style: GoogleFonts.outfit(
+                      color: Colors.white.withValues(alpha: 0.75),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Text(
+                  'Toca la pantalla para escanear otro',
+                  style: GoogleFonts.outfit(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
                   ),
                 ),
               ],
-            ],
+            ),
           ),
         ),
       ),
