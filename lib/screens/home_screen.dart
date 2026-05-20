@@ -35,10 +35,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadUserName() async {
     final name = await EventService.getCurrentUserName();
-    if (mounted)
+    if (mounted) {
       setState(
         () => _userName = name ?? SupabaseService.currentUser?.email ?? '',
       );
+    }
   }
 
   void _onItemTapped(int index) => setState(() => _selectedIndex = index);

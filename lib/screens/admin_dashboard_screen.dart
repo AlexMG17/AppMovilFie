@@ -128,10 +128,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   Future<void> _loadUserName() async {
     final name = await EventService.getCurrentUserName();
-    if (mounted)
+    if (mounted) {
       setState(
         () => _userName = name ?? SupabaseService.currentUser?.email ?? '',
       );
+    }
   }
 
   @override
