@@ -1,0 +1,6 @@
+{
+  "dart.organizeImportsOnSave": false,
+  "[dart]": {
+    "editor.formatOnSave": false
+  }
+}
