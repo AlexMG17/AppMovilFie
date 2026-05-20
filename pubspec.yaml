@@ -18,12 +18,14 @@ dependencies:
   google_fonts: ^8.0.2
   mobile_scanner: ^7.2.0
   qr_flutter: ^4.1.0
-  google_sign_in: ^7.2.0
+  google_sign_in: ^6.2.1
   supabase_flutter: ^2.12.4
   geolocator: ^13.0.2
   flutter_map: ^8.1.1
   latlong2: ^0.9.1
   permission_handler: ^11.3.1
+  shared_preferences: ^2.3.2
+  uuid: ^4.5.1
 
 dev_dependencies:
   flutter_test:

@@ -111,6 +111,45 @@ class EventService {
     }
   }
 
+  /// Crea un nuevo evento en la tabla `eventos`.
+  static Future<void> createEvent({
+    required String nombre,
+    required String descripcion,
+    required DateTime fecha,
+    required String lugar,
+    required double lat,
+    required double lng,
+  }) async {
+    await _client.from('eventos').insert({
+      'nombre': nombre,
+      'descripcion': descripcion,
+      'fecha_evento': fecha.toIso8601String().substring(0, 10),
+      'ubicacion': lugar,
+      'latitud': lat,
+      'longitud': lng,
+    });
+  }
+
+  /// Actualiza los datos de un evento existente.
+  static Future<void> updateEvent({
+    required int id,
+    required String nombre,
+    required String descripcion,
+    required DateTime fecha,
+    required String lugar,
+    required double lat,
+    required double lng,
+  }) async {
+    await _client.from('eventos').update({
+      'nombre': nombre,
+      'descripcion': descripcion,
+      'fecha_evento': fecha.toIso8601String().substring(0, 10),
+      'ubicacion': lugar,
+      'latitud': lat,
+      'longitud': lng,
+    }).eq('id_evento', id);
+  }
+
   /// Nombre completo del usuario autenticado.
   static Future<String?> getCurrentUserName() async {
     final user = SupabaseService.currentUser;

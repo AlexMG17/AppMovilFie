@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/event_service.dart';
 import '../services/student_service.dart';
+import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 
 // ─── Dark palette ─────────────────────────────────────────────────────────────
@@ -44,6 +45,7 @@ class _StudentListScreenState extends State<StudentListScreen>
   String _query = '';
   String _selectedCareer = 'Todas las carreras';
   bool _loading = true;
+  String _userName = '';
 
   final _searchCtrl = TextEditingController();
   late AnimationController _fadeCtrl;
@@ -77,6 +79,12 @@ class _StudentListScreenState extends State<StudentListScreen>
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _fadeCtrl.forward();
     _load();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    final name = await EventService.getCurrentUserName();
+    if (mounted) setState(() => _userName = name ?? SupabaseService.currentUser?.email ?? '');
   }
 
   @override
@@ -295,11 +303,14 @@ class _StudentListScreenState extends State<StudentListScreen>
     final list = _filtered;
     return Scaffold(
       backgroundColor: _kBg,
-      body: FadeTransition(
+      body: RefreshIndicator(
+        onRefresh: _load,
+        color: _kPurple,
+        child: FadeTransition(
         opacity: _fadeAnim,
         child: SafeArea(
           child: CustomScrollView(
-            physics: const BouncingScrollPhysics(),
+            physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               _buildAppBar(),
               SliverPadding(
@@ -337,6 +348,7 @@ class _StudentListScreenState extends State<StudentListScreen>
             ],
           ),
         ),
+        ),
       ),
     );
   }
@@ -346,10 +358,7 @@ class _StudentListScreenState extends State<StudentListScreen>
     backgroundColor: _kBg,
     elevation: 0,
     pinned: true,
-    leading: IconButton(
-      icon: const Icon(Icons.menu_rounded, color: _kNavy),
-      onPressed: () {},
-    ),
+    automaticallyImplyLeading: false,
     title: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -375,10 +384,53 @@ class _StudentListScreenState extends State<StudentListScreen>
         ),
       ),
       const SizedBox(width: 4),
-      CircleAvatar(
-        radius: 16,
-        backgroundColor: _kCyan.withValues(alpha: 0.16),
-        child: const Icon(Icons.person_rounded, size: 18, color: _kPurple),
+      PopupMenuButton<String>(
+        offset: const Offset(0, 44),
+        onSelected: (value) async {
+          if (value == 'logout') {
+            final nav = Navigator.of(context);
+            await SupabaseService.signOut();
+            nav.pushReplacementNamed('/login');
+          }
+        },
+        child: CircleAvatar(
+          radius: 16,
+          backgroundColor: _kCyan.withValues(alpha: 0.16),
+          child: const Icon(Icons.person_rounded, size: 18, color: _kPurple),
+        ),
+        itemBuilder: (_) => [
+          PopupMenuItem(
+            enabled: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _userName,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: Colors.black87),
+                ),
+                Text(
+                  SupabaseService.currentUser?.email ?? '',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(),
+          const PopupMenuItem(
+            value: 'logout',
+            child: Row(
+              children: [
+                Icon(Icons.logout_rounded, size: 16, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Cerrar sesión',
+                    style: TextStyle(color: Colors.red, fontSize: 14)),
+              ],
+            ),
+          ),
+        ],
       ),
       IconButton(
         icon: Icon(Icons.refresh_rounded, color: _kGrey, size: 20),

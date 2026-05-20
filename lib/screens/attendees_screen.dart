@@ -337,10 +337,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
     backgroundColor: AppColors.sentryBg,
     elevation: 0,
     pinned: true,
-    leading: IconButton(
-      icon: const Icon(Icons.menu_rounded, color: AppColors.sentryNavy, size: 22),
-      onPressed: () {},
-    ),
+    automaticallyImplyLeading: false,
     title: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -350,7 +347,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
     ),
     actions: [
       Container(
-        margin: const EdgeInsets.only(right: 12),
+        margin: const EdgeInsets.only(right: 4),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: AppColors.success.withValues(alpha: 0.12),
@@ -369,6 +366,46 @@ class _AttendeesScreenState extends State<AttendeesScreen>
           ],
         ),
       ),
+      PopupMenuButton<String>(
+        offset: const Offset(0, 44),
+        onSelected: (value) async {
+          if (value == 'logout') {
+            await SupabaseService.signOut();
+            if (mounted) Navigator.pushReplacementNamed(context, '/login');
+          }
+        },
+        child: CircleAvatar(
+          radius: 16,
+          backgroundColor: AppColors.sentryBlue.withValues(alpha: 0.15),
+          child: const Icon(Icons.person_rounded, size: 18, color: AppColors.sentryBlue),
+        ),
+        itemBuilder: (_) => [
+          PopupMenuItem(
+            enabled: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  SupabaseService.currentUser?.email ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.black87),
+                ),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(),
+          const PopupMenuItem(
+            value: 'logout',
+            child: Row(
+              children: [
+                Icon(Icons.logout_rounded, size: 16, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Cerrar sesión', style: TextStyle(color: Colors.red, fontSize: 14)),
+              ],
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(width: 4),
     ],
   );
 

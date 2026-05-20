@@ -365,13 +365,25 @@ class _LoginScreenState extends State<LoginScreen> {
   // =========================================================================
   Future<void> _handleGoogleSignIn() async {
     try {
-      _googleSignInInProgress = true;
+      setState(() => _googleSignInInProgress = true);
 
-      final account = await GoogleSignIn.instance.authenticate();
-      final idToken = account?.authentication.idToken;
+      final googleSignIn = GoogleSignIn(
+        serverClientId:
+            '20543870962-g64kl64vhdu5dlthkmlglgq5qfl6ocg0.apps.googleusercontent.com',
+      );
+
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        // Usuario canceló
+        setState(() => _googleSignInInProgress = false);
+        return;
+      }
+
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
 
       if (idToken == null) {
-        _googleSignInInProgress = false;
+        setState(() => _googleSignInInProgress = false);
         if (mounted) {
           _showTopToast(
             'No se pudo obtener el token de Google.',
@@ -385,18 +397,6 @@ class _LoginScreenState extends State<LoginScreen> {
         provider: OAuthProvider.google,
         idToken: idToken,
       );
-    } on GoogleSignInException catch (e) {
-      _googleSignInInProgress = false;
-      if (mounted) {
-        if (e.code == GoogleSignInExceptionCode.canceled) {
-          _showTopToast(
-            'Inicio de sesión con Google cancelado.',
-            isError: true,
-          );
-        } else {
-          _showTopToast('Error Google: ${e.code.name}', isError: true);
-        }
-      }
     } catch (error) {
       _googleSignInInProgress = false;
       if (mounted) {
@@ -636,8 +636,9 @@ class _LoginScreenState extends State<LoginScreen> {
             icon: Icons.lock_outline,
             isPassword: true,
             validator: (value) {
-              if (value == null || value.isEmpty)
+              if (value == null || value.isEmpty) {
                 return 'Ingresa tu nueva contraseña';
+              }
               if (value.length < 8) return 'Mínimo 8 caracteres';
               return null;
             },
@@ -711,8 +712,9 @@ class _LoginScreenState extends State<LoginScreen> {
             icon: Icons.alternate_email,
             validator: (value) {
               if (value == null || value.isEmpty) return 'Ingresa tu correo';
-              if (!value.endsWith('@espoch.edu.ec'))
+              if (!value.endsWith('@espoch.edu.ec')) {
                 return 'Debe ser @espoch.edu.ec';
+              }
               return null;
             },
           ),
@@ -725,8 +727,9 @@ class _LoginScreenState extends State<LoginScreen> {
             icon: Icons.lock_outline,
             isPassword: true,
             validator: (value) {
-              if (value == null || value.isEmpty)
+              if (value == null || value.isEmpty) {
                 return 'Ingresa tu contraseña';
+              }
               if (!_isStudentLogin) {
                 if (value.length < 8) return 'Mínimo 8 caracteres';
               }
@@ -743,10 +746,12 @@ class _LoginScreenState extends State<LoginScreen> {
               icon: Icons.lock_outline,
               isPassword: true,
               validator: (value) {
-                if (value == null || value.isEmpty)
+                if (value == null || value.isEmpty) {
                   return 'Confirma tu contraseña';
-                if (value != _passwordController.text)
+                }
+                if (value != _passwordController.text) {
                   return 'Las contraseñas no coinciden';
+                }
                 return null;
               },
             ),
@@ -884,8 +889,9 @@ class _LoginScreenState extends State<LoginScreen> {
             icon: Icons.lock_outline,
             isPassword: true,
             validator: (value) {
-              if (value == null || value.isEmpty)
+              if (value == null || value.isEmpty) {
                 return 'Ingresa tu contraseña';
+              }
               if (!_isExternalLogin) {
                 if (value.length < 8) return 'Mínimo 8 caracteres';
               }
@@ -902,10 +908,12 @@ class _LoginScreenState extends State<LoginScreen> {
               icon: Icons.lock_outline,
               isPassword: true,
               validator: (value) {
-                if (value == null || value.isEmpty)
+                if (value == null || value.isEmpty) {
                   return 'Confirma tu contraseña';
-                if (value != _passwordController.text)
+                }
+                if (value != _passwordController.text) {
                   return 'Las contraseñas no coinciden';
+                }
                 return null;
               },
             ),

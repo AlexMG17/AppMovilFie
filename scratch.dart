@@ -1,4 +1,7 @@
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart';
+
 void main() {
-  print(GoogleSignInExceptionCode.values.map((e) => e.name).toList());
+  debugPrint(
+    "GoogleSignInExceptionCode does not exist in the standard google_sign_in package.",
+  );
 }

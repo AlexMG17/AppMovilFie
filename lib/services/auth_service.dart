@@ -81,26 +81,24 @@ class AuthService {
   Future<void> signInWithGoogle() async {
     // ⚠️ REEMPLAZA ESTO: Pon aquí el "Web client ID" de tu Google Cloud Console.
     // ¡Asegúrate de que sea el de TIPO WEB, no el de Android!
-    const webClientId = 'TU_WEB_CLIENT_ID.apps.googleusercontent.com';
+    const webClientId = '20543870962-g64kl64vhdu5dlthkmlglgq5qfl6ocg0.apps.googleusercontent.com';
 
     // Inicializamos Google Sign In pidiendo el token del servidor
-    final GoogleSignIn googleSignIn = GoogleSignIn.instance;
-    await googleSignIn.initialize(serverClientId: webClientId);
+    final GoogleSignIn googleSignIn = GoogleSignIn(
+      serverClientId: webClientId,
+      scopes: ['email', 'profile'],
+    );
 
     // Esto levanta el cuadrito nativo de Android desde abajo de la pantalla
-    // Lanza una excepción si el usuario cancela, por lo que googleUser nunca es nulo.
-    final googleUser = await googleSignIn.authenticate();
+    final googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      throw 'Inicio de sesión cancelado por el usuario';
+    }
 
     // Obtenemos las llaves criptográficas de Google
-    final googleAuth = googleUser.authentication;
+    final googleAuth = await googleUser.authentication;
     final idToken = googleAuth.idToken;
-
-    // Para obtener el accessToken, necesitamos solicitar los scopes (autorización)
-    final clientAuth = await googleUser.authorizationClient.authorizeScopes([
-      'email',
-      'profile',
-    ]);
-    final accessToken = clientAuth.accessToken;
+    final accessToken = googleAuth.accessToken;
 
     if (idToken == null) {
       throw 'Fallo al obtener los tokens de Google';
