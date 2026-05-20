@@ -22,17 +22,19 @@ const _kWhite  = Color(0xFFFFFFFF);        // Texto/iconos sobre fondos de color
 const _kGrey   = AppColors.sentryGrey;     // Texto secundario
 const _kNavy   = AppColors.sentryNavy;     // Encabezados y fondos primarios
 
-const _kRequiredCols = ['nombre', 'correo_electronico', 'carrera'];
+const _kRequiredCols = ['nombre', 'correo_electronico', 'carrera', 'cedula'];
 
 // ─── Modelo ───────────────────────────────────────────────────────────────────
 class ImportedStudent {
   final String nombre;
   final String correoElectronico;
   final String carrera;
+  final String cedula;
   const ImportedStudent({
     required this.nombre,
     required this.correoElectronico,
     required this.carrera,
+    this.cedula = '',
   });
 }
 
@@ -190,6 +192,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       final nombre = row['nombre'] ?? '';
       final email = row['correo_electronico'] ?? '';
       final carrera = row['carrera'] ?? '';
+      final cedula = row['cedula'] ?? '';
 
       if (nombre.isEmpty || email.isEmpty) continue;
 
@@ -198,6 +201,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
           nombre: nombre,
           correoElectronico: email,
           carrera: carrera,
+          cedula: cedula,
         ),
       );
     }
@@ -237,6 +241,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       final nombre = data['nombre'] ?? '';
       final email = data['correo_electronico'] ?? '';
       final carrera = data['carrera'] ?? '';
+      final cedula = data['cedula'] ?? '';
 
       if (nombre.isEmpty || email.isEmpty) continue;
 
@@ -245,6 +250,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
           nombre: nombre,
           correoElectronico: email,
           carrera: carrera,
+          cedula: cedula,
         ),
       );
     }
@@ -279,6 +285,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
         'nombre': s.nombre,
         'correo_electronico': s.correoElectronico,
         'carrera': s.carrera,
+        'cedula': s.cedula,
       });
     }
 
@@ -287,8 +294,11 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
 
     try {
       imported = await StudentService.batchUpsert(unique);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('ERROR IMPORT: $e'); // Ver en consola
       errors = unique.length;
+      // Opcional: mostrar el error real en UI
+      setState(() => _errorMsg = e.toString().replaceFirst('Exception: ', ''));
     }
 
     setState(() {
@@ -511,6 +521,11 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                   text: 'carrera',
                   style: _ts(12, fw: FontWeight.w700),
                 ),
+                const TextSpan(text: ', '),
+                TextSpan(
+                  text: 'cedula',
+                  style: _ts(12, fw: FontWeight.w700),
+                ),
                 const TextSpan(text: '.'),
               ],
             ),
@@ -523,6 +538,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                 0: FlexColumnWidth(1.2),
                 1: FlexColumnWidth(1.8),
                 2: FlexColumnWidth(1.0),
+                3: FlexColumnWidth(1.0),
               },
               children: [
                 TableRow(
@@ -531,6 +547,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                     _tableCell('nombre', isHeader: true),
                     _tableCell('correo_electronico', isHeader: true),
                     _tableCell('carrera', isHeader: true),
+                    _tableCell('cedula', isHeader: true),
                   ],
                 ),
                 TableRow(
@@ -541,6 +558,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                     _tableCell('Juan\nPérez'),
                     _tableCell('j.perez@espoch.edu.ec'),
                     _tableCell('Ing.\nSistemas'),
+                    _tableCell('0602665218'),
                   ],
                 ),
               ],
@@ -755,6 +773,12 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                           style: _ts(11, fw: FontWeight.w700, color: _kWhite),
                         ),
                       ),
+                      Expanded(
+                        child: Text(
+                          'Cédula',
+                          style: _ts(11, fw: FontWeight.w700, color: _kWhite),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -788,6 +812,13 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                               child: Text(
                                 e.value.carrera,
                                 style: _ts(11, color: _kGrey),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                e.value.cedula,
+                                style: _ts(10, color: _kGrey),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -864,7 +895,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
           ),
           const SizedBox(height: 6),
           Text(
-            'Procesando y verificando duplicados...',
+            'Procesando y verifying duplicados...',
             style: _ts(11, color: _kGrey),
             textAlign: TextAlign.center,
           ),
