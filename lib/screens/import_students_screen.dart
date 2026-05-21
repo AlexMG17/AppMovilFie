@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:excel/excel.dart' show Excel;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/event_service.dart';
 import '../services/student_service.dart';
@@ -9,27 +10,27 @@ import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 
 // ─── Paleta Sentry ────────────────────────────────────────────────────────────
-const _kBg     = AppColors.sentryBg;       // Fondo gris muy claro
-const _kCard   = Color(0xFFFFFFFF);        // Tarjeta blanca
-const _kBorder = Color(0xFFE2E8F0);        // Borde sutil claro
-const _kPurple = AppColors.sentryBlue;     // Acción primaria azul
-const _kPurp2  = AppColors.sentryNavy;     // Degradado oscuro
-const _kCyan   = AppColors.sentryCyan;     // Celeste claro
+const _kBg     = AppColors.sentryBg;
+const _kCard   = Color(0xFFFFFFFF);
+const _kBorder = Color(0xFFE2E8F0);
+const _kPurple = AppColors.sentryBlue;
+const _kPurp2  = AppColors.sentryNavy;
+const _kCyan   = AppColors.sentryCyan;
 const _kGreen  = Color(0xFF22C55E);
 const _kRed    = Color(0xFFEF4444);
 const _kYellow = Color(0xFFF59E0B);
-const _kWhite  = Color(0xFFFFFFFF);        // Texto/iconos sobre fondos de color
-const _kGrey   = AppColors.sentryGrey;     // Texto secundario
-const _kNavy   = AppColors.sentryNavy;     // Encabezados y fondos primarios
+const _kWhite  = Color(0xFFFFFFFF);
+const _kGrey   = AppColors.sentryGrey;
+const _kNavy   = AppColors.sentryNavy;
 
-const _kRequiredCols = ['nombre', 'correo_electronico', 'carrera', 'cedula'];
+const _kRequiredCols = ['nombre', 'correo_electronico', 'carrera'];
 
 // ─── Modelo ───────────────────────────────────────────────────────────────────
 class ImportedStudent {
   final String nombre;
   final String correoElectronico;
   final String carrera;
-  final String cedula;
+  final String cedula; // opcional
   const ImportedStudent({
     required this.nombre,
     required this.correoElectronico,
@@ -67,6 +68,9 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
   List<ImportedStudent> _parsed = [];
   _ImportResult? _result;
 
+  // Estado para la descarga de plantilla
+  bool _isDownloadingTemplate = false;
+
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
   String _userName = '';
@@ -101,7 +105,85 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
         color: color ?? _kNavy,
       );
 
-  // ── RF24/RF26: Seleccionar archivo ────────────────────────────────────────
+  // ── Descargar plantilla desde assets ─────────────────────────────────────
+  Future<void> _downloadTemplate() async {
+    setState(() => _isDownloadingTemplate = true);
+
+    try {
+      // 1. Leer el archivo desde assets
+      final ByteData data = await rootBundle.load(
+        'assets/templates/PLANTILLA_CSV_SENTRY.xlsx',
+      );
+      final List<int> bytes = data.buffer.asUint8List();
+
+      // 2. Abrir selector de carpeta para guardar
+      final String? outputPath = await FilePicker.saveFile(
+        dialogTitle: 'Guardar plantilla',
+        fileName: 'plantilla_estudiantes_sentry.xlsx',
+        bytes: Uint8List.fromList(bytes),
+      );
+
+      if (!mounted) return;
+
+      if (outputPath != null) {
+        // Éxito
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded,
+                    color: _kWhite, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Plantilla guardada correctamente',
+                    style: GoogleFonts.outfit(
+                        fontSize: 13, color: _kWhite),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: _kGreen,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded,
+                  color: _kWhite, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Error al descargar: ${e.toString().replaceFirst("Exception: ", "")}',
+                  style: GoogleFonts.outfit(
+                      fontSize: 13, color: _kWhite),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: _kRed,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isDownloadingTemplate = false);
+    }
+  }
+
+  // ── Seleccionar archivo ───────────────────────────────────────────────────
   Future<void> _pickFile() async {
     setState(() {
       _phase = _ImportPhase.idle;
@@ -154,7 +236,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     }
   }
 
-  // ── RF26/RF27: Parsear CSV ────────────────────────────────────────────────
+  // ── Parsear CSV ───────────────────────────────────────────────────────────
   List<ImportedStudent> _parseCsv(String content) {
     final lines = content
         .replaceAll('\r\n', '\n')
@@ -196,19 +278,17 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
 
       if (nombre.isEmpty || email.isEmpty) continue;
 
-      result.add(
-        ImportedStudent(
-          nombre: nombre,
-          correoElectronico: email,
-          carrera: carrera,
-          cedula: cedula,
-        ),
-      );
+      result.add(ImportedStudent(
+        nombre: nombre,
+        correoElectronico: email,
+        carrera: carrera,
+        cedula: cedula,
+      ));
     }
     return result;
   }
 
-  // ── RF26/RF27: Parsear Excel ──────────────────────────────────────────────
+  // ── Parsear Excel ─────────────────────────────────────────────────────────
   List<ImportedStudent> _parseExcel(List<int> bytes) {
     final excel = Excel.decodeBytes(bytes);
     final sheetName = excel.tables.keys.first;
@@ -229,9 +309,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       final row = rows[i];
       if (row.every(
         (c) => c?.value == null || c!.value.toString().trim().isEmpty,
-      )) {
-        continue;
-      }
+      )) continue;
 
       final data = <String, String>{};
       for (int j = 0; j < headers.length && j < row.length; j++) {
@@ -245,19 +323,17 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
 
       if (nombre.isEmpty || email.isEmpty) continue;
 
-      result.add(
-        ImportedStudent(
-          nombre: nombre,
-          correoElectronico: email,
-          carrera: carrera,
-          cedula: cedula,
-        ),
-      );
+      result.add(ImportedStudent(
+        nombre: nombre,
+        correoElectronico: email,
+        carrera: carrera,
+        cedula: cedula,
+      ));
     }
     return result;
   }
 
-  // ── RF27: Validar columnas requeridas ─────────────────────────────────────
+  // ── Validar columnas requeridas ───────────────────────────────────────────
   void _validateHeaders(List<String> headers) {
     final missing = _kRequiredCols.where((c) => !headers.contains(c)).toList();
     if (missing.isNotEmpty) {
@@ -265,11 +341,10 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     }
   }
 
-  // ── RF28/RF29: Procesar e importar ────────────────────────────────────────
+  // ── Procesar e importar ───────────────────────────────────────────────────
   Future<void> _doImport() async {
     setState(() => _phase = _ImportPhase.importing);
 
-    // RF29: deduplicar por correo dentro del lote
     final seen = <String>{};
     final unique = <Map<String, String>>[];
     int duplicates = 0;
@@ -295,10 +370,8 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     try {
       imported = await StudentService.batchUpsert(unique);
     } catch (e) {
-      debugPrint('ERROR IMPORT: $e'); // Ver en consola
+      debugPrint('ERROR IMPORT: $e');
       errors = unique.length;
-      // Opcional: mostrar el error real en UI
-      setState(() => _errorMsg = e.toString().replaceFirst('Exception: ', ''));
     }
 
     setState(() {
@@ -341,6 +414,9 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                     _buildHeader(),
                     const SizedBox(height: 20),
                     _buildRequirementsCard(),
+                    const SizedBox(height: 16),
+                    // ── Tarjeta de plantilla descargable ──────────────────
+                    _buildTemplateCard(),
                     const SizedBox(height: 16),
                     _buildContent(),
                     const SizedBox(height: 32),
@@ -388,10 +464,8 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                 ),
               ),
               const SizedBox(width: 4),
-              Text(
-                'En línea',
-                style: _ts(10, color: _kGreen, fw: FontWeight.w600),
-              ),
+              Text('En línea',
+                  style: _ts(10, color: _kGreen, fw: FontWeight.w600)),
             ],
           ),
         ),
@@ -415,17 +489,14 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    _userName,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: Colors.black87),
-                  ),
-                  Text(
-                    SupabaseService.currentUser?.email ?? '',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
+                  Text(_userName,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: Colors.black87)),
+                  Text(SupabaseService.currentUser?.email ?? '',
+                      style:
+                          const TextStyle(fontSize: 11, color: Colors.grey)),
                 ],
               ),
             ),
@@ -455,15 +526,13 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       children: [
         Text('Importar Estudiantes', style: _ts(22, fw: FontWeight.w800)),
         const SizedBox(height: 4),
-        Text(
-          'Carga masiva de estudiantes habilitados',
-          style: _ts(11, color: _kGrey),
-        ),
+        Text('Carga masiva de estudiantes habilitados',
+            style: _ts(11, color: _kGrey)),
       ],
     );
   }
 
-  // ── RF26/RF27: Tarjeta de requisitos ──────────────────────────────────────
+  // ── Tarjeta de requisitos ─────────────────────────────────────────────────
   Widget _buildRequirementsCard() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -483,18 +552,13 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                   color: _kCyan.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(
-                  Icons.info_outline_rounded,
-                  color: _kCyan,
-                  size: 16,
-                ),
+                child: const Icon(Icons.info_outline_rounded,
+                    color: _kCyan, size: 16),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  'Requisitos del archivo',
-                  style: _ts(13, fw: FontWeight.w700, color: _kCyan),
-                ),
+                child: Text('Requisitos del archivo',
+                    style: _ts(13, fw: FontWeight.w700, color: _kCyan)),
               ),
             ],
           ),
@@ -504,29 +568,18 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
               style: _ts(12, color: _kGrey),
               children: [
                 const TextSpan(
-                  text:
-                      'El archivo debe ser CSV o Excel (.xlsx) y contener las columnas: ',
-                ),
-                TextSpan(
-                  text: 'nombre',
-                  style: _ts(12, fw: FontWeight.w700),
-                ),
+                    text:
+                        'El archivo debe ser CSV o Excel (.xlsx) y contener las columnas: '),
+                TextSpan(text: 'nombre', style: _ts(12, fw: FontWeight.w700)),
                 const TextSpan(text: ', '),
                 TextSpan(
-                  text: 'correo_electronico',
-                  style: _ts(12, fw: FontWeight.w700),
-                ),
+                    text: 'correo_electronico',
+                    style: _ts(12, fw: FontWeight.w700)),
                 const TextSpan(text: ', '),
-                TextSpan(
-                  text: 'carrera',
-                  style: _ts(12, fw: FontWeight.w700),
-                ),
+                TextSpan(text: 'carrera', style: _ts(12, fw: FontWeight.w700)),
                 const TextSpan(text: ', '),
-                TextSpan(
-                  text: 'cedula',
-                  style: _ts(12, fw: FontWeight.w700),
-                ),
-                const TextSpan(text: '.'),
+                TextSpan(text: 'cedula', style: _ts(12, fw: FontWeight.w700)),
+                const TextSpan(text: ' (opcional).'),
               ],
             ),
           ),
@@ -535,10 +588,10 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
             borderRadius: BorderRadius.circular(10),
             child: Table(
               columnWidths: const {
-                0: FlexColumnWidth(1.2),
-                1: FlexColumnWidth(1.8),
-                2: FlexColumnWidth(1.0),
-                3: FlexColumnWidth(1.0),
+                0: FlexColumnWidth(1.0),
+                1: FlexColumnWidth(1.6),
+                2: FlexColumnWidth(0.9),
+                3: FlexColumnWidth(0.9),
               },
               children: [
                 TableRow(
@@ -551,14 +604,13 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                   ],
                 ),
                 TableRow(
-                  decoration: BoxDecoration(
-                    color: _kCard.withValues(alpha: 0.6),
-                  ),
+                  decoration:
+                      BoxDecoration(color: _kCard.withValues(alpha: 0.6)),
                   children: [
                     _tableCell('Juan\nPérez'),
                     _tableCell('j.perez@espoch.edu.ec'),
                     _tableCell('Ing.\nSistemas'),
-                    _tableCell('0602665218'),
+                    _tableCell('0601234567'),
                   ],
                 ),
               ],
@@ -570,16 +622,103 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
   }
 
   Widget _tableCell(String text, {bool isHeader = false}) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-    child: Text(
-      text,
-      style: _ts(
-        11,
-        fw: isHeader ? FontWeight.w700 : FontWeight.w400,
-        color: isHeader ? _kWhite : _kGrey,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Text(
+          text,
+          style: _ts(
+            11,
+            fw: isHeader ? FontWeight.w700 : FontWeight.w400,
+            color: isHeader ? _kWhite : _kGrey,
+          ),
+        ),
+      );
+
+  // ── Tarjeta de descarga de plantilla ─────────────────────────────────────
+  Widget _buildTemplateCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        // Fondo con gradiente sutil verde
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF16A34A).withValues(alpha: 0.07),
+            const Color(0xFF22C55E).withValues(alpha: 0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kGreen.withValues(alpha: 0.3)),
       ),
-    ),
-  );
+      child: Row(
+        children: [
+          // Icono Excel
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _kGreen.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.table_chart_rounded,
+              color: _kGreen,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 14),
+          // Texto
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Plantilla oficial',
+                  style: _ts(13, fw: FontWeight.w700, color: _kGreen),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Descarga el formato correcto con las 4 columnas requeridas para evitar errores al importar.',
+                  style: _ts(11, color: _kGrey),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Botón de descarga
+          SizedBox(
+            height: 38,
+            child: ElevatedButton.icon(
+              onPressed: _isDownloadingTemplate ? null : _downloadTemplate,
+              icon: _isDownloadingTemplate
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(_kWhite),
+                      ),
+                    )
+                  : const Icon(Icons.download_rounded,
+                      color: _kWhite, size: 16),
+              label: Text(
+                _isDownloadingTemplate ? 'Guardando...' : 'Descargar',
+                style: _ts(12, fw: FontWeight.w600, color: _kWhite),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kGreen,
+                disabledBackgroundColor: _kGreen.withValues(alpha: 0.6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   // ── Contenido dinámico ────────────────────────────────────────────────────
   Widget _buildContent() {
@@ -592,7 +731,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     };
   }
 
-  // ── RF24: Selector de archivo ─────────────────────────────────────────────
+  // ── Selector de archivo ───────────────────────────────────────────────────
   Widget _buildFilePicker() {
     final isLoading = _phase == _ImportPhase.loading;
     return Column(
@@ -601,11 +740,11 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
           onTap: isLoading ? null : _pickFile,
           child: CustomPaint(
             painter: _DashedBorderPainter(
-              color: _kPurple.withValues(alpha: 0.45),
-            ),
+                color: _kPurple.withValues(alpha: 0.45)),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+              padding:
+                  const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
               decoration: BoxDecoration(
                 color: _kCard,
                 borderRadius: BorderRadius.circular(16),
@@ -631,11 +770,8 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                               valueColor: AlwaysStoppedAnimation(_kWhite),
                             ),
                           )
-                        : const Icon(
-                            Icons.description_outlined,
-                            color: _kWhite,
-                            size: 28,
-                          ),
+                        : const Icon(Icons.description_outlined,
+                            color: _kWhite, size: 28),
                   ),
                   const SizedBox(height: 14),
                   Text(
@@ -657,27 +793,19 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: ['.CSV', '.XLSX', '.XLS']
-                        .map(
-                          (ext) => Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _kBorder,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              ext,
-                              style: _ts(
-                                11,
-                                fw: FontWeight.w600,
-                                color: _kGrey,
+                        .map((ext) => Container(
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _kBorder,
+                                borderRadius: BorderRadius.circular(20),
                               ),
-                            ),
-                          ),
-                        )
+                              child: Text(ext,
+                                  style: _ts(11,
+                                      fw: FontWeight.w600, color: _kGrey)),
+                            ))
                         .toList(),
                   ),
                 ],
@@ -693,13 +821,12 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     );
   }
 
-  // ── RF27/RF30: Vista previa ───────────────────────────────────────────────
+  // ── Vista previa ──────────────────────────────────────────────────────────
   Widget _buildPreview() {
     final preview = _parsed.take(5).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Archivo validado
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -709,26 +836,26 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
           ),
           child: Row(
             children: [
-              const Icon(Icons.check_circle_rounded, color: _kGreen, size: 20),
+              const Icon(Icons.check_circle_rounded,
+                  color: _kGreen, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(_fileName ?? '',
+                        style:
+                            _ts(13, fw: FontWeight.w600, color: _kGreen)),
                     Text(
-                      _fileName ?? '',
-                      style: _ts(13, fw: FontWeight.w600, color: _kGreen),
-                    ),
-                    Text(
-                      '${_parsed.length} registros encontrados · columnas validadas',
-                      style: _ts(11, color: _kGrey),
-                    ),
+                        '${_parsed.length} registros encontrados · columnas validadas',
+                        style: _ts(11, color: _kGrey)),
                   ],
                 ),
               ),
               GestureDetector(
                 onTap: _reset,
-                child: const Icon(Icons.close_rounded, color: _kGrey, size: 18),
+                child: const Icon(Icons.close_rounded,
+                    color: _kGrey, size: 18),
               ),
             ],
           ),
@@ -736,7 +863,6 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
         const SizedBox(height: 16),
         Text('Vista previa', style: _ts(13, fw: FontWeight.w700)),
         const SizedBox(height: 10),
-        // Tabla previa
         Container(
           decoration: BoxDecoration(
             color: _kCard,
@@ -749,36 +875,26 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
+                      horizontal: 12, vertical: 10),
                   color: _kNavy,
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          'Nombre',
-                          style: _ts(11, fw: FontWeight.w700, color: _kWhite),
-                        ),
-                      ),
+                          child: Text('Nombre',
+                              style: _ts(11,
+                                  fw: FontWeight.w700, color: _kWhite))),
                       Expanded(
-                        child: Text(
-                          'Correo',
-                          style: _ts(11, fw: FontWeight.w700, color: _kWhite),
-                        ),
-                      ),
+                          child: Text('Correo',
+                              style: _ts(11,
+                                  fw: FontWeight.w700, color: _kWhite))),
                       Expanded(
-                        child: Text(
-                          'Carrera',
-                          style: _ts(11, fw: FontWeight.w700, color: _kWhite),
-                        ),
-                      ),
+                          child: Text('Carrera',
+                              style: _ts(11,
+                                  fw: FontWeight.w700, color: _kWhite))),
                       Expanded(
-                        child: Text(
-                          'Cédula',
-                          style: _ts(11, fw: FontWeight.w700, color: _kWhite),
-                        ),
-                      ),
+                          child: Text('Cédula',
+                              style: _ts(11,
+                                  fw: FontWeight.w700, color: _kWhite))),
                     ],
                   ),
                 ),
@@ -786,42 +902,34 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                   (e) => Column(
                     children: [
                       if (e.key > 0)
-                        Divider(height: 1, color: _kBorder, thickness: 0.5),
+                        Divider(
+                            height: 1,
+                            color: _kBorder,
+                            thickness: 0.5),
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
+                            horizontal: 12, vertical: 10),
                         child: Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                e.value.nombre,
-                                style: _ts(11, color: _kGrey),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
+                                child: Text(e.value.nombre,
+                                    style: _ts(11, color: _kGrey),
+                                    overflow: TextOverflow.ellipsis)),
                             Expanded(
-                              child: Text(
-                                e.value.correoElectronico,
-                                style: _ts(10, color: _kGrey),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
+                                child: Text(e.value.correoElectronico,
+                                    style: _ts(10, color: _kGrey),
+                                    overflow: TextOverflow.ellipsis)),
                             Expanded(
-                              child: Text(
-                                e.value.carrera,
-                                style: _ts(11, color: _kGrey),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
+                                child: Text(e.value.carrera,
+                                    style: _ts(11, color: _kGrey),
+                                    overflow: TextOverflow.ellipsis)),
                             Expanded(
-                              child: Text(
-                                e.value.cedula,
-                                style: _ts(10, color: _kGrey),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
+                                child: Text(
+                                    e.value.cedula.isEmpty
+                                        ? '—'
+                                        : e.value.cedula,
+                                    style: _ts(11, color: _kGrey),
+                                    overflow: TextOverflow.ellipsis)),
                           ],
                         ),
                       ),
@@ -844,7 +952,6 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
           ),
         ),
         const SizedBox(height: 16),
-        // RF28: Botón importar
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -859,8 +966,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
               foregroundColor: _kWhite,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+                  borderRadius: BorderRadius.circular(12)),
               elevation: 0,
             ),
           ),
@@ -869,7 +975,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     );
   }
 
-  // ── RF28: Importando ──────────────────────────────────────────────────────
+  // ── Importando ────────────────────────────────────────────────────────────
   Widget _buildImporting() {
     return Container(
       padding: const EdgeInsets.all(36),
@@ -889,22 +995,17 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
             ),
           ),
           const SizedBox(height: 16),
-          Text(
-            'Importando estudiantes...',
-            style: _ts(15, fw: FontWeight.w700),
-          ),
+          Text('Importando estudiantes...',
+              style: _ts(15, fw: FontWeight.w700)),
           const SizedBox(height: 6),
-          Text(
-            'Procesando y verifying duplicados...',
-            style: _ts(11, color: _kGrey),
-            textAlign: TextAlign.center,
-          ),
+          Text('Procesando y verificando duplicados...',
+              style: _ts(11, color: _kGrey), textAlign: TextAlign.center),
         ],
       ),
     );
   }
 
-  // ── RF30: Resultado ───────────────────────────────────────────────────────
+  // ── Resultado ─────────────────────────────────────────────────────────────
   Widget _buildResult() {
     final r = _result!;
     return Column(
@@ -928,45 +1029,34 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                       color: _kGreen.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(
-                      Icons.check_circle_rounded,
-                      color: _kGreen,
-                      size: 20,
-                    ),
+                    child: const Icon(Icons.check_circle_rounded,
+                        color: _kGreen, size: 20),
                   ),
                   const SizedBox(width: 10),
-                  Text(
-                    'Importación completada',
-                    style: _ts(15, fw: FontWeight.w700),
-                  ),
+                  Text('Importación completada',
+                      style: _ts(15, fw: FontWeight.w700)),
                 ],
               ),
               const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
-                    child: _StatChip(
-                      value: '${r.imported}',
-                      label: 'Importados',
-                      color: _kGreen,
-                    ),
-                  ),
+                      child: _StatChip(
+                          value: '${r.imported}',
+                          label: 'Importados',
+                          color: _kGreen)),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _StatChip(
-                      value: '${r.duplicates}',
-                      label: 'Duplicados omitidos',
-                      color: _kYellow,
-                    ),
-                  ),
+                      child: _StatChip(
+                          value: '${r.duplicates}',
+                          label: 'Duplicados omitidos',
+                          color: _kYellow)),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _StatChip(
-                      value: '${r.errors}',
-                      label: 'Errores',
-                      color: _kRed,
-                    ),
-                  ),
+                      child: _StatChip(
+                          value: '${r.errors}',
+                          label: 'Errores',
+                          color: _kRed)),
                 ],
               ),
             ],
@@ -978,16 +1068,13 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
           child: OutlinedButton.icon(
             onPressed: _reset,
             icon: const Icon(Icons.upload_file_rounded, color: _kPurple),
-            label: Text(
-              'Importar otro archivo',
-              style: _ts(14, fw: FontWeight.w600, color: _kPurple),
-            ),
+            label: Text('Importar otro archivo',
+                style: _ts(14, fw: FontWeight.w600, color: _kPurple)),
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: _kPurple),
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+                  borderRadius: BorderRadius.circular(12)),
             ),
           ),
         ),
@@ -1048,17 +1135,13 @@ class _ErrorBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            color: AppColors.error,
-            size: 18,
-          ),
+          const Icon(Icons.error_outline_rounded,
+              color: AppColors.error, size: 18),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              message,
-              style: GoogleFonts.outfit(fontSize: 12, color: AppColors.error),
-            ),
+            child: Text(message,
+                style:
+                    GoogleFonts.outfit(fontSize: 12, color: AppColors.error)),
           ),
         ],
       ),
@@ -1070,11 +1153,8 @@ class _StatChip extends StatelessWidget {
   final String value;
   final String label;
   final Color color;
-  const _StatChip({
-    required this.value,
-    required this.label,
-    required this.color,
-  });
+  const _StatChip(
+      {required this.value, required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -1087,20 +1167,15 @@ class _StatChip extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
-            value,
-            style: GoogleFonts.outfit(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-          ),
+          Text(value,
+              style: GoogleFonts.outfit(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: color)),
           const SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.outfit(fontSize: 10, color: _kGrey),
-            textAlign: TextAlign.center,
-          ),
+          Text(label,
+              style: GoogleFonts.outfit(fontSize: 10, color: _kGrey),
+              textAlign: TextAlign.center),
         ],
       ),
     );
