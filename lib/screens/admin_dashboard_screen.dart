@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'dart:ui' as ui;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/event_service.dart';
 import '../services/payment_service.dart' show PaymentService;
@@ -39,7 +39,7 @@ class _Activity {
   });
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ══════════════════════════════════════════════════════════════════════════
 class AdminDashboardScreen extends StatefulWidget {
   final ValueChanged<int>? onSelectTab;
 
@@ -56,8 +56,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   late Timer _realtimeTimer;
   int _secondsAgo = 0;
 
-  // â”€â”€ Métricas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Métricas reales desde Supabase
+  // ── Métricas ──────────────────────────────────────────────────────────
   int totalRegistrados = 0;
   int totalCapacidad = 350;
   int aprobados = 0;
@@ -70,35 +69,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   EventModel? _activeEvent;
   RealtimeChannel? _realtimeChannel;
 
-  // â”€â”€ Actividad reciente â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Actividad reciente ────────────────────────────────────────
   List<_Activity> _activities = [];
 
-  // â”€â”€ Datos gráfico línea (ingresos por hora) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  final List<FlSpot> _lineSpots = const [
-    FlSpot(0, 2),
-    FlSpot(1, 8),
-    FlSpot(2, 18),
-    FlSpot(3, 35),
-    FlSpot(4, 55),
-    FlSpot(5, 90),
-    FlSpot(6, 70),
-    FlSpot(7, 25),
-  ];
-  final List<String> _lineLabels = const [
-    '14h',
-    '15h',
-    '16h',
-    '17h',
-    '18h',
-    '19h',
-    '20h',
-    '21h',
-  ];
+  // ── Datos gráfico línea (ingresos por hora) ───────────────────
+  List<double> _lineValues = List.filled(8, 0.0);
+  List<String> _lineLabels = const ['14h', '15h', '16h', '17h', '18h', '19h', '20h', '21h'];
+  double _lineMaxY = 10.0;
 
-  // â”€â”€ Datos gráfico barras (pagos semanales) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  final List<double> _barAprobados = [15, 20, 25, 30, 60, 35, 5];
-  final List<double> _barRechazados = [5, 8, 10, 12, 18, 10, 2];
-  final List<String> _barDays = [
+  // ── Datos gráfico barras (pagos semanales) ────────────────────
+  List<double> _barAprobados = List.filled(7, 0.0);
+  List<double> _barRechazados = List.filled(7, 0.0);
+  double _barMaxY = 10.0;
+  final List<String> _barDays = const [
     'Lun',
     'Mar',
     'Mié',
@@ -157,12 +140,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             .select('nombre_asistente, resultado, escaneado_en')
             .order('escaneado_en', ascending: false)
             .limit(3),
+        SupabaseService.client
+            .from('scan_logs')
+            .select('escaneado_en')
+            .eq('id_evento', event.id)
+            .eq('resultado', 'valido'),
+        SupabaseService.client
+            .from('pagos')
+            .select('fecha_pago, estado')
+            .eq('id_evento', event.id),
       ]);
 
       if (!mounted) return;
       final stats = results[0] as Map<String, int>;
       final cap = results[1] as int;
       final logs = results[2] as List;
+      final scansForChart = results[3] as List;
+      final paymentsForChart = results[4] as List;
 
       final activities = logs.map<_Activity>((row) {
         final resultado = row['resultado'] as String? ?? 'invalido';
@@ -172,41 +166,125 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         final timeLabel = diff.inMinutes < 1
             ? 'Ahora'
             : diff.inHours < 1
-            ? 'Hace ${diff.inMinutes} min'
-            : 'Hace ${diff.inHours} h';
+                ? 'Hace ${diff.inMinutes} min'
+                : 'Hace ${diff.inHours} h';
         return switch (resultado) {
           'valido' => _Activity(
-            icon: Icons.login_rounded,
-            iconColor: _green,
-            title: '$nombre ingresó',
-            time: timeLabel,
-          ),
+              icon: Icons.login_rounded,
+              iconColor: _green,
+              title: '$nombre ingresó',
+              time: timeLabel,
+            ),
           'usado' => _Activity(
-            icon: Icons.warning_rounded,
-            iconColor: _yellow,
-            title: '$nombre (QR ya usado)',
-            time: timeLabel,
-          ),
+              icon: Icons.warning_rounded,
+              iconColor: _yellow,
+              title: '$nombre (QR ya usado)',
+              time: timeLabel,
+            ),
           _ => _Activity(
-            icon: Icons.cancel_outlined,
-            iconColor: _red,
-            title: 'QR inválido – $nombre',
-            time: timeLabel,
-          ),
+              icon: Icons.cancel_outlined,
+              iconColor: _red,
+              title: 'QR inválido – $nombre',
+              time: timeLabel,
+            ),
         };
       }).toList();
+
+      // Procesar gráfico de ingresos por hora
+      int startHour = 14;
+      if (scansForChart.isNotEmpty) {
+        int minHour = 24;
+        for (final s in scansForChart) {
+          final tsStr = s['escaneado_en'];
+          if (tsStr != null) {
+            final dt = DateTime.tryParse(tsStr);
+            if (dt != null) {
+              final localHour = dt.toLocal().hour;
+              if (localHour < minHour) minHour = localHour;
+            }
+          }
+        }
+        if (minHour != 24) startHour = minHour;
+      }
+
+      final lineLabelsTemp = <String>[];
+      final hourlyCounts = List<int>.filled(8, 0);
+      for (int i = 0; i < 8; i++) {
+        final h = (startHour + i) % 24;
+        lineLabelsTemp.add('${h}h');
+      }
+
+      for (final s in scansForChart) {
+        final tsStr = s['escaneado_en'];
+        if (tsStr != null) {
+          final dt = DateTime.tryParse(tsStr);
+          if (dt != null) {
+            final localHour = dt.toLocal().hour;
+            final diff = localHour - startHour;
+            if (diff >= 0 && diff < 8) {
+              hourlyCounts[diff]++;
+            } else if (diff < 0 && diff + 24 < 8) {
+              hourlyCounts[diff + 24]++;
+            }
+          }
+        }
+      }
+
+      final lineValuesTemp = <double>[];
+      double maxLineCount = 10.0;
+      for (int i = 0; i < 8; i++) {
+        final val = hourlyCounts[i].toDouble();
+        lineValuesTemp.add(val);
+        if (val > maxLineCount) maxLineCount = val;
+      }
+      final lineMaxYTemp = ((maxLineCount / 10).ceil() * 10).toDouble();
+
+      // Procesar gráfico de pagos semanales (aprobados vs rechazados)
+      final barAprobadosTemp = List<double>.filled(7, 0.0);
+      final barRechazadosTemp = List<double>.filled(7, 0.0);
+      for (final p in paymentsForChart) {
+        final tsStr = p['fecha_pago'];
+        final estado = p['estado'] as String?;
+        if (tsStr != null) {
+          final dt = DateTime.tryParse(tsStr);
+          if (dt != null) {
+            final weekday = dt.toLocal().weekday; // 1 (Lun) a 7 (Dom)
+            final idx = weekday - 1;
+            if (estado == 'aprobado') {
+              barAprobadosTemp[idx]++;
+            } else if (estado == 'rechazado') {
+              barRechazadosTemp[idx]++;
+            }
+          }
+        }
+      }
+
+      double maxBarVal = 10.0;
+      for (int i = 0; i < 7; i++) {
+        if (barAprobadosTemp[i] > maxBarVal) maxBarVal = barAprobadosTemp[i];
+        if (barRechazadosTemp[i] > maxBarVal) maxBarVal = barRechazadosTemp[i];
+      }
+      final barMaxYTemp = ((maxBarVal / 10).ceil() * 10).toDouble();
 
       setState(() {
         _activeEvent = event;
         _eventName = event.nombre;
         totalCapacidad = cap > 0 ? cap : 350;
-        totalRegistrados = totalCapacidad;
+        totalRegistrados = stats['total_usuarios'] ?? 0;
         pendientes = stats['pendientes'] ?? 0;
         aprobados = stats['aprobados'] ?? 0;
         rechazados = stats['rechazados'] ?? 0;
         ingresaron = stats['ingresaron'] ?? 0;
-        qrGenerados = stats['aprobados'] ?? 0;
+        qrGenerados = stats['qr_generados'] ?? 0;
         _activities = activities;
+
+        _lineValues = lineValuesTemp;
+        _lineLabels = lineLabelsTemp;
+        _lineMaxY = lineMaxYTemp;
+
+        _barAprobados = barAprobadosTemp;
+        _barRechazados = barRechazadosTemp;
+        _barMaxY = barMaxYTemp;
       });
 
       _subscribeRealtime(event.id);
@@ -230,6 +308,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'entradas',
+          callback: (_) {
+            if (mounted) _loadStats();
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'scan_logs',
           callback: (_) {
             if (mounted) _loadStats();
           },
@@ -283,8 +369,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     _buildLineChartCard(),
                     const SizedBox(height: 16),
                     _buildBarChartCard(),
-                    const SizedBox(height: 16),
-                    _buildDonutCard(),
                     const SizedBox(height: 16),
                     _buildActivityCard(),
                     const SizedBox(height: 16),
@@ -462,7 +546,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
-  // â”€â”€ Metric Grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ──────────────────────────────────────────────────────────────────────────
   Widget _buildMetricGrid() {
     final metrics = [
       _MetricData(
@@ -523,7 +607,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
-  // â”€â”€ Gráfico de línea â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Gráfico de línea ──────────────────────────────────────────────────────
   Widget _buildLineChartCard() {
     return _CardWrapper(
       child: Column(
@@ -563,84 +647,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           SizedBox(
             height: 160,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) =>
-                      FlLine(color: _border, strokeWidth: 0.8),
-                ),
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 32,
-                      interval: 25,
-                      getTitlesWidget: (v, _) =>
-                          Text('${v.toInt()}', style: _ts(9, color: _grey)),
-                    ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 22,
-                      getTitlesWidget: (v, _) {
-                        final idx = v.toInt();
-                        if (idx < 0 || idx >= _lineLabels.length) {
-                          return const SizedBox();
-                        }
-                        return Text(
-                          _lineLabels[idx],
-                          style: _ts(9, color: _grey),
-                        );
-                      },
-                    ),
-                  ),
-                  topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                ),
-                borderData: FlBorderData(show: false),
-                minX: 0,
-                maxX: 7,
-                minY: 0,
-                maxY: 100,
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: _lineSpots,
-                    isCurved: true,
-                    color: _blue,
-                    barWidth: 2.5,
-                    dotData: FlDotData(
-                      show: true,
-                      getDotPainter: (_, _, _, _) => FlDotCirclePainter(
-                        radius: 3.5,
-                        color: _blue,
-                        strokeWidth: 2,
-                        strokeColor: _bg,
-                      ),
-                    ),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      gradient: LinearGradient(
-                        colors: [
-                          _blue.withValues(alpha: 0.25),
-                          _blue.withValues(alpha: 0.0),
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            child: _LineChartWidget(
+              values: _lineValues,
+              labels: _lineLabels,
+              maxY: _lineMaxY,
+              lineColor: _blue,
+              gridColor: _border,
+              labelColor: _grey,
+              bgColor: _bg,
             ),
           ),
         ],
@@ -648,7 +665,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
-  // â”€â”€ Gráfico de barras â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Gráfico de barras ──────────────────────────────────────────────────────
   Widget _buildBarChartCard() {
     return _CardWrapper(
       child: Column(
@@ -671,75 +688,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   ],
                 ),
               ),
-              _Legend(color: _green, label: 'Aprobados'),
+              _Legend(color: _blue, label: 'Aprobados'),
               const SizedBox(width: 12),
               _Legend(color: _red, label: 'Rechazados'),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           SizedBox(
             height: 170,
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                maxY: 70,
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) =>
-                      FlLine(color: _border, strokeWidth: 0.8),
-                ),
-                borderData: FlBorderData(show: false),
-                titlesData: FlTitlesData(
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 22,
-                      getTitlesWidget: (v, _) {
-                        final idx = v.toInt();
-                        if (idx < 0 || idx >= _barDays.length) {
-                          return const SizedBox();
-                        }
-                        return Text(_barDays[idx], style: _ts(9, color: _grey));
-                      },
-                    ),
-                  ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 28,
-                      interval: 15,
-                      getTitlesWidget: (v, _) =>
-                          Text('${v.toInt()}', style: _ts(9, color: _grey)),
-                    ),
-                  ),
-                  topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                ),
-                barGroups: List.generate(_barDays.length, (i) {
-                  return BarChartGroupData(
-                    x: i,
-                    barRods: [
-                      BarChartRodData(
-                        toY: _barAprobados[i],
-                        color: _blue,
-                        width: 8,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      BarChartRodData(
-                        toY: _barRechazados[i],
-                        color: _red,
-                        width: 8,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ],
-                  );
-                }),
-              ),
+            child: _BarChartWidget(
+              valuesA: _barAprobados,
+              valuesB: _barRechazados,
+              labels: _barDays,
+              maxY: _barMaxY,
+              colorA: _blue,
+              colorB: _red,
+              gridColor: _border,
+              labelColor: _grey,
             ),
           ),
         ],
@@ -747,92 +712,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
-  // â”€â”€ Donut chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  Widget _buildDonutCard() {
-    return _CardWrapper(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Distribución de asistentes',
-            style: _ts(15, fw: FontWeight.w700),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              SizedBox(
-                width: 130,
-                height: 130,
-                child: PieChart(
-                  PieChartData(
-                    sectionsSpace: 3,
-                    centerSpaceRadius: 38,
-                    sections: [
-                      if (ingresaron > 0)
-                        PieChartSectionData(
-                          value: ingresaron.toDouble(),
-                          color: _green,
-                          radius: 24,
-                          title: '',
-                          showTitle: false,
-                        ),
-                      if (aprobados > 0)
-                        PieChartSectionData(
-                          value: aprobados.toDouble(),
-                          color: _blue,
-                          radius: 24,
-                          title: '',
-                          showTitle: false,
-                        ),
-                      if (pendientes > 0)
-                        PieChartSectionData(
-                          value: pendientes.toDouble(),
-                          color: _cyan,
-                          radius: 24,
-                          title: '',
-                          showTitle: false,
-                        ),
-                      if (ingresaron == 0 && aprobados == 0 && pendientes == 0)
-                        PieChartSectionData(
-                          value: 1,
-                          color: _border,
-                          radius: 24,
-                          title: '',
-                          showTitle: false,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 24),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _DonutLegend(
-                    color: _green,
-                    value: '$ingresaron',
-                    label: 'Ingresaron',
-                  ),
-                  const SizedBox(height: 14),
-                  _DonutLegend(
-                    color: _blue,
-                    value: '$aprobados',
-                    label: 'Aprobados',
-                  ),
-                  const SizedBox(height: 14),
-                  _DonutLegend(
-                    color: _cyan,
-                    value: '$pendientes',
-                    label: 'Pendientes',
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   // â”€â”€ Acceso rápido â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildQuickAccess() {
@@ -1106,51 +985,6 @@ class _Legend extends StatelessWidget {
         Text(
           label,
           style: GoogleFonts.outfit(fontSize: 10, color: AppColors.sentryGrey),
-        ),
-      ],
-    );
-  }
-}
-
-class _DonutLegend extends StatelessWidget {
-  final Color color;
-  final String value;
-  final String label;
-  const _DonutLegend({
-    required this.color,
-    required this.value,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: GoogleFonts.outfit(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.sentryNavy,
-              ),
-            ),
-            Text(
-              label,
-              style: GoogleFonts.outfit(
-                fontSize: 11,
-                color: AppColors.sentryGrey,
-              ),
-            ),
-          ],
         ),
       ],
     );
@@ -1507,4 +1341,329 @@ class _EventFormSheetState extends State<_EventFormSheet> {
     validator: (v) =>
         (v == null || v.trim().isEmpty) ? 'Campo requerido' : null,
   );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Custom Line Chart
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _LineChartWidget extends StatelessWidget {
+  final List<double> values;
+  final List<String> labels;
+  final double maxY;
+  final Color lineColor;
+  final Color gridColor;
+  final Color labelColor;
+  final Color bgColor;
+
+  const _LineChartWidget({
+    required this.values,
+    required this.labels,
+    required this.maxY,
+    required this.lineColor,
+    required this.gridColor,
+    required this.labelColor,
+    required this.bgColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: CustomPaint(
+        painter: _LineChartPainter(
+          values: values,
+          labels: labels,
+          maxY: maxY,
+          lineColor: lineColor,
+          gridColor: gridColor,
+          labelColor: labelColor,
+          bgColor: bgColor,
+        ),
+        child: const SizedBox.expand(),
+      ),
+    );
+  }
+}
+
+class _LineChartPainter extends CustomPainter {
+  final List<double> values;
+  final List<String> labels;
+  final double maxY;
+  final Color lineColor;
+  final Color gridColor;
+  final Color labelColor;
+  final Color bgColor;
+
+  _LineChartPainter({
+    required this.values,
+    required this.labels,
+    required this.maxY,
+    required this.lineColor,
+    required this.gridColor,
+    required this.labelColor,
+    required this.bgColor,
+  });
+
+  static const _lp = 36.0; // left padding for Y labels
+  static const _bp = 22.0; // bottom padding for X labels
+  static const _tp = 6.0;  // top padding
+  static const _rp = 4.0;  // right padding
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+
+    final chartW = size.width - _lp - _rp;
+    final chartH = size.height - _bp - _tp;
+    final chartRect = Rect.fromLTWH(_lp, _tp, chartW, chartH);
+
+    final gridPaint = Paint()
+      ..color = gridColor
+      ..strokeWidth = 0.8;
+
+    final labelStyle = ui.TextStyle(fontSize: 9, color: labelColor);
+    const gridLines = 4;
+
+    // Draw horizontal grid lines + Y labels
+    for (int i = 0; i <= gridLines; i++) {
+      final frac = i / gridLines;
+      final y = _tp + chartH * (1 - frac);
+      canvas.drawLine(Offset(_lp, y), Offset(_lp + chartW, y), gridPaint);
+
+      final value = (maxY * frac).toInt();
+      final pb = ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: TextAlign.right))
+        ..pushStyle(labelStyle)
+        ..addText('$value');
+      final para = pb.build()..layout(ui.ParagraphConstraints(width: _lp - 4));
+      canvas.drawParagraph(para, Offset(0, y - para.height / 2));
+    }
+
+    final n = values.length;
+    if (n < 2) return;
+
+    // Compute screen points
+    final pts = <Offset>[];
+    for (int i = 0; i < n; i++) {
+      final x = _lp + chartW * i / (n - 1);
+      final y = _tp + chartH * (1 - (values[i] / maxY).clamp(0.0, 1.0));
+      pts.add(Offset(x, y));
+    }
+
+    // Clip all drawing to chart area
+    canvas.save();
+    canvas.clipRect(chartRect);
+
+    // Gradient fill
+    final fillPath = Path()
+      ..moveTo(pts.first.dx, chartRect.bottom)
+      ..lineTo(pts.first.dx, pts.first.dy);
+    for (int i = 0; i < pts.length - 1; i++) {
+      final cpX = (pts[i].dx + pts[i + 1].dx) / 2;
+      fillPath.cubicTo(cpX, pts[i].dy, cpX, pts[i + 1].dy, pts[i + 1].dx, pts[i + 1].dy);
+    }
+    fillPath
+      ..lineTo(pts.last.dx, chartRect.bottom)
+      ..close();
+
+    canvas.drawPath(
+      fillPath,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(_lp, _tp),
+          Offset(_lp, _tp + chartH),
+          [lineColor.withValues(alpha: 0.22), lineColor.withValues(alpha: 0.0)],
+        ),
+    );
+
+    // Line
+    final linePath = Path()..moveTo(pts.first.dx, pts.first.dy);
+    for (int i = 0; i < pts.length - 1; i++) {
+      final cpX = (pts[i].dx + pts[i + 1].dx) / 2;
+      linePath.cubicTo(cpX, pts[i].dy, cpX, pts[i + 1].dy, pts[i + 1].dx, pts[i + 1].dy);
+    }
+    canvas.drawPath(
+      linePath,
+      Paint()
+        ..color = lineColor
+        ..strokeWidth = 2.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    // Dots
+    final dotFill = Paint()..color = lineColor;
+    final dotBg = Paint()..color = bgColor;
+    for (final p in pts) {
+      canvas.drawCircle(p, 4.5, dotFill);
+      canvas.drawCircle(p, 2.5, dotBg);
+    }
+
+    canvas.restore(); // release chart clip
+
+    // X labels (drawn outside clip so they appear below chart)
+    for (int i = 0; i < n; i++) {
+      final x = _lp + chartW * i / (n - 1);
+      final lbl = i < labels.length ? labels[i] : '';
+      final pb = ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: TextAlign.center))
+        ..pushStyle(labelStyle)
+        ..addText(lbl);
+      final para = pb.build()..layout(const ui.ParagraphConstraints(width: 28));
+      canvas.drawParagraph(para, Offset(x - 14, _tp + chartH + 5));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LineChartPainter old) =>
+      old.values != values || old.maxY != maxY || old.labels != labels;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Custom Bar Chart
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _BarChartWidget extends StatelessWidget {
+  final List<double> valuesA;
+  final List<double> valuesB;
+  final List<String> labels;
+  final double maxY;
+  final Color colorA;
+  final Color colorB;
+  final Color gridColor;
+  final Color labelColor;
+
+  const _BarChartWidget({
+    required this.valuesA,
+    required this.valuesB,
+    required this.labels,
+    required this.maxY,
+    required this.colorA,
+    required this.colorB,
+    required this.gridColor,
+    required this.labelColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: CustomPaint(
+        painter: _BarChartPainter(
+          valuesA: valuesA,
+          valuesB: valuesB,
+          labels: labels,
+          maxY: maxY,
+          colorA: colorA,
+          colorB: colorB,
+          gridColor: gridColor,
+          labelColor: labelColor,
+        ),
+        child: const SizedBox.expand(),
+      ),
+    );
+  }
+}
+
+class _BarChartPainter extends CustomPainter {
+  final List<double> valuesA;
+  final List<double> valuesB;
+  final List<String> labels;
+  final double maxY;
+  final Color colorA;
+  final Color colorB;
+  final Color gridColor;
+  final Color labelColor;
+
+  _BarChartPainter({
+    required this.valuesA,
+    required this.valuesB,
+    required this.labels,
+    required this.maxY,
+    required this.colorA,
+    required this.colorB,
+    required this.gridColor,
+    required this.labelColor,
+  });
+
+  static const _lp = 32.0;
+  static const _bp = 22.0;
+  static const _tp = 6.0;
+  static const _rp = 4.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final n = labels.length;
+    if (n == 0) return;
+
+    final chartW = size.width - _lp - _rp;
+    final chartH = size.height - _bp - _tp;
+    final chartRect = Rect.fromLTWH(_lp, _tp, chartW, chartH);
+    final safeMaxY = maxY < 1 ? 10.0 : maxY;
+
+    final gridPaint = Paint()
+      ..color = gridColor
+      ..strokeWidth = 0.8;
+
+    final labelStyle = ui.TextStyle(fontSize: 9, color: labelColor);
+    const gridLines = 4;
+
+    // Grid + Y labels
+    for (int i = 0; i <= gridLines; i++) {
+      final frac = i / gridLines;
+      final y = _tp + chartH * (1 - frac);
+      canvas.drawLine(Offset(_lp, y), Offset(_lp + chartW, y), gridPaint);
+
+      final value = (safeMaxY * frac).toInt();
+      final pb = ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: TextAlign.right))
+        ..pushStyle(labelStyle)
+        ..addText('$value');
+      final para = pb.build()..layout(ui.ParagraphConstraints(width: _lp - 4));
+      canvas.drawParagraph(para, Offset(0, y - para.height / 2));
+    }
+
+    // Clip bars to chart area
+    canvas.save();
+    canvas.clipRect(chartRect);
+
+    final groupW = chartW / n;
+    const barW = 7.0;
+    const gap = 2.0;
+    const radius = Radius.circular(4);
+
+    for (int i = 0; i < n; i++) {
+      final groupCenterX = _lp + groupW * i + groupW / 2;
+      final aX = groupCenterX - barW - gap / 2;
+      final bX = groupCenterX + gap / 2;
+
+      void drawBar(double x, double val, Color color) {
+        if (val <= 0) return;
+        final barH = (val / safeMaxY).clamp(0.0, 1.0) * chartH;
+        final top = _tp + chartH - barH;
+        final rect = RRect.fromLTRBR(x, top, x + barW, _tp + chartH, radius);
+        canvas.drawRRect(rect, Paint()..color = color);
+      }
+
+      drawBar(aX, valuesA[i], colorA);
+      drawBar(bX, valuesB[i], colorB);
+    }
+
+    canvas.restore();
+
+    // X labels
+    for (int i = 0; i < n; i++) {
+      final cx = _lp + groupW * i + groupW / 2;
+      final lbl = i < labels.length ? labels[i] : '';
+      final pb = ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: TextAlign.center))
+        ..pushStyle(labelStyle)
+        ..addText(lbl);
+      final para = pb.build()..layout(const ui.ParagraphConstraints(width: 28));
+      canvas.drawParagraph(para, Offset(cx - 14, _tp + chartH + 5));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BarChartPainter old) =>
+      old.valuesA != valuesA ||
+      old.valuesB != valuesB ||
+      old.maxY != maxY ||
+      old.labels != labels;
 }

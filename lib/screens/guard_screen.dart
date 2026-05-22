@@ -131,7 +131,7 @@ class _GuardScreenState extends State<GuardScreen>
   // ── Manejar escaneo de QR ───────────────────────────────────
 
   Future<void> _handleScan(String code) async {
-    if (_isProcessingScan) return;
+    if (_isProcessingScan || _lastScanResult != null) return;
 
     setState(() => _isProcessingScan = true);
 
@@ -599,76 +599,84 @@ class _GuardScreenState extends State<GuardScreen>
         title = 'ACCESO DENEGADO';
     }
 
-    return ScaleTransition(
-      scale: _resultScaleAnim,
-      child: Container(
-        color: bgColor,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: iconColor, size: 64),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: GoogleFonts.outfit(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                result.nombreAsistente,
-                style: GoogleFonts.outfit(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 16,
-                ),
-              ),
-              if (result.razon != null) ...[
-                const SizedBox(height: 4),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        if (mounted) {
+          setState(() => _lastScanResult = null);
+        }
+      },
+      child: ScaleTransition(
+        scale: _resultScaleAnim,
+        child: Container(
+          color: bgColor,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: iconColor, size: 64),
+                const SizedBox(height: 12),
                 Text(
-                  result.razon!,
+                  title,
                   style: GoogleFonts.outfit(
-                    color: Colors.white.withValues(alpha: 0.75),
-                    fontSize: 12,
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5,
                   ),
                 ),
-              ],
-              if (result.resultado == 'valido' && result.codigoQR != null) ...[
-                const SizedBox(height: 16),
-                GestureDetector(
-                  onTap: () async {
-                    await GuardService.undoEntry(codigoQR: result.codigoQR!);
-                    await _refreshData();
-                    if (mounted) setState(() => _lastScanResult = null);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.black26,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white30),
+                const SizedBox(height: 6),
+                Text(
+                  result.nombreAsistente,
+                  style: GoogleFonts.outfit(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 16,
+                  ),
+                ),
+                if (result.razon != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    result.razon!,
+                    style: GoogleFonts.outfit(
+                      color: Colors.white.withValues(alpha: 0.75),
+                      fontSize: 12,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.undo_rounded, color: Colors.white70, size: 16),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Deshacer entrada',
-                          style: GoogleFonts.outfit(
-                            color: Colors.white70,
-                            fontSize: 13,
+                  ),
+                ],
+                if (result.resultado == 'valido' && result.codigoQR != null) ...[
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: () async {
+                      await GuardService.undoEntry(codigoQR: result.codigoQR!);
+                      await _refreshData();
+                      if (mounted) setState(() => _lastScanResult = null);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black26,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white30),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.undo_rounded, color: Colors.white70, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Deshacer entrada',
+                            style: GoogleFonts.outfit(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
