@@ -338,13 +338,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
     elevation: 0,
     pinned: true,
     automaticallyImplyLeading: false,
-    title: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Panel Administrativo', style: _ts(15, fw: FontWeight.w700)),
-        Text('Gala FIE 2026', style: _ts(10, color: AppColors.sentryGrey)),
-      ],
-    ),
+    title: Text('Asistentes', style: _ts(17, fw: FontWeight.w800)),
     actions: [
       Container(
         margin: const EdgeInsets.only(right: 4),

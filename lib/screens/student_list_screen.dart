@@ -155,6 +155,7 @@ class _StudentListScreenState extends State<StudentListScreen>
     final cedulaCtrl = TextEditingController(text: existing?.cedula);
     String selCareer = existing?.carrera ?? (_careers.length > 1 ? _careers[1] : '');
     bool saving = false;
+    bool saved = false;
 
     await showModalBottomSheet(
       context: context,
@@ -231,8 +232,8 @@ class _StudentListScreenState extends State<StudentListScreen>
                               carrera: selCareer, cedula: cedula,
                             );
                           }
+                          saved = true;
                           if (ctx.mounted) Navigator.pop(ctx);
-                          await _load();
                         } catch (e) {
                           setModal(() => saving = false);
                           if (ctx.mounted) {
@@ -264,6 +265,11 @@ class _StudentListScreenState extends State<StudentListScreen>
     nombreCtrl.dispose();
     emailCtrl.dispose();
     cedulaCtrl.dispose();
+
+    // Reload only after the modal is fully dismissed to avoid InheritedWidget
+    // dependents assertion (_dependents.isEmpty) triggered by setState during
+    // the modal's dismiss animation.
+    if (saved) await _load();
   }
 
   // ── RF25: Eliminar ─────────────────────────────────────────────────────────
@@ -367,23 +373,6 @@ class _StudentListScreenState extends State<StudentListScreen>
       ],
     ),
     actions: [
-      Container(
-        margin: const EdgeInsets.only(right: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: _kGreen.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _kGreen.withValues(alpha: 0.4)),
-        ),
-        child: Row(
-          children: [
-            Container(width: 6, height: 6, decoration: const BoxDecoration(color: _kGreen, shape: BoxShape.circle)),
-            const SizedBox(width: 4),
-            Text('En línea', style: _ts(10, color: _kGreen, fw: FontWeight.w600)),
-          ],
-        ),
-      ),
-      const SizedBox(width: 4),
       PopupMenuButton<String>(
         offset: const Offset(0, 44),
         onSelected: (value) async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/admin_shell_screen.dart';
+import 'screens/change_password_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/guard_screen.dart';
 import 'theme/app_colors.dart';
@@ -29,18 +30,32 @@ class _AppRouterState extends State<_AppRouter> {
       Navigator.pushReplacementNamed(context, '/login');
       return;
     }
-    try {
-      final role = await GuardService.getCurrentUserRole();
-      if (!mounted) return;
-      if (role == 'admin' || role == 'administrador') {
-        Navigator.pushReplacementNamed(context, '/admin');
-      } else if (role == 'validador') {
-        Navigator.pushReplacementNamed(context, '/guard');
-      } else {
-        Navigator.pushReplacementNamed(context, '/home');
-      }
-    } catch (_) {
-      if (mounted) Navigator.pushReplacementNamed(context, '/home');
+
+    // Imported students must change their temporary password before anything else.
+    if (user.userMetadata?['must_change_password'] == true) {
+      Navigator.pushReplacementNamed(context, '/change-password');
+      return;
+    }
+
+    // Navigate immediately using cached role (no network needed).
+    final cached = await GuardService.getCachedRole();
+    if (!mounted) return;
+    _navigateByRole(cached);
+
+    // Refresh role in background and re-navigate only if it changed.
+    GuardService.getCurrentUserRole().then((fresh) {
+      if (!mounted || fresh == null || fresh == cached) return;
+      _navigateByRole(fresh);
+    });
+  }
+
+  void _navigateByRole(String? role) {
+    if (role == 'admin' || role == 'administrador') {
+      Navigator.pushReplacementNamed(context, '/admin');
+    } else if (role == 'validador') {
+      Navigator.pushReplacementNamed(context, '/guard');
+    } else {
+      Navigator.pushReplacementNamed(context, '/home');
     }
   }
 
@@ -87,13 +102,14 @@ class SentryApp extends StatelessWidget {
       home: const _AppRouter(),
       routes: {
         '/login': (_) => const LoginScreen(),
+        '/change-password': (_) => const ChangePasswordScreen(),
         '/home': (_) => const HomeScreen(),
         '/guard': (_) => const GuardScreen(),
         '/admin': (_) => const AdminShellScreen(),
-        '/vouchers': (_) => const AdminShellScreen(initialIndex: 4),
-        '/attendees': (_) => const AdminShellScreen(initialIndex: 3),
+        '/vouchers': (_) => const AdminShellScreen(initialIndex: 1),
         '/import': (_) => const AdminShellScreen(initialIndex: 2),
-        '/students': (_) => const AdminShellScreen(initialIndex: 1),
+        '/attendees': (_) => const AdminShellScreen(initialIndex: 3),
+        '/students': (_) => const AdminShellScreen(initialIndex: 3),
       },
     );
   }

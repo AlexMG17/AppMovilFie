@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/event_service.dart';
 import '../services/payment_service.dart';
 import '../services/qr_cache_service.dart';
+import '../services/student_service.dart';
+import '../services/qr_unique_service.dart';
 import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
+
+// Centro del polígono de Macají (copia de GeofenceService)
+const _eventCenterLat = -1.669322;
+const _eventCenterLng = -78.667508;
+const _radioAfueraMetros = 350.0;
 
 class MyQrScreen extends StatefulWidget {
   const MyQrScreen({super.key});
@@ -22,12 +31,16 @@ class _MyQrScreenState extends State<MyQrScreen> {
   String? _entradaEstado;
   DateTime? _expiresAt;
   int _versionQr = 1;
+  int? _idEntrada;
+  bool _dentroEvento = false;
 
   bool _loading = true;
   bool _isOffline = false;
   bool _syncing = false;
   String? _message;
   DateTime? _cachedAt;
+
+  RealtimeChannel? _realtimeChannel;
 
   bool get _isExpired =>
       _expiresAt != null && DateTime.now().isAfter(_expiresAt!);
@@ -36,6 +49,12 @@ class _MyQrScreenState extends State<MyQrScreen> {
   void initState() {
     super.initState();
     _loadWithCache();
+  }
+
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
   }
 
   Future<void> _loadWithCache() async {
@@ -73,7 +92,20 @@ class _MyQrScreenState extends State<MyQrScreen> {
       final uid = await EventService.getCurrentUserId();
       final event = await EventService.getActiveEvent();
 
-      if (uid == null || event == null) {
+      if (uid == null) {
+        if (!mounted) return;
+        setState(() {
+          _syncing = false;
+          _loading = false;
+          if (_codigoQr == null) {
+            _message =
+                'No se encontró tu perfil. Cierra sesión e inicia sesión nuevamente.';
+          }
+        });
+        return;
+      }
+
+      if (event == null) {
         if (!mounted) return;
         setState(() {
           _syncing = false;
@@ -85,10 +117,33 @@ class _MyQrScreenState extends State<MyQrScreen> {
         return;
       }
 
-      final entry = await PaymentService.getMyEntry(
+      Map<String, dynamic>? entry = await PaymentService.getMyEntry(
         idUsuario: uid,
         idEvento: event.id,
       );
+
+      // Si no hay entrada, intentar activación automática desde listado_estudiantes
+      if (entry == null && freshEmail.isNotEmpty) {
+        try {
+          await StudentService.checkAndActivateIfPreApproved(
+            email: freshEmail,
+            idUsuario: uid,
+            idEvento: event.id,
+          );
+          entry = await PaymentService.getMyEntry(
+            idUsuario: uid,
+            idEvento: event.id,
+          );
+        } catch (e) {
+          if (!mounted) return;
+          setState(() {
+            _syncing = false;
+            _loading = false;
+            _message = 'Error al activar entrada: $e';
+          });
+          return;
+        }
+      }
 
       if (entry == null) {
         if (!mounted) return;
@@ -109,6 +164,8 @@ class _MyQrScreenState extends State<MyQrScreen> {
           ? DateTime.tryParse(entry['fecha_expiracion'].toString())
           : null;
       final newVersion = entry['version_qr'] as int? ?? 1;
+      final newIdEntrada = entry['id_entrada'] as int?;
+      final newDentroEvento = entry['dentro_evento'] as bool? ?? false;
       final now = DateTime.now();
 
       await QrCacheService.save(
@@ -131,6 +188,8 @@ class _MyQrScreenState extends State<MyQrScreen> {
         _entradaEstado = newEstado;
         _expiresAt = newExpiresAt;
         _versionQr = newVersion;
+        _idEntrada = newIdEntrada;
+        _dentroEvento = newDentroEvento;
         _userName = freshName;
         _userEmail = freshEmail;
         _cachedAt = now;
@@ -138,8 +197,18 @@ class _MyQrScreenState extends State<MyQrScreen> {
         _isOffline = false;
         _syncing = false;
       });
+
+      // Suscribir a cambios en tiempo real de esta entrada
+      if (_idEntrada != null) {
+        _subscribeToEntrada(_idEntrada!);
+      }
+
+      // Edge case: app se cerró mientras el usuario salió pero dentro_evento
+      // quedó en true → reset automático si el GPS confirma que está afuera.
+      if (_dentroEvento && _idEntrada != null) {
+        _autoResetSiAfuera(_idEntrada!);
+      }
     } catch (_) {
-      // Sin red — si ya teníamos caché lo seguimos mostrando
       if (!mounted) return;
       setState(() {
         _syncing = false;
@@ -148,8 +217,64 @@ class _MyQrScreenState extends State<MyQrScreen> {
           _message =
               'Sin conexión a internet y no hay QR guardado en este dispositivo.';
         }
-        // _isOffline ya es true desde que cargamos caché
       });
+    }
+  }
+
+  /// Suscripción Realtime: detecta cuando el guardia escanea
+  /// (dentro_evento → true) o cuando el geofencing registra salida (→ false).
+  void _subscribeToEntrada(int idEntrada) {
+    _realtimeChannel?.unsubscribe();
+    _realtimeChannel = SupabaseService.client
+        .channel('entradas_user_$idEntrada')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'entradas',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id_entrada',
+            value: idEntrada,
+          ),
+          callback: (payload) {
+            if (!mounted) return;
+            final newRecord = payload.newRecord;
+            final dentroEvento =
+                newRecord['dentro_evento'] as bool? ?? _dentroEvento;
+            setState(() => _dentroEvento = dentroEvento);
+          },
+        )
+        .subscribe();
+  }
+
+  /// Si dentro_evento = true pero el GPS dice que está a más de
+  /// _radioAfueraMetros del recinto, registra la salida automáticamente.
+  Future<void> _autoResetSiAfuera(int idEntrada) async {
+    try {
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+
+      final distancia = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        _eventCenterLat,
+        _eventCenterLng,
+      );
+
+      if (distancia > _radioAfueraMetros) {
+        await QrUniqueService.registrarSalida(idEntrada);
+        if (mounted) setState(() => _dentroEvento = false);
+      }
+    } catch (_) {
+      // Sin permiso o GPS no disponible → no hacer nada
     }
   }
 
@@ -339,10 +464,13 @@ class _MyQrScreenState extends State<MyQrScreen> {
   // ── Badge de estado superior ────────────────────────────────────────────
 
   Widget _statusBadge() {
+    if (_dentroEvento) {
+      return _badge('Dentro del evento', AppColors.sentryBlue);
+    }
     if (_isOffline && _codigoQr != null) {
       return _badge('Sin conexión', AppColors.warning);
     }
-    if (_codigoQr != null) return _badge('En línea', AppColors.success);
+    if (_codigoQr != null) return const SizedBox.shrink();
     return _badge('Sin entrada', AppColors.sentryGrey);
   }
 
@@ -372,7 +500,6 @@ class _MyQrScreenState extends State<MyQrScreen> {
   }
 
   Widget _buildQrMainCard() {
-    final isUsed = _entradaEstado == 'usado';
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -428,19 +555,20 @@ class _MyQrScreenState extends State<MyQrScreen> {
                   ],
                 ),
               ),
-              _entradaStatusChip(isUsed),
+              _entradaStatusChip(),
             ],
           ),
 
           const Divider(height: 30, color: AppColors.divider),
 
-          // QR, expirado o ya usado
-          if (isUsed)
+          // QR, dentro del evento, expirado, o activo
+          if (_dentroEvento)
             _buildStatusCard(
-              icon: Icons.check_circle_outline_rounded,
-              color: AppColors.success,
-              title: 'Entrada utilizada',
-              subtitle: 'Este QR ya fue escaneado en el evento.',
+              icon: Icons.location_on_rounded,
+              color: AppColors.sentryBlue,
+              title: 'Estás dentro del evento',
+              subtitle:
+                  'Tu QR se habilitará automáticamente cuando salgas del recinto.',
             )
           else if (_isExpired)
             _buildStatusCard(
@@ -474,7 +602,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
             ),
 
           const SizedBox(height: 15),
-          if (!isUsed && !_isExpired)
+          if (!_dentroEvento && !_isExpired)
             Text(
               'Muestra este código al entrar al evento',
               style: GoogleFonts.outfit(
@@ -491,7 +619,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
                 ? '${_codigoQr!.substring(0, _codigoQr!.length.clamp(0, 16))}…'
                 : '—',
           ),
-          _qrDataRow('Estado', _entradaEstado ?? '—'),
+          _qrDataRow('Estado', _dentroEvento ? 'Dentro del evento' : (_entradaEstado ?? '—')),
           _qrDataRow('Versión', 'v$_versionQr'),
           if (_expiresAt != null)
             _qrDataRow('Expira', _formatDate(_expiresAt!)),
@@ -540,35 +668,31 @@ class _MyQrScreenState extends State<MyQrScreen> {
         ),
       );
 
-  Widget _entradaStatusChip(bool isUsed) {
-    final Color color;
-    final String label;
-    if (isUsed) {
-      color = AppColors.warning;
-      label = 'Usado';
-    } else if (_isExpired) {
-      color = AppColors.warning;
-      label = 'Expirado';
-    } else {
-      color = AppColors.sentryBlue;
-      label = 'Válido';
+  Widget _entradaStatusChip() {
+    if (_dentroEvento) {
+      return _chipBadge('Adentro', AppColors.sentryBlue);
     }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.outfit(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
+    if (_isExpired) {
+      return _chipBadge('Expirado', AppColors.warning);
+    }
+    return _chipBadge('Válido', AppColors.success);
   }
+
+  Widget _chipBadge(String label, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.outfit(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
 
   // ── Tarjeta de mensaje (sin QR) ─────────────────────────────────────────
 

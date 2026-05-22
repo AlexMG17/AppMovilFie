@@ -12,9 +12,10 @@ import 'support_chat_screen.dart';
 import 'upload_payment_screen.dart';
 import 'payment_status_screen.dart';
 import 'my_qr_screen.dart';
-
-// NUESTRO NUEVO SERVICIO
 import '../services/geofence_service.dart';
+import '../services/payment_service.dart';
+import '../services/qr_unique_service.dart';
+import '../services/student_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -64,36 +65,58 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.sentryBg,
       appBar: AppBar(
-        backgroundColor: AppColors.sentryNavy,
+        backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: AppColors.cardBorder),
+        ),
         title: Text(
           'Sentry',
           style: GoogleFonts.outfit(
-            color: Colors.white,
+            color: AppColors.sentryNavy,
             fontWeight: FontWeight.w800,
-            fontSize: 20,
+            fontSize: 22,
           ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.support_agent_rounded, color: Colors.white),
-            tooltip: 'Soporte',
-            onPressed: () => Navigator.push(
+          GestureDetector(
+            onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => const SupportChatScreen(isAdmin: false),
               ),
             ),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: const BoxDecoration(
+                color: AppColors.sentryNavy,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.headset_mic_rounded,
+                color: Colors.white,
+                size: 19,
+              ),
+            ),
           ),
+          const SizedBox(width: 10),
           PopupMenuButton<String>(
-            offset: const Offset(0, 44),
+            offset: const Offset(0, 48),
             onSelected: (value) async {
               if (value == 'logout') await _logout();
             },
-            child: const CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.sentryCyan,
-              child: Icon(Icons.person, color: Colors.white, size: 20),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: const BoxDecoration(
+                color: AppColors.sentryNavy,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.person, color: Colors.white, size: 20),
             ),
             itemBuilder: (_) => [
               PopupMenuItem(
@@ -132,7 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
         ],
       ),
       body: IndexedStack(index: _selectedIndex, children: pages),
@@ -142,52 +165,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildFloatingBottomBar() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      margin: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+      height: 60,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _navItem(0, Icons.home_rounded, 'Inicio'),
-          _navItem(1, Icons.file_upload_outlined, 'Cargar'),
-          _navItem(2, Icons.analytics_outlined, 'Estado'),
-          _navItem(3, Icons.qr_code_scanner_rounded, 'Mi QR'),
+          _navItem(0, Icons.home_rounded),
+          _navItem(1, Icons.file_upload_outlined),
+          _navItem(2, Icons.analytics_outlined),
+          _navItem(3, Icons.qr_code_2_rounded),
         ],
       ),
     );
   }
 
-  Widget _navItem(int idx, IconData icon, String label) {
+  Widget _navItem(int idx, IconData icon) {
     final active = _selectedIndex == idx;
     return GestureDetector(
       onTap: () => _onItemTapped(idx),
-      child: Container(
-        color: Colors.transparent,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: active ? AppColors.sentryBlue : AppColors.sentryGrey,
-            ),
-            Text(
-              label,
-              style: TextStyle(
-                color: active ? AppColors.sentryBlue : AppColors.sentryGrey,
-                fontSize: 10,
-              ),
-            ),
-          ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Icon(
+          icon,
+          color: active ? AppColors.sentryBlue : AppColors.sentryGrey,
+          size: 26,
         ),
       ),
     );
@@ -218,10 +230,11 @@ class _HomeContentState extends State<_HomeContent> {
   // Variables de Geofencing
   GeofenceService? _geofenceService;
   GeofenceState _geoState = GeofenceState.afuera;
+  int? _idEntrada;
+  bool _activationChecked = false;
   double? _distanceMeters;
   LatLng? _userLocation; // <-- Para pintar el punto azul
   String _gpsStatus = 'Buscando señal...';
-  int _segundosSalida = 0;
   bool _isUpdatingGps = false;
 
   final _mapController = MapController();
@@ -261,14 +274,15 @@ class _HomeContentState extends State<_HomeContent> {
           }
         });
       },
-      onTimerTick: (segundos) {
-        if (!mounted) return;
-        setState(() => _segundosSalida = segundos);
-      },
+      onTimerTick: (_) {},
       onTimerExpired: () {
         if (!mounted) return;
+        // Registrar salida en Supabase → dentro_evento = false → QR visible
+        if (_idEntrada != null) {
+          QrUniqueService.registrarSalida(_idEntrada!);
+        }
         setState(() {
-          _gpsStatus = 'Salida registrada. QR Invalidado.';
+          _gpsStatus = 'Salida registrada. QR habilitado.';
         });
       },
     );
@@ -305,15 +319,38 @@ class _HomeContentState extends State<_HomeContent> {
     if (!mounted) return;
 
     if (event != null) {
+      final uidFuture = EventService.getCurrentUserId();
       final results = await Future.wait([
         EventService.getAforo(event.id),
         EventService.getCapacidad(),
       ]);
+      final uid = await uidFuture;
+      final aforo = results[0];
+      final capacidad = results[1];
+
+      final email = SupabaseService.currentUser?.email;
+      if (!_activationChecked && uid != null && email != null) {
+        _activationChecked = true;
+        StudentService.checkAndActivateIfPreApproved(
+          email: email,
+          idUsuario: uid,
+          idEvento: event.id,
+        );
+      }
+
+      Map<String, dynamic>? entry;
+      if (uid != null) {
+        entry = await PaymentService.getMyEntry(
+          idUsuario: uid,
+          idEvento: event.id,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _event = event;
-        _aforo = results[0];
-        _capacidad = results[1] > 0 ? results[1] : 350;
+        _aforo = aforo;
+        _capacidad = capacidad > 0 ? capacidad : 350;
+        _idEntrada = entry?['id_entrada'] as int?;
         _loading = false;
       });
       _startCountdown(event.fecha);
@@ -324,6 +361,7 @@ class _HomeContentState extends State<_HomeContent> {
 
   void _startCountdown(DateTime eventDate) {
     _updateRemaining(eventDate);
+    _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) _updateRemaining(eventDate);
     });
@@ -372,7 +410,6 @@ class _HomeContentState extends State<_HomeContent> {
     final event = _event;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.sentryNavy, AppColors.sentryBlue],
@@ -388,33 +425,70 @@ class _HomeContentState extends State<_HomeContent> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _badge(event != null ? 'Evento activo' : 'Sin evento activo'),
-          const SizedBox(height: 16),
-          Text(
-            event?.nombre ?? 'Sin evento programado',
-            style: GoogleFonts.outfit(
-              color: Colors.white,
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -40,
+              bottom: -40,
+              child: Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.07),
+                ),
+              ),
             ),
-          ),
-          if (event?.descripcion.isNotEmpty == true) ...[
-            const SizedBox(height: 4),
-            Text(
-              event!.descripcion,
-              style: GoogleFonts.outfit(color: Colors.white70, fontSize: 14),
+            Positioned(
+              right: 20,
+              top: -30,
+              child: Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.05),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _badge(event != null ? 'Evento activo' : 'Sin evento activo'),
+                  const SizedBox(height: 16),
+                  Text(
+                    event?.nombre ?? 'Sin evento programado',
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (event?.descripcion.isNotEmpty == true) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      event!.descripcion,
+                      style: GoogleFonts.outfit(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  if (event != null) ...[
+                    _infoRow(Icons.calendar_today, _formatDate(event.fecha)),
+                    _infoRow(Icons.access_time, '19:00 – 23:00'),
+                    _infoRow(Icons.location_on, event.lugar),
+                  ],
+                ],
+              ),
             ),
           ],
-          const SizedBox(height: 20),
-          if (event != null) ...[
-            _infoRow(Icons.calendar_today, _formatDate(event.fecha)),
-            _infoRow(Icons.access_time, '19:00 – 23:00'),
-            _infoRow(Icons.location_on, event.lugar),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -450,6 +524,31 @@ class _HomeContentState extends State<_HomeContent> {
     );
   }
 
+  Widget _timeUnit(String val, String label) => Container(
+    width: 75,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Column(
+      children: [
+        Text(
+          val,
+          style: GoogleFonts.outfit(
+            color: AppColors.sentryNavy,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        Text(
+          label,
+          style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 10),
+        ),
+      ],
+    ),
+  );
+
   Widget _buildAforoCard() {
     final capacity = _capacidad;
     final ratio = capacity > 0 ? (_aforo / capacity).clamp(0.0, 1.0) : 0.0;
@@ -461,13 +560,28 @@ class _HomeContentState extends State<_HomeContent> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Aforo del evento',
-                style: GoogleFonts.outfit(
-                  color: AppColors.sentryNavy,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                ),
+              Row(
+                children: [
+                  Text(
+                    'Aforo del evento',
+                    style: GoogleFonts.outfit(
+                      color: AppColors.sentryNavy,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Tooltip(
+                    message: 'Personas con pago aprobado\ny acceso confirmado al evento',
+                    triggerMode: TooltipTriggerMode.tap,
+                    showDuration: const Duration(seconds: 3),
+                    child: const Icon(
+                      Icons.info_outline_rounded,
+                      size: 16,
+                      color: AppColors.sentryGrey,
+                    ),
+                  ),
+                ],
               ),
               Text(
                 '$_aforo/$capacity',
@@ -721,32 +835,6 @@ class _HomeContentState extends State<_HomeContent> {
                 ),
               ),
 
-              if (_geoState == GeofenceState.afuera && _segundosSalida > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.error),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.timer, color: AppColors.error, size: 16),
-                      const SizedBox(width: 6),
-                      Text(
-                        '00:${_segundosSalida.toString().padLeft(2, '0')}',
-                        style: GoogleFonts.outfit(
-                          color: AppColors.error,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
             ],
           ),
         ],
@@ -858,31 +946,6 @@ class _HomeContentState extends State<_HomeContent> {
             text,
             style: GoogleFonts.outfit(color: Colors.white, fontSize: 14),
           ),
-        ),
-      ],
-    ),
-  );
-
-  Widget _timeUnit(String val, String label) => Container(
-    width: 75,
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Column(
-      children: [
-        Text(
-          val,
-          style: GoogleFonts.outfit(
-            color: AppColors.sentryNavy,
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        Text(
-          label,
-          style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 10),
         ),
       ],
     ),

@@ -327,33 +327,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ],
       ),
       actions: [
-        // Indicador online
-        Container(
-          margin: const EdgeInsets.only(right: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: _green.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _green.withValues(alpha: 0.4)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: _green,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'En línea',
-                style: _ts(10, color: _green, fw: FontWeight.w600),
-              ),
-            ],
-          ),
-        ),
         PopupMenuButton<String>(
           offset: const Offset(0, 44),
           onSelected: (value) async {
