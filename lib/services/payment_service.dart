@@ -34,6 +34,7 @@ class PagoModel {
   bool get isPending => estado == 'pendiente';
   bool get isApproved => estado == 'aprobado';
   bool get isRejected => estado == 'rechazado';
+  bool get isPreApproved => estado == 'pre_aprobado';
 }
 
 /// Modelo para la vista admin: pago + datos del usuario.
@@ -76,6 +77,7 @@ class PagoAdminModel {
   bool get isPending => estado == 'pendiente';
   bool get isApproved => estado == 'aprobado';
   bool get isRejected => estado == 'rechazado';
+  bool get isPreApproved => estado == 'pre_aprobado';
   bool get comprobanteIsUrl => comprobante?.startsWith('http') == true;
 }
 
@@ -181,18 +183,12 @@ class PaymentService {
     return (data as List).map((e) => PagoAdminModel.fromMap(e)).toList();
   }
 
-  /// Aprueba el pago y genera (o renueva) la entrada con QR único (UUID v4).
-  /// Retorna el código QR generado.
-  static Future<String> approvePago({
-    required int idPago,
+  /// Busca la entrada existente para el usuario+evento y crea/renueva el QR.
+  /// Usado tanto al aprobar manualmente como al activar desde el Excel.
+  static Future<String> generateEntryQr({
     required int idUsuario,
     required int idEvento,
   }) async {
-    await _client
-        .from('pagos')
-        .update({'estado': 'aprobado'})
-        .eq('id_pago', idPago);
-
     final existing = await _client
         .from('entradas')
         .select('id_entrada')
@@ -207,12 +203,45 @@ class PaymentService {
     );
   }
 
+  /// Aprueba el pago y genera (o renueva) la entrada con QR único (UUID v4).
+  /// Retorna el código QR generado.
+  static Future<String> approvePago({
+    required int idPago,
+    required int idUsuario,
+    required int idEvento,
+  }) async {
+    await _client
+        .from('pagos')
+        .update({'estado': 'aprobado'})
+        .eq('id_pago', idPago);
+
+    return generateEntryQr(idUsuario: idUsuario, idEvento: idEvento);
+  }
+
   /// Rechaza el pago.
   static Future<void> rejectPago({required int idPago}) async {
     await _client
         .from('pagos')
         .update({'estado': 'rechazado'})
         .eq('id_pago', idPago);
+  }
+
+  /// Revierte una aprobación: vuelve el pago a 'pendiente' y cancela la entrada QR.
+  static Future<void> revertApproval({
+    required int idPago,
+    required int idUsuario,
+    required int idEvento,
+  }) async {
+    await _client
+        .from('pagos')
+        .update({'estado': 'pendiente'})
+        .eq('id_pago', idPago);
+
+    await _client
+        .from('entradas')
+        .update({'estado': 'cancelado'})
+        .eq('id_usuario', idUsuario)
+        .eq('id_evento', idEvento);
   }
 
   /// Estadísticas para el dashboard del admin.
@@ -248,7 +277,7 @@ class PaymentService {
     try {
       final data = await _client
           .from('entradas')
-          .select('codigo_qr, estado, fecha_generacion, fecha_expiracion, version_qr')
+          .select('id_entrada, codigo_qr, estado, dentro_evento, fecha_generacion, fecha_expiracion, version_qr')
           .eq('id_usuario', idUsuario)
           .eq('id_evento', idEvento)
           .neq('estado', 'cancelado')

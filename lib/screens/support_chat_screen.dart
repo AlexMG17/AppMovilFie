@@ -222,11 +222,6 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                     fontWeight: FontWeight.w700,
                     fontSize: 16),
               ),
-              Text(
-                'En línea',
-                style: GoogleFonts.outfit(
-                    color: AppColors.sentryCyan, fontSize: 11),
-              ),
             ],
           ),
         ],

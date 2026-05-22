@@ -61,6 +61,13 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!_googleSignInInProgress) return;
       if (data.event == AuthChangeEvent.signedIn && mounted) {
         _googleSignInInProgress = false;
+
+        final mustChange = data.session?.user.userMetadata?['must_change_password'] == true;
+        if (mustChange && mounted) {
+          Navigator.pushReplacementNamed(context, '/change-password');
+          return;
+        }
+
         final role = await GuardService.getCurrentUserRole();
         if (!mounted) return;
         switch (role) {
@@ -366,6 +373,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (mounted) {
           _showTopToast('¡Inicio de sesión exitoso!');
+
+          // Check if this is an imported student who must change their password
+          final mustChange = Supabase.instance.client.auth.currentUser
+              ?.userMetadata?['must_change_password'] == true;
+          if (mustChange && mounted) {
+            Navigator.pushReplacementNamed(context, '/change-password');
+            return;
+          }
 
           final role = await GuardService.getCurrentUserRole();
           if (!mounted) return;

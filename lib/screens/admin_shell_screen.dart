@@ -63,9 +63,9 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   Widget build(BuildContext context) {
     final pages = [
       AdminDashboardScreen(onSelectTab: _selectTab),
-      const AttendeesScreen(),
       const PaymentVouchersScreen(),
-      const _MoreScreen(),
+      const ImportStudentsScreen(),
+      _MoreScreen(unreadSupport: _unreadSupport),
     ];
 
     return Scaffold(
@@ -82,7 +82,8 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
 
 // ── Pantalla "Más opciones" ───────────────────────────────────────────────────
 class _MoreScreen extends StatelessWidget {
-  const _MoreScreen();
+  final int unreadSupport;
+  const _MoreScreen({this.unreadSupport = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -109,8 +110,19 @@ class _MoreScreen extends StatelessWidget {
               ),
               const SizedBox(height: 28),
               _MoreTile(
-                icon: Icons.list_alt_rounded,
+                icon: Icons.groups_rounded,
                 color: AppColors.sentryBlue,
+                title: 'Asistentes',
+                subtitle: 'Lista en tiempo real de entradas',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AttendeesScreen()),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _MoreTile(
+                icon: Icons.list_alt_rounded,
+                color: const Color(0xFF0891B2),
                 title: 'Lista de estudiantes',
                 subtitle: 'Consultar, editar y descargar',
                 onTap: () => Navigator.push(
@@ -120,22 +132,11 @@ class _MoreScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _MoreTile(
-                icon: Icons.upload_file_rounded,
-                color: const Color(0xFF7C3AED),
-                title: 'Importar estudiantes',
-                subtitle: 'Carga masiva desde Excel / CSV',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const ImportStudentsScreen()),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _MoreTile(
                 icon: Icons.headset_mic_rounded,
                 color: AppColors.sentryCyan,
                 title: 'Soporte técnico',
                 subtitle: 'Tickets y mensajes de usuarios',
+                badgeCount: unreadSupport,
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -156,6 +157,7 @@ class _MoreTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final int badgeCount;
 
   const _MoreTile({
     required this.icon,
@@ -163,6 +165,7 @@ class _MoreTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   @override
@@ -186,14 +189,19 @@ class _MoreTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
+            Badge(
+              isLabelVisible: badgeCount > 0,
+              label: Text('$badgeCount'),
+              backgroundColor: AppColors.error,
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 22),
               ),
-              child: Icon(icon, color: color, size: 22),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -237,10 +245,27 @@ class _AdminBottomBar extends StatelessWidget {
     this.unreadSupport = 0,
   });
 
+  Widget _item(int idx, IconData outline, IconData filled) {
+    final active = selectedIndex == idx;
+    return GestureDetector(
+      onTap: () => onDestinationSelected(idx),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Icon(
+          active ? filled : outline,
+          color: active ? AppColors.sentryBlue : AppColors.sentryGrey,
+          size: 26,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final active3 = selectedIndex == 3;
     return Container(
       margin: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+      height: 60,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
@@ -252,67 +277,29 @@ class _AdminBottomBar extends StatelessWidget {
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: NavigationBarTheme(
-          data: NavigationBarThemeData(
-            backgroundColor: Colors.white,
-            indicatorColor: AppColors.sentryCyan.withValues(alpha: 0.16),
-            labelTextStyle: WidgetStateProperty.resolveWith((states) {
-              final selected = states.contains(WidgetState.selected);
-              return TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? AppColors.sentryBlue : AppColors.sentryGrey,
-              );
-            }),
-            iconTheme: WidgetStateProperty.resolveWith((states) {
-              final selected = states.contains(WidgetState.selected);
-              return IconThemeData(
-                size: 23,
-                color: selected ? AppColors.sentryBlue : AppColors.sentryGrey,
-              );
-            }),
-          ),
-          child: NavigationBar(
-            height: 74,
-            selectedIndex: selectedIndex,
-            onDestinationSelected: onDestinationSelected,
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home_rounded),
-                label: 'Inicio',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.qr_code_scanner_outlined),
-                selectedIcon: Icon(Icons.qr_code_scanner_rounded),
-                label: 'QR',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long_rounded),
-                label: 'Pagos',
-              ),
-              NavigationDestination(
-                icon: Badge(
-                  isLabelVisible: unreadSupport > 0,
-                  label: Text('$unreadSupport'),
-                  backgroundColor: AppColors.error,
-                  child: const Icon(Icons.grid_view_rounded),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _item(0, Icons.home_outlined, Icons.home_rounded),
+          _item(1, Icons.receipt_long_outlined, Icons.receipt_long_rounded),
+          _item(2, Icons.group_add_outlined, Icons.group_add_rounded),
+          GestureDetector(
+            onTap: () => onDestinationSelected(3),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Badge(
+                isLabelVisible: unreadSupport > 0,
+                label: Text('$unreadSupport'),
+                backgroundColor: AppColors.error,
+                child: Icon(
+                  Icons.grid_view_rounded,
+                  color: active3 ? AppColors.sentryBlue : AppColors.sentryGrey,
+                  size: 26,
                 ),
-                selectedIcon: Badge(
-                  isLabelVisible: unreadSupport > 0,
-                  label: Text('$unreadSupport'),
-                  backgroundColor: AppColors.error,
-                  child: const Icon(Icons.grid_view_rounded),
-                ),
-                label: 'Más',
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

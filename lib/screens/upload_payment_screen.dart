@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/event_service.dart';
 import '../services/payment_service.dart';
+import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 
 class UploadPaymentScreen extends StatefulWidget {
@@ -15,8 +16,17 @@ class UploadPaymentScreen extends StatefulWidget {
 class _UploadPaymentScreenState extends State<UploadPaymentScreen> {
   PlatformFile? _pickedFile;
   bool _isUploading = false;
+  bool _isLoadingData = true;
   bool _alreadySubmitted = false;
+  PagoModel? _pago;
+  bool _hasActiveEntry = false;
+  bool _isExcelPending = false;
   final _referenceController = TextEditingController();
+
+  bool get _isPreApproved =>
+      _hasActiveEntry ||
+      _pago?.isPreApproved == true ||
+      _pago?.isApproved == true;
 
   int? _userId;
   int? _eventId;
@@ -44,14 +54,40 @@ class _UploadPaymentScreenState extends State<UploadPaymentScreen> {
     });
 
     if (uid != null && event != null) {
-      final pago = await PaymentService.getMyPago(
-        idUsuario: uid,
-        idEvento: event.id,
-      );
+      final results = await Future.wait([
+        PaymentService.getMyPago(idUsuario: uid, idEvento: event.id),
+        PaymentService.getMyEntry(idUsuario: uid, idEvento: event.id),
+      ]);
       if (!mounted) return;
-      if (pago != null && pago.isPending) {
-        setState(() => _alreadySubmitted = true);
+      final pago = results[0] as PagoModel?;
+      final entry = results[1] as Map<String, dynamic>?;
+
+      bool excelPending = false;
+      if (pago == null && entry == null) {
+        final email = SupabaseService.currentUser?.email;
+        if (email != null) {
+          final inList = await SupabaseService.client
+              .from('listado_estudiantes')
+              .select('id_detalle')
+              .eq('correo_electronico', email)
+              .limit(1)
+              .maybeSingle();
+          if (!mounted) return;
+          excelPending = inList != null;
+        }
       }
+
+      setState(() {
+        _hasActiveEntry = entry != null;
+        _isExcelPending = excelPending;
+        _isLoadingData = false;
+        if (pago != null) {
+          _pago = pago;
+          if (pago.isPending) _alreadySubmitted = true;
+        }
+      });
+    } else {
+      if (mounted) setState(() => _isLoadingData = false);
     }
   }
 
@@ -148,27 +184,194 @@ class _UploadPaymentScreenState extends State<UploadPaymentScreen> {
             ),
             const SizedBox(height: 25),
 
-            if (_alreadySubmitted) _buildAlreadySubmittedBanner(),
-            if (!_alreadySubmitted) ...[
-              _buildInfoCard(),
-              const SizedBox(height: 20),
-            ],
+            if (_isLoadingData)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.only(top: 60),
+                  child: CircularProgressIndicator(color: AppColors.sentryBlue),
+                ),
+              )
 
-            _buildBankDetails(),
-            const SizedBox(height: 20),
-            _buildUploadArea(),
-            if (_pickedFile != null) ...[
+            // Estudiante viene del Excel → entrada ya generada
+            else if (_isPreApproved) ...[
+              _buildPreApprovedBanner(),
+              const SizedBox(height: 100),
+            ]
+
+            // Estudiante del Excel que aún no fue a "Mi QR"
+            else if (_isExcelPending) ...[
+              _buildExcelPendingBanner(),
+              const SizedBox(height: 100),
+            ]
+
+            // Sin evento activo
+            else if (_eventId == null) ...[
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: AppColors.error),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'No hay evento activo en este momento.',
+                        style: GoogleFonts.outfit(color: AppColors.sentryNavy),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ]
+
+            // Flujo normal de comprobante
+            else ...[
+              if (_alreadySubmitted) _buildAlreadySubmittedBanner(),
+              if (!_alreadySubmitted) ...[
+                _buildInfoCard(),
+                const SizedBox(height: 20),
+              ],
+              _buildBankDetails(),
+              const SizedBox(height: 20),
+              _buildUploadArea(),
+              if (_pickedFile != null) ...[
+                const SizedBox(height: 16),
+                _buildFilePreview(),
+              ],
               const SizedBox(height: 16),
-              _buildFilePreview(),
+              _buildReferenceField(),
+              const SizedBox(height: 30),
+              if (!_alreadySubmitted) _buildSubmitButton(),
+              if (_alreadySubmitted) _buildResubmitButton(),
+              const SizedBox(height: 100),
             ],
-            const SizedBox(height: 16),
-            _buildReferenceField(),
-            const SizedBox(height: 30),
-            if (!_alreadySubmitted) _buildSubmitButton(),
-            if (_alreadySubmitted) _buildResubmitButton(),
-            const SizedBox(height: 100),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPreApprovedBanner() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.check_circle_rounded,
+              color: AppColors.success, size: 48),
+          const SizedBox(height: 14),
+          Text(
+            'Tu entrada fue generada automáticamente',
+            style: GoogleFonts.outfit(
+              color: AppColors.sentryNavy,
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Tu pago fue registrado por secretaría al momento de pagar tu matrícula. No necesitas subir ningún comprobante.',
+            style: GoogleFonts.outfit(
+              color: AppColors.sentryGrey,
+              fontSize: 13,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.qr_code_rounded,
+                    color: AppColors.success, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'Ve a "Mi QR" para ver tu código de entrada',
+                  style: GoogleFonts.outfit(
+                    color: AppColors.success,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExcelPendingBanner() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF8F00).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFF8F00).withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.verified_user_rounded,
+              color: Color(0xFFFF8F00), size: 48),
+          const SizedBox(height: 14),
+          Text(
+            'Estás en la lista oficial de invitados',
+            style: GoogleFonts.outfit(
+              color: AppColors.sentryNavy,
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Tu acceso fue pre-aprobado. No necesitas subir ningún comprobante.',
+            style: GoogleFonts.outfit(
+              color: AppColors.sentryGrey,
+              fontSize: 13,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFF8F00).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.qr_code_rounded,
+                    color: Color(0xFFFF8F00), size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'Ve a "Mi QR" para generar tu código de acceso',
+                  style: GoogleFonts.outfit(
+                    color: const Color(0xFFFF8F00),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

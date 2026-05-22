@@ -1,3 +1,4 @@
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Punto de acceso global al cliente de Supabase.
@@ -37,8 +38,14 @@ class SupabaseService {
     );
   }
 
-  /// Cierra la sesión actual.
+  /// Cierra la sesión actual (Supabase + Google para forzar selector de cuenta).
   static Future<void> signOut() async {
+    try {
+      final google = GoogleSignIn();
+      if (await google.isSignedIn()) {
+        await google.disconnect();
+      }
+    } catch (_) {}
     await client.auth.signOut();
   }
 }

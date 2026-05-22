@@ -166,6 +166,55 @@ class _GuardScreenState extends State<GuardScreen>
     }
   }
 
+  Future<void> _confirmUndoScan(ScanResult scan) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          '¿Deshacer entrada?',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Se revertirá el ingreso de ${scan.nombreAsistente}. '
+          'El asistente ya no quedará marcado como dentro del evento.',
+          style: GoogleFonts.outfit(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancelar', style: GoogleFonts.outfit(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: sentryWarning),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Deshacer',
+              style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && scan.codigoQR != null && mounted) {
+      final ok = await GuardService.undoEntry(codigoQR: scan.codigoQR!);
+      await _refreshData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              ok
+                  ? 'Entrada de ${scan.nombreAsistente} revertida.'
+                  : 'No se pudo revertir. Intenta de nuevo.',
+              style: GoogleFonts.outfit(),
+            ),
+            backgroundColor: ok ? sentryWarning : sentryError,
+          ),
+        );
+      }
+    }
+  }
+
   void _handleManualCode() {
     final code = _manualCodeController.text.trim();
     if (code.isEmpty) return;
@@ -525,11 +574,11 @@ class _GuardScreenState extends State<GuardScreen>
         icon = Icons.check_circle;
         title = 'ACCESO PERMITIDO';
         break;
-      case 'usado':
+      case 'ya_adentro':
         bgColor = sentryWarning.withValues(alpha: 0.9);
         iconColor = Colors.white;
-        icon = Icons.warning_rounded;
-        title = 'YA UTILIZADO';
+        icon = Icons.person_pin_circle_rounded;
+        title = 'YA ESTÁ ADENTRO';
         break;
       case 'expirado':
         bgColor = sentryWarning.withValues(alpha: 0.9);
@@ -584,6 +633,38 @@ class _GuardScreenState extends State<GuardScreen>
                   style: GoogleFonts.outfit(
                     color: Colors.white.withValues(alpha: 0.75),
                     fontSize: 12,
+                  ),
+                ),
+              ],
+              if (result.resultado == 'valido' && result.codigoQR != null) ...[
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: () async {
+                    await GuardService.undoEntry(codigoQR: result.codigoQR!);
+                    await _refreshData();
+                    if (mounted) setState(() => _lastScanResult = null);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white30),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.undo_rounded, color: Colors.white70, size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Deshacer entrada',
+                          style: GoogleFonts.outfit(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -801,6 +882,20 @@ class _GuardScreenState extends State<GuardScreen>
             timeStr,
             style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 12),
           ),
+          if (scan.resultado == 'valido' && scan.codigoQR != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => _confirmUndoScan(scan),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: sentryWarning.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.undo_rounded, color: sentryWarning, size: 16),
+              ),
+            ),
+          ],
         ],
       ),
     );
