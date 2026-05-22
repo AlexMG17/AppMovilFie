@@ -250,21 +250,21 @@ class PaymentService {
   }) async {
     final results = await Future.wait([
       _client.from('pagos').select('estado').eq('id_evento', idEvento),
-      _client
-          .from('entradas')
-          .select('id_entrada')
-          .eq('id_evento', idEvento)
-          .neq('estado', 'cancelado'),
+      _client.from('entradas').select('estado').eq('id_evento', idEvento),
+      _client.from('usuarios').select('id_usuario'),
     ]);
 
     final pagosList = results[0] as List;
     final entradasList = results[1] as List;
+    final usuariosList = results[2] as List;
 
     return {
       'pendientes': pagosList.where((p) => p['estado'] == 'pendiente').length,
       'aprobados': pagosList.where((p) => p['estado'] == 'aprobado').length,
       'rechazados': pagosList.where((p) => p['estado'] == 'rechazado').length,
-      'ingresaron': entradasList.length,
+      'ingresaron': entradasList.where((e) => e['estado'] == 'usado').length,
+      'qr_generados': entradasList.where((e) => e['estado'] != 'cancelado').length,
+      'total_usuarios': usuariosList.length,
       'total': pagosList.length,
     };
   }
