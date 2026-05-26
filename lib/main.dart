@@ -109,7 +109,7 @@ class SentryApp extends StatelessWidget {
         '/vouchers': (_) => const AdminShellScreen(initialIndex: 1),
         '/import': (_) => const AdminShellScreen(initialIndex: 2),
         '/attendees': (_) => const AdminShellScreen(initialIndex: 3),
-        '/students': (_) => const AdminShellScreen(initialIndex: 3),
+        '/students': (_) => const AdminShellScreen(initialIndex: 1),
       },
     );
   }

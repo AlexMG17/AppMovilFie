@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../services/event_service.dart';
 import '../services/payment_service.dart' show PaymentService;
 import '../services/supabase_service.dart';
@@ -74,39 +77,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   List<_Activity> _activities = [];
 
   // â”€â”€ Datos gráfico línea (ingresos por hora) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  final List<FlSpot> _lineSpots = const [
-    FlSpot(0, 2),
-    FlSpot(1, 8),
-    FlSpot(2, 18),
-    FlSpot(3, 35),
-    FlSpot(4, 55),
-    FlSpot(5, 90),
-    FlSpot(6, 70),
-    FlSpot(7, 25),
-  ];
-  final List<String> _lineLabels = const [
-    '14h',
-    '15h',
-    '16h',
-    '17h',
-    '18h',
-    '19h',
-    '20h',
-    '21h',
-  ];
-
-  // â”€â”€ Datos gráfico barras (pagos semanales) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  final List<double> _barAprobados = [15, 20, 25, 30, 60, 35, 5];
-  final List<double> _barRechazados = [5, 8, 10, 12, 18, 10, 2];
-  final List<String> _barDays = [
-    'Lun',
-    'Mar',
-    'Mié',
-    'Jue',
-    'Vie',
-    'Sáb',
-    'Dom',
-  ];
+  bool _generatingPdf = false;
+  List<FlSpot> _lineSpots = [];
+  List<String> _lineLabels = [];
+  List<double> _barAprobados = List.filled(7, 0);
+  List<double> _barRechazados = List.filled(7, 0);
+  List<String> _barDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
   @override
   void initState() {
@@ -210,6 +186,90 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       });
 
       _subscribeRealtime(event.id);
+      _loadChartData(event.id);
+    } catch (_) {}
+  }
+
+  Future<void> _loadChartData(int idEvento) async {
+    try {
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final weekAgo = now.subtract(const Duration(days: 6));
+      final weekAgoStart = DateTime(weekAgo.year, weekAgo.month, weekAgo.day);
+
+      final results = await Future.wait([
+        SupabaseService.client
+            .from('scan_logs')
+            .select('escaneado_en')
+            .eq('resultado', 'valido')
+            .gte('escaneado_en', todayStart.toIso8601String()),
+        SupabaseService.client
+            .from('pagos')
+            .select('fecha_pago, estado')
+            .eq('id_evento', idEvento)
+            .gte('fecha_pago', weekAgoStart.toIso8601String()),
+      ]);
+
+      if (!mounted) return;
+
+      // Gráfico de línea: ingresos por hora hoy
+      final scanList = results[0] as List;
+      final hourCounts = <int, double>{};
+      for (final row in scanList) {
+        final ts = DateTime.tryParse(row['escaneado_en'] ?? '');
+        if (ts != null) hourCounts[ts.hour] = (hourCounts[ts.hour] ?? 0) + 1;
+      }
+
+      List<FlSpot> newSpots;
+      List<String> newLabels;
+
+      if (hourCounts.isEmpty) {
+        // Sin datos hoy: mostrar las últimas 6 horas con ceros
+        newSpots = List.generate(6, (i) => FlSpot(i.toDouble(), 0));
+        newLabels = List.generate(6, (i) {
+          final h = ((now.hour - 5 + i) % 24).clamp(0, 23);
+          return '${h}h';
+        });
+      } else {
+        final sortedHours = hourCounts.keys.toList()..sort();
+        final minH = sortedHours.first;
+        final maxH = sortedHours.last;
+        newSpots = [];
+        newLabels = [];
+        for (int h = minH; h <= maxH; h++) {
+          newSpots.add(FlSpot((h - minH).toDouble(), hourCounts[h] ?? 0));
+          newLabels.add('${h}h');
+        }
+      }
+
+      // Gráfico de barras: pagos aprobados/rechazados por día (últimos 7 días)
+      final pagosList = results[1] as List;
+      final newBarAprobados = List<double>.filled(7, 0);
+      final newBarRechazados = List<double>.filled(7, 0);
+      final newBarDays = List<String>.generate(7, (i) {
+        final d = weekAgoStart.add(Duration(days: i));
+        const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+        return days[d.weekday - 1];
+      });
+
+      for (final pago in pagosList) {
+        final ts = DateTime.tryParse(pago['fecha_pago'] ?? '');
+        if (ts == null) continue;
+        final tsDay = DateTime(ts.year, ts.month, ts.day);
+        final dayIdx = tsDay.difference(weekAgoStart).inDays;
+        if (dayIdx < 0 || dayIdx >= 7) continue;
+        final estado = pago['estado'] as String? ?? '';
+        if (estado == 'aprobado') newBarAprobados[dayIdx] += 1;
+        if (estado == 'rechazado') newBarRechazados[dayIdx] += 1;
+      }
+
+      setState(() {
+        _lineSpots = newSpots;
+        _lineLabels = newLabels;
+        _barAprobados = newBarAprobados;
+        _barRechazados = newBarRechazados;
+        _barDays = newBarDays;
+      });
     } catch (_) {}
   }
 
@@ -260,6 +320,276 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+  String _formatDate(DateTime dt) =>
+      '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}  '
+      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+  double get _lineMaxX =>
+      _lineSpots.isEmpty ? 5 : (_lineSpots.length - 1).toDouble();
+
+  double get _lineMaxY {
+    if (_lineSpots.isEmpty) return 10;
+    double max = 5;
+    for (final s in _lineSpots) {
+      if (s.y > max) max = s.y;
+    }
+    return (max * 1.3).ceilToDouble();
+  }
+
+  double get _barMaxY {
+    double max = 5;
+    for (final v in [..._barAprobados, ..._barRechazados]) {
+      if (v > max) max = v;
+    }
+    return (max * 1.3).ceilToDouble();
+  }
+
+  Future<void> _generatePdfReport() async {
+    if (_generatingPdf) return;
+    setState(() => _generatingPdf = true);
+    try {
+      final doc = pw.Document();
+      final now = DateTime.now();
+
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(36),
+          header: (_) => pw.Column(children: [
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('SENTRY',
+                        style: pw.TextStyle(
+                          fontSize: 22,
+                          fontWeight: pw.FontWeight.bold,
+                          color: const PdfColor.fromInt(0xFF0D2B6B),
+                        )),
+                    pw.Text('Control de Acceso \u2014 FIE ESPOCH',
+                        style: const pw.TextStyle(
+                            fontSize: 9, color: PdfColors.grey700)),
+                  ],
+                ),
+                pw.Text('REPORTE DE EVENTO',
+                    style: pw.TextStyle(
+                        fontSize: 13, fontWeight: pw.FontWeight.bold)),
+              ],
+            ),
+            pw.SizedBox(height: 6),
+            pw.Divider(
+                color: const PdfColor.fromInt(0xFF0D2B6B), thickness: 1.5),
+            pw.SizedBox(height: 4),
+          ]),
+          footer: (ctx) => pw.Column(children: [
+            pw.Divider(color: PdfColors.grey300),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('Generado: ${_formatDate(now)}',
+                    style: const pw.TextStyle(
+                        fontSize: 8, color: PdfColors.grey)),
+                pw.Text('P\u00e1gina ${ctx.pageNumber} de ${ctx.pagesCount}',
+                    style: const pw.TextStyle(
+                        fontSize: 8, color: PdfColors.grey)),
+              ],
+            ),
+          ]),
+          build: (_) => [
+            pw.Container(
+              padding: const pw.EdgeInsets.all(14),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.blueGrey200),
+                borderRadius:
+                    const pw.BorderRadius.all(pw.Radius.circular(8)),
+                color: PdfColors.blueGrey50,
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('Informaci\u00f3n del Evento',
+                      style: pw.TextStyle(
+                          fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 8),
+                  _pdfLabelRow('Nombre del evento', _eventName),
+                  if (_activeEvent != null) ...[
+                    _pdfLabelRow('Fecha', _formatDate(_activeEvent!.fecha)),
+                    _pdfLabelRow('Lugar', _activeEvent!.lugar),
+                  ],
+                  _pdfLabelRow('Reporte generado', _formatDate(now)),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 20),
+            pw.Text('Estad\u00edsticas de Asistencia',
+                style: pw.TextStyle(
+                    fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 8),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300),
+              columnWidths: {
+                0: const pw.FlexColumnWidth(2),
+                1: const pw.FlexColumnWidth(1),
+                2: const pw.FlexColumnWidth(2),
+              },
+              children: [
+                _pdfHeaderRow(['M\u00e9trica', 'Valor', 'Descripci\u00f3n']),
+                _pdfDataRow(
+                    ['Registrados', '$totalRegistrados', 'Total en sistema']),
+                _pdfDataRow(
+                    ['Aprobados', '$aprobados', 'Pagos verificados']),
+                _pdfDataRow(['Pendientes', '$pendientes', 'En revisi\u00f3n']),
+                _pdfDataRow(
+                    ['Rechazados', '$rechazados', 'Pagos inv\u00e1lidos']),
+                _pdfDataRow(
+                    ['Ingresaron', '$ingresaron', 'Entradas al evento']),
+                _pdfDataRow(
+                    ['QR Generados', '$qrGenerados', 'C\u00f3digos activos']),
+              ],
+            ),
+            pw.SizedBox(height: 20),
+            if (aprobados + pendientes + rechazados > 0) ...[
+              pw.Text('Distribuci\u00f3n de Pagos',
+                  style: pw.TextStyle(
+                      fontSize: 13, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              _pdfProgressBar('Aprobados', aprobados,
+                  aprobados + pendientes + rechazados,
+                  const PdfColor.fromInt(0xFF22C55E)),
+              pw.SizedBox(height: 6),
+              _pdfProgressBar('Pendientes', pendientes,
+                  aprobados + pendientes + rechazados,
+                  const PdfColor.fromInt(0xFFF59E0B)),
+              pw.SizedBox(height: 6),
+              _pdfProgressBar('Rechazados', rechazados,
+                  aprobados + pendientes + rechazados,
+                  const PdfColor.fromInt(0xFFEF4444)),
+              pw.SizedBox(height: 20),
+            ],
+            pw.Text('Pagos por D\u00eda \u2014 \u00daltimos 7 d\u00edas',
+                style: pw.TextStyle(
+                    fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 8),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300),
+              children: [
+                _pdfHeaderRow(['D\u00eda', 'Aprobados', 'Rechazados', 'Total']),
+                for (int i = 0; i < 7; i++)
+                  _pdfDataRow([
+                    _barDays[i],
+                    '${_barAprobados[i].toInt()}',
+                    '${_barRechazados[i].toInt()}',
+                    '${(_barAprobados[i] + _barRechazados[i]).toInt()}',
+                  ]),
+              ],
+            ),
+            pw.SizedBox(height: 20),
+            if (_activities.isNotEmpty) ...[
+              pw.Text('Actividad Reciente',
+                  style: pw.TextStyle(
+                      fontSize: 13, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 8),
+              pw.Table(
+                border: pw.TableBorder.all(color: PdfColors.grey300),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(3),
+                  1: const pw.FlexColumnWidth(1),
+                },
+                children: [
+                  _pdfHeaderRow(['Actividad', 'Tiempo']),
+                  for (final a in _activities)
+                    _pdfDataRow([a.title, a.time]),
+                ],
+              ),
+            ],
+          ],
+        ),
+      );
+
+      await Printing.layoutPdf(
+        onLayout: (_) async => doc.save(),
+        name:
+            'Reporte_${_eventName.replaceAll(' ', '_')}_${now.day}-${now.month}-${now.year}.pdf',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al generar PDF: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _generatingPdf = false);
+    }
+  }
+
+  pw.Widget _pdfLabelRow(String label, String value) => pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+        child: pw.Row(children: [
+          pw.Text('$label: ',
+              style: pw.TextStyle(
+                  fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          pw.Text(value, style: const pw.TextStyle(fontSize: 10)),
+        ]),
+      );
+
+  pw.TableRow _pdfHeaderRow(List<String> cells) => pw.TableRow(
+        decoration: const pw.BoxDecoration(
+            color: PdfColor.fromInt(0xFF0D2B6B)),
+        children: cells
+            .map((c) => pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 6),
+                  child: pw.Text(c,
+                      style: pw.TextStyle(
+                          color: PdfColors.white,
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 10)),
+                ))
+            .toList(),
+      );
+
+  pw.TableRow _pdfDataRow(List<String> cells) => pw.TableRow(
+        children: cells
+            .map((c) => pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 5),
+                  child: pw.Text(c, style: const pw.TextStyle(fontSize: 10)),
+                ))
+            .toList(),
+      );
+
+  pw.Widget _pdfProgressBar(
+      String label, int value, int total, PdfColor color) {
+    final pct = total > 0 ? value / total : 0.0;
+    final pctStr = '${(pct * 100).toStringAsFixed(1)}%';
+    const barMaxWidth = 290.0;
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+        pw.SizedBox(
+            width: 80,
+            child: pw.Text(label,
+                style: const pw.TextStyle(fontSize: 10))),
+        pw.Stack(children: [
+          pw.Container(
+              width: barMaxWidth, height: 11, color: PdfColors.grey200),
+          pw.Container(
+              width: barMaxWidth * pct.clamp(0.0, 1.0),
+              height: 11,
+              color: color),
+        ]),
+        pw.SizedBox(width: 8),
+        pw.Text('$value  ($pctStr)',
+            style: const pw.TextStyle(fontSize: 10)),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -327,6 +657,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ],
       ),
       actions: [
+        IconButton(
+          onPressed: _generatingPdf ? null : _generatePdfReport,
+          tooltip: 'Generar reporte PDF',
+          icon: _generatingPdf
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.picture_as_pdf_rounded),
+        ),
         PopupMenuButton<String>(
           offset: const Offset(0, 44),
           onSelected: (value) async {
@@ -609,9 +950,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
                 borderData: FlBorderData(show: false),
                 minX: 0,
-                maxX: 7,
+                maxX: _lineMaxX,
                 minY: 0,
-                maxY: 100,
+                maxY: _lineMaxY,
                 lineBarsData: [
                   LineChartBarData(
                     spots: _lineSpots,
@@ -682,7 +1023,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: 70,
+                maxY: _barMaxY,
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
@@ -849,7 +1190,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 color: _blue,
                 title: 'Asistentes',
                 subtitle: 'Lista en tiempo real',
-                onTap: () => _openAdminTab(1, const AttendeesScreen()),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AttendeesScreen()),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -859,7 +1203,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 color: _cyan,
                 title: 'Comprobantes',
                 subtitle: 'Gestión de pagos',
-                onTap: () => _openAdminTab(2, const PaymentVouchersScreen()),
+                onTap: () => _openAdminTab(1, const PaymentVouchersScreen()),
               ),
             ),
           ],

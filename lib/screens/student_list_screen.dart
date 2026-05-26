@@ -33,7 +33,8 @@ Color _avatarColor(String name) =>
 
 // ═════════════════════════════════════════════════════════════════════════════
 class StudentListScreen extends StatefulWidget {
-  const StudentListScreen({super.key});
+  const StudentListScreen({super.key, this.showAppBar = true});
+  final bool showAppBar;
   @override
   State<StudentListScreen> createState() => _StudentListScreenState();
 }
@@ -46,6 +47,7 @@ class _StudentListScreenState extends State<StudentListScreen>
   String _selectedCareer = 'Todas las carreras';
   bool _loading = true;
   String _userName = '';
+  String _eventName = '';
 
   final _searchCtrl = TextEditingController();
   late AnimationController _fadeCtrl;
@@ -111,6 +113,7 @@ class _StudentListScreenState extends State<StudentListScreen>
         setState(() {
           _students = students;
           _careers = careers;
+          _eventName = event?.nombre ?? '';
           _loading = false;
         });
       }
@@ -300,7 +303,22 @@ class _StudentListScreenState extends State<StudentListScreen>
         ],
       ),
     );
-    return ok ?? false;
+    if (ok != true || s.idDetalle == null) return false;
+    try {
+      await StudentService.deleteStudent(s.idDetalle!);
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al eliminar: $e', style: _ts(13)),
+          backgroundColor: Colors.red.shade800,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return false;
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -318,7 +336,7 @@ class _StudentListScreenState extends State<StudentListScreen>
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              _buildAppBar(),
+              if (widget.showAppBar) _buildAppBar(),
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverList(
@@ -369,7 +387,8 @@ class _StudentListScreenState extends State<StudentListScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Panel Administrativo', style: _ts(16, fw: FontWeight.w700)),
-        Text('Gala FIE 2026', style: _ts(11, color: _kGrey)),
+        if (_eventName.isNotEmpty)
+          Text(_eventName, style: _ts(11, color: _kGrey)),
       ],
     ),
     actions: [
@@ -553,23 +572,17 @@ class _StudentListScreenState extends State<StudentListScreen>
       key: ValueKey(s.idDetalle ?? s.email),
       direction: DismissDirection.endToStart,
       confirmDismiss: (_) => _confirmDelete(s),
-      onDismissed: (_) async {
-        if (s.idDetalle != null) {
-          try {
-            await StudentService.deleteStudent(s.idDetalle!);
-          } catch (_) {}
-        }
+      onDismissed: (_) {
+        if (!mounted) return;
         setState(() => _students.removeWhere((st) => st.idDetalle == s.idDetalle && st.email == s.email));
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${s.nombre} eliminado', style: _ts(13)),
-              backgroundColor: _kCard,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${s.nombre} eliminado', style: _ts(13)),
+            backgroundColor: _kCard,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
       },
       background: Container(
         alignment: Alignment.centerRight,

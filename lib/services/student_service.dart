@@ -147,9 +147,9 @@ class StudentService {
   /// Returns {'inserted': N, 'skipped': M, 'accounts_created': K} where
   ///   skipped = already existed in listado_estudiantes
   ///   accounts_created = new auth accounts created (and email sent)
-  static Future<Map<String, int>> batchUpsert(
+  static Future<Map<String, dynamic>> batchUpsert(
       List<Map<String, String>> students) async {
-    if (students.isEmpty) return {'inserted': 0, 'skipped': 0, 'accounts_created': 0};
+    if (students.isEmpty) return {'inserted': 0, 'skipped': 0, 'accounts_created': 0, 'email_errors': 0, 'email_errors_detail': ''};
 
     // 1. Detect which emails already exist in the DB
     final incomingEmails = students
@@ -175,7 +175,7 @@ class StudentService {
 
     final skipped = students.length - newStudents.length;
 
-    if (newStudents.isEmpty) return {'inserted': 0, 'skipped': skipped, 'accounts_created': 0};
+    if (newStudents.isEmpty) return {'inserted': 0, 'skipped': skipped, 'accounts_created': 0, 'email_errors': 0, 'email_errors_detail': ''};
 
     // 2. Create parent record in 'listados'
     final listadoResponse = await _client
@@ -206,6 +206,7 @@ class StudentService {
 
     // 4. Create auth accounts + send emails via Edge Function (best-effort)
     int accountsCreated = 0;
+    final emailErrors = <String>[];
     for (final s in newStudents) {
       try {
         final response = await _client.functions.invoke(
@@ -220,6 +221,9 @@ class StudentService {
         final data = response.data as Map<String, dynamic>?;
         if (data != null && data['success'] == true && data['already_exists'] != true) {
           accountsCreated++;
+          if (data['email_error'] != null) {
+            emailErrors.add('${s['correo_electronico']}: ${data['email_error']}');
+          }
         }
       } catch (_) {
         // Account creation failures don't block the import
@@ -230,6 +234,8 @@ class StudentService {
       'inserted': newStudents.length,
       'skipped': skipped,
       'accounts_created': accountsCreated,
+      'email_errors': emailErrors.length,
+      'email_errors_detail': emailErrors.join(' | '),
     };
   }
 
