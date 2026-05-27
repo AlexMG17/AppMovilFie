@@ -1,6 +1,6 @@
 name: sentry_app
 description: "Sentry - Control de acceso seguro a eventos."
-publish_to: 'none'
+publish_to: "none"
 version: 0.1.0+1
 
 environment:
@@ -45,6 +45,8 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
+    - assets/images/Fiesta_PNG.png
+    - assets/images/Llama_PNG.png
     - assets/images/logo.png
     - assets/images/icono_sentry2.png
     - assets/images/Llamasgif.gif
