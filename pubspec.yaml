@@ -38,13 +38,13 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/icono_sentry.jpeg"
+  image_path: "assets/images/icono_sentry2.png"
   remove_alpha_ios: true
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/logo.png
-    - assets/images/icono_sentry.jpeg
+    - assets/images/icono_sentry2.png
     - assets/images/Llamasgif.gif
     - assets/templates/PLANTILLA_CSV_SENTRY.xlsx
