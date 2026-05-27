@@ -1,5 +1,6 @@
 ﻿import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:pdf/pdf.dart';
@@ -382,7 +383,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   // â”€â”€ Helpers de texto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   TextStyle _ts(double size, {FontWeight fw = FontWeight.w400, Color? color}) =>
-      GoogleFonts.outfit(fontSize: size, fontWeight: fw, color: color ?? _navy);
+      GoogleFonts.outfit(fontSize: size.sp, fontWeight: fw, color: color ?? _navy);
 
   Future<void> _showEventForm() async {
     final saved = await showModalBottomSheet<bool>(
@@ -685,22 +686,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             slivers: [
               _buildAppBar(),
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: EdgeInsets.symmetric(horizontal: 16.w),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8.h),
                     _buildDashboardHeader(),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20.h),
                     _buildMetricGrid(),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20.h),
                     _buildLineChartCard(),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
                     _buildBarChartCard(),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
                     _buildActivityCard(),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
                     _buildQuickAccess(),
-                    const SizedBox(height: 32),
+                    SizedBox(height: 90.h),
                   ]),
                 ),
               ),
@@ -758,9 +759,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             }
           },
           child: CircleAvatar(
-            radius: 16,
+            radius: 16.r,
             backgroundColor: _blue.withValues(alpha: 0.15),
-            child: Icon(Icons.person_rounded, size: 18, color: _blue),
+            child: Icon(Icons.person_rounded, size: 18.sp, color: _blue),
           ),
           itemBuilder: (_) => [
             PopupMenuItem(
@@ -770,15 +771,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 children: [
                   Text(
                     _userName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      fontSize: 14,
+                      fontSize: 14.sp,
                       color: Colors.black87,
                     ),
                   ),
                   Text(
                     SupabaseService.currentUser?.email ?? '',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    style: TextStyle(fontSize: 11.sp, color: Colors.grey),
                   ),
                 ],
               ),
@@ -817,17 +818,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 'Estadísticas generales — $_eventName',
                 style: _ts(11, color: _grey),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8.h),
               GestureDetector(
                 onTap: _showEventForm,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 10.w,
+                    vertical: 5.h,
                   ),
                   decoration: BoxDecoration(
                     color: _blue.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(20.r),
                     border: Border.all(color: _blue.withValues(alpha: 0.25)),
                   ),
                   child: Row(
@@ -837,10 +838,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         _activeEvent != null
                             ? Icons.edit_rounded
                             : Icons.add_rounded,
-                        size: 13,
+                        size: 13.sp,
                         color: _blue,
                       ),
-                      const SizedBox(width: 5),
+                      SizedBox(width: 5.w),
                       Text(
                         _activeEvent != null ? 'Editar evento' : 'Crear evento',
                         style: _ts(11, fw: FontWeight.w600, color: _blue),
@@ -854,19 +855,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ),
         // Chip ingresados
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
           decoration: BoxDecoration(
             gradient: LinearGradient(colors: [_navy, _blue]),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(12.r),
           ),
           child: Row(
             children: [
               Container(
-                width: 8,
-                height: 8,
+                width: 8.w,
+                height: 8.w,
                 decoration: BoxDecoration(color: _cyan, shape: BoxShape.circle),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: 6.w),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -934,9 +935,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 1.35,
+        mainAxisExtent: 140.h,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
       ),
@@ -969,13 +970,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
+                padding: EdgeInsets.symmetric(
+                  horizontal: 10.w,
+                  vertical: 4.h,
                 ),
                 decoration: BoxDecoration(
                   color: _green.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(8.r),
                   border: Border.all(color: _green.withValues(alpha: 0.4)),
                 ),
                 child: Text(
@@ -985,9 +986,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           SizedBox(
-            height: 160,
+            height: 160.h,
             child: LineChart(
               LineChartData(
                 gridData: FlGridData(
@@ -1094,13 +1095,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
               ),
               _Legend(color: _blue, label: 'Aprobados'),
-              const SizedBox(width: 12),
+              SizedBox(width: 12.w),
               _Legend(color: _red, label: 'Rechazados'),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           SizedBox(
-            height: 170,
+            height: 170.h,
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
@@ -1176,7 +1177,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Acceso rápido', style: _ts(15, fw: FontWeight.w700)),
-        const SizedBox(height: 12),
+        SizedBox(height: 12.h),
         Row(
           children: [
             Expanded(
@@ -1191,7 +1192,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12.w),
             Expanded(
               child: _QuickCard(
                 icon: Icons.receipt_long_rounded,
@@ -1203,7 +1204,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12.h),
         Row(
           children: [
             Expanded(
@@ -1218,7 +1219,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12.w),
             Expanded(
               child: _QuickCard(
                 icon: Icons.upload_file_rounded,
@@ -1250,22 +1251,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               Text('Actividad reciente', style: _ts(15, fw: FontWeight.w700)),
               const Spacer(),
               Container(
-                width: 7,
-                height: 7,
+                width: 7.w,
+                height: 7.w,
                 decoration: BoxDecoration(
                   color: _green,
                   shape: BoxShape.circle,
                 ),
               ),
-              const SizedBox(width: 5),
+              SizedBox(width: 5.w),
               Text('Tiempo real', style: _ts(11, color: _green)),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           if (_activities.isEmpty)
             Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: EdgeInsets.symmetric(vertical: 16.h),
                 child: Text(
                   'Sin actividad reciente',
                   style: _ts(13, color: _grey),
@@ -1280,15 +1281,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   Row(
                     children: [
                       Container(
-                        width: 36,
-                        height: 36,
+                        width: 36.w,
+                        height: 36.w,
                         decoration: BoxDecoration(
                           color: a.iconColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(10.r),
                         ),
-                        child: Icon(a.icon, color: a.iconColor, size: 18),
+                        child: Icon(a.icon, color: a.iconColor, size: 18.sp),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12.w),
                       Expanded(
                         child: Text(
                           a.title,
@@ -1338,7 +1339,7 @@ class _MetricCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14.r),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
           BoxShadow(
@@ -1348,25 +1349,25 @@ class _MetricCard extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14.r),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 36.w,
+                height: 36.w,
                 decoration: BoxDecoration(
                   color: data.color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(10.r),
                 ),
-                child: Icon(data.icon, color: data.color, size: 18),
+                child: Icon(data.icon, color: data.color, size: 18.sp),
               ),
               const Spacer(),
               Icon(
                 Icons.trending_up_rounded,
-                size: 14,
+                size: 14.sp,
                 color: AppColors.sentryGrey,
               ),
             ],
@@ -1375,7 +1376,7 @@ class _MetricCard extends StatelessWidget {
           Text(
             data.value,
             style: GoogleFonts.outfit(
-              fontSize: 26,
+              fontSize: 26.sp,
               fontWeight: FontWeight.w800,
               color: AppColors.sentryNavy,
             ),
@@ -1383,7 +1384,7 @@ class _MetricCard extends StatelessWidget {
           Text(
             data.label,
             style: GoogleFonts.outfit(
-              fontSize: 12,
+              fontSize: 12.sp,
               fontWeight: FontWeight.w600,
               color: AppColors.sentryNavy,
             ),
@@ -1391,7 +1392,7 @@ class _MetricCard extends StatelessWidget {
           Text(
             data.sublabel,
             style: GoogleFonts.outfit(
-              fontSize: 10,
+              fontSize: 10.sp,
               color: AppColors.sentryGrey,
             ),
           ),
@@ -1409,10 +1410,10 @@ class _CardWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16.r),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.r),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
           BoxShadow(
@@ -1437,14 +1438,14 @@ class _Legend extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 8,
-          height: 8,
+          width: 8.w,
+          height: 8.w,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 4),
+        SizedBox(width: 4.w),
         Text(
           label,
-          style: GoogleFonts.outfit(fontSize: 10, color: AppColors.sentryGrey),
+          style: GoogleFonts.outfit(fontSize: 10.sp, color: AppColors.sentryGrey),
         ),
       ],
     );
@@ -1472,10 +1473,10 @@ class _QuickCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16.r),
         decoration: BoxDecoration(
           color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(14.r),
           border: Border.all(color: AppColors.cardBorder),
           boxShadow: [
             BoxShadow(
@@ -1485,44 +1486,47 @@ class _QuickCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.sentryNavy,
-                    ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 40.w,
+                  height: 40.w,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10.r),
                   ),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.outfit(
-                      fontSize: 10,
-                      color: AppColors.sentryGrey,
-                    ),
-                  ),
-                ],
-              ),
+                  child: Icon(icon, color: color, size: 20.sp),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18.sp,
+                  color: AppColors.sentryGrey,
+                ),
+              ],
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 18,
-              color: AppColors.sentryGrey,
+            SizedBox(height: 12.h),
+            Text(
+              title,
+              style: GoogleFonts.outfit(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w700,
+                color: AppColors.sentryNavy,
+              ),
+              maxLines: 2,
+            ),
+            SizedBox(height: 2.h),
+            Text(
+              subtitle,
+              style: GoogleFonts.outfit(
+                fontSize: 10.sp,
+                color: AppColors.sentryGrey,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -1651,7 +1655,7 @@ class _EventFormSheetState extends State<_EventFormSheet> {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: EdgeInsets.fromLTRB(24, 16, 24, 24 + bottom),
+      padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 24.h + bottom),
       child: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -1661,35 +1665,35 @@ class _EventFormSheetState extends State<_EventFormSheet> {
             children: [
               Center(
                 child: Container(
-                  width: 40,
-                  height: 4,
+                  width: 40.w,
+                  height: 4.h,
                   decoration: BoxDecoration(
                     color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(2.r),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16.h),
               Text(
                 isEdit ? 'Editar evento' : 'Crear evento',
                 style: GoogleFonts.outfit(
-                  fontSize: 20,
+                  fontSize: 20.sp,
                   fontWeight: FontWeight.w700,
                   color: const Color(0xFF0D1B4B),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20.h),
               _field(_nombre, 'Nombre del evento', Icons.event_rounded),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               _field(
                 _descripcion,
                 'Descripción',
                 Icons.notes_rounded,
                 maxLines: 3,
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               _field(_lugar, 'Lugar / Ubicación', Icons.location_on_rounded),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               Row(
                 children: [
                   Expanded(
@@ -1703,7 +1707,7 @@ class _EventFormSheetState extends State<_EventFormSheet> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12.w),
                   Expanded(
                     child: _field(
                       _lng,
@@ -1717,16 +1721,16 @@ class _EventFormSheetState extends State<_EventFormSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               InkWell(
                 onTap: _pickDate,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(12.r),
                 child: InputDecorator(
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.calendar_today_rounded),
                     labelText: 'Fecha y hora del evento',
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(12.r),
                     ),
                     filled: true,
                     fillColor: const Color(0xFFF5F6FA),
@@ -1747,21 +1751,21 @@ class _EventFormSheetState extends State<_EventFormSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 24.h),
               FilledButton(
                 onPressed: _saving ? null : _save,
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF0D1B4B),
-                  minimumSize: const Size(double.infinity, 52),
+                  minimumSize: Size(double.infinity, 52.h),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(14.r),
                   ),
                 ),
                 child: _saving
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
+                    ? SizedBox(
+                        width: 22.w,
+                        height: 22.w,
+                        child: const CircularProgressIndicator(
                           color: Colors.white,
                           strokeWidth: 2.5,
                         ),
@@ -1769,7 +1773,7 @@ class _EventFormSheetState extends State<_EventFormSheet> {
                     : Text(
                         isEdit ? 'Guardar cambios' : 'Crear evento',
                         style: GoogleFonts.outfit(
-                          fontSize: 16,
+                          fontSize: 16.sp,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1794,7 +1798,7 @@ class _EventFormSheetState extends State<_EventFormSheet> {
     decoration: InputDecoration(
       prefixIcon: Icon(icon),
       labelText: label,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r)),
       filled: true,
       fillColor: const Color(0xFFF5F6FA),
     ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -78,7 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
           style: GoogleFonts.outfit(
             color: AppColors.sentryNavy,
             fontWeight: FontWeight.w800,
-            fontSize: 22,
+            fontSize: 22.sp,
           ),
         ),
         actions: [
@@ -90,33 +91,33 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             child: Container(
-              width: 38,
-              height: 38,
+              width: 38.w,
+              height: 38.w,
               decoration: const BoxDecoration(
                 color: AppColors.sentryNavy,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.headset_mic_rounded,
                 color: Colors.white,
-                size: 19,
+                size: 19.sp,
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10.w),
           PopupMenuButton<String>(
             offset: const Offset(0, 48),
             onSelected: (value) async {
               if (value == 'logout') await _logout();
             },
             child: Container(
-              width: 38,
-              height: 38,
+              width: 38.w,
+              height: 38.w,
               decoration: const BoxDecoration(
                 color: AppColors.sentryNavy,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.person, color: Colors.white, size: 20),
+              child: Icon(Icons.person, color: Colors.white, size: 20.sp),
             ),
             itemBuilder: (_) => [
               PopupMenuItem(
@@ -155,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: 14.w),
         ],
       ),
       body: IndexedStack(index: _selectedIndex, children: pages),
@@ -164,12 +165,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildFloatingBottomBar() {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Container(
-      margin: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-      height: 60,
+      margin: EdgeInsets.fromLTRB(24.w, 0, 24.w, 12.h + bottomPadding),
+      height: 60.h,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(22.r),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -195,11 +197,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return GestureDetector(
       onTap: () => _onItemTapped(idx),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
         child: Icon(
           icon,
           color: active ? AppColors.sentryBlue : AppColors.sentryGrey,
-          size: 26,
+          size: 26.sp,
         ),
       ),
     );
@@ -387,19 +389,19 @@ class _HomeContentState extends State<_HomeContent> {
       color: AppColors.sentryBlue,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(20.r),
         child: Column(
           children: [
             _buildMainEventCard(),
-            const SizedBox(height: 25),
+            SizedBox(height: 25.h),
             _buildCountdownSection(),
-            const SizedBox(height: 25),
+            SizedBox(height: 25.h),
             _buildAforoCard(),
-            const SizedBox(height: 25),
+            SizedBox(height: 25.h),
             _buildGeofenceCard(),
-            const SizedBox(height: 25),
+            SizedBox(height: 25.h),
             _buildQuickActions(),
-            const SizedBox(height: 100),
+            SizedBox(height: 100.h),
           ],
         ),
       ),
@@ -416,7 +418,7 @@ class _HomeContentState extends State<_HomeContent> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(24.r),
         boxShadow: [
           BoxShadow(
             color: AppColors.sentryNavy.withValues(alpha: 0.3),
@@ -426,15 +428,15 @@ class _HomeContentState extends State<_HomeContent> {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(24.r),
         child: Stack(
           children: [
             Positioned(
               right: -40,
               bottom: -40,
               child: Container(
-                width: 180,
-                height: 180,
+                width: 180.w,
+                height: 180.w,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withValues(alpha: 0.07),
@@ -445,8 +447,8 @@ class _HomeContentState extends State<_HomeContent> {
               right: 20,
               top: -30,
               child: Container(
-                width: 110,
-                height: 110,
+                width: 110.w,
+                height: 110.w,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withValues(alpha: 0.05),
@@ -454,31 +456,31 @@ class _HomeContentState extends State<_HomeContent> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(24.r),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _badge(event != null ? 'Evento activo' : 'Sin evento activo'),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16.h),
                   Text(
                     event?.nombre ?? 'Sin evento programado',
                     style: GoogleFonts.outfit(
                       color: Colors.white,
-                      fontSize: 26,
+                      fontSize: 24.sp,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   if (event?.descripcion.isNotEmpty == true) ...[
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4.h),
                     Text(
                       event!.descripcion,
                       style: GoogleFonts.outfit(
                         color: Colors.white70,
-                        fontSize: 14,
+                        fontSize: 13.sp,
                       ),
                     ),
                   ],
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20.h),
                   if (event != null) ...[
                     _infoRow(Icons.calendar_today, _formatDate(event.fecha)),
                     _infoRow(Icons.access_time, '19:00 – 23:00'),
@@ -507,12 +509,11 @@ class _HomeContentState extends State<_HomeContent> {
             color: AppColors.sentryGrey,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.5,
-            fontSize: 12,
+            fontSize: 11.sp,
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16.h),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _timeUnit(_pad(days), 'días'),
             _timeUnit(_pad(hours), 'hrs'),
@@ -524,28 +525,30 @@ class _HomeContentState extends State<_HomeContent> {
     );
   }
 
-  Widget _timeUnit(String val, String label) => Container(
-    width: 75,
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Column(
-      children: [
-        Text(
-          val,
-          style: GoogleFonts.outfit(
-            color: AppColors.sentryNavy,
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
+  Widget _timeUnit(String val, String label) => Expanded(
+    child: Container(
+      margin: EdgeInsets.symmetric(horizontal: 4.w),
+      padding: EdgeInsets.all(10.r),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16.r),
+      ),
+      child: Column(
+        children: [
+          Text(
+            val,
+            style: GoogleFonts.outfit(
+              color: AppColors.sentryNavy,
+              fontSize: 20.sp,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-        ),
-        Text(
-          label,
-          style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 10),
-        ),
-      ],
+          Text(
+            label,
+            style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 10.sp),
+          ),
+        ],
+      ),
     ),
   );
 
@@ -567,17 +570,17 @@ class _HomeContentState extends State<_HomeContent> {
                     style: GoogleFonts.outfit(
                       color: AppColors.sentryNavy,
                       fontWeight: FontWeight.w700,
-                      fontSize: 15,
+                      fontSize: 14.sp,
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6.w),
                   Tooltip(
                     message: 'Personas con pago aprobado\ny acceso confirmado al evento',
                     triggerMode: TooltipTriggerMode.tap,
                     showDuration: const Duration(seconds: 3),
-                    child: const Icon(
+                    child: Icon(
                       Icons.info_outline_rounded,
-                      size: 16,
+                      size: 16.sp,
                       color: AppColors.sentryGrey,
                     ),
                   ),
@@ -588,11 +591,12 @@ class _HomeContentState extends State<_HomeContent> {
                 style: GoogleFonts.outfit(
                   color: AppColors.sentryBlue,
                   fontWeight: FontWeight.w700,
+                  fontSize: 13.sp,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14.h),
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
@@ -604,14 +608,14 @@ class _HomeContentState extends State<_HomeContent> {
               minHeight: 10,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
               '$pct% de capacidad ocupada',
               style: GoogleFonts.outfit(
                 color: AppColors.sentryGrey,
-                fontSize: 12,
+                fontSize: 12.sp,
               ),
             ),
           ),
@@ -633,47 +637,47 @@ class _HomeContentState extends State<_HomeContent> {
         children: [
           Row(
             children: [
-              const Icon(Icons.near_me, color: AppColors.sentryCyan, size: 20),
-              const SizedBox(width: 8),
+              Icon(Icons.near_me, color: AppColors.sentryCyan, size: 20.sp),
+              SizedBox(width: 8.w),
               Expanded(
                 child: Text(
                   'Validación de ubicación',
                   style: GoogleFonts.outfit(
                     color: AppColors.sentryNavy,
                     fontWeight: FontWeight.w700,
-                    fontSize: 15,
+                    fontSize: 14.sp,
                   ),
                 ),
               ),
               GestureDetector(
                 onTap: _isUpdatingGps ? null : _forzarActualizacionGPS,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 10.w,
+                    vertical: 6.h,
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.sentryBg,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(8.r),
                   ),
                   child: Row(
                     children: [
                       _isUpdatingGps
-                          ? const SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                          ? SizedBox(
+                              width: 12.w,
+                              height: 12.h,
+                              child: const CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(
+                          : Icon(
                               Icons.my_location,
-                              size: 14,
+                              size: 14.sp,
                               color: AppColors.sentryBlue,
                             ),
-                      const SizedBox(width: 6),
+                      SizedBox(width: 6.w),
                       Text(
                         "Centrar",
                         style: GoogleFonts.outfit(
-                          fontSize: 12,
+                          fontSize: 12.sp,
                           color: AppColors.sentryBlue,
                           fontWeight: FontWeight.bold,
                         ),
@@ -689,15 +693,15 @@ class _HomeContentState extends State<_HomeContent> {
               event.lugar,
               style: GoogleFonts.outfit(
                 color: AppColors.sentryGrey,
-                fontSize: 13,
+                fontSize: 12.sp,
               ),
             ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14.h),
 
           ClipRRect(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(14.r),
             child: SizedBox(
-              height: 200,
+              height: 200.h,
               child: event != null
                   ? FlutterMap(
                       mapController: _mapController,
@@ -763,8 +767,8 @@ class _HomeContentState extends State<_HomeContent> {
                                   alignment: Alignment.center,
                                   children: [
                                     Container(
-                                      width: 24,
-                                      height: 24,
+                                      width: 24.w,
+                                      height: 24.w,
                                       decoration: BoxDecoration(
                                         color: AppColors.sentryBlue.withValues(
                                           alpha: 0.3,
@@ -773,8 +777,8 @@ class _HomeContentState extends State<_HomeContent> {
                                       ),
                                     ),
                                     Container(
-                                      width: 14,
-                                      height: 14,
+                                      width: 14.w,
+                                      height: 14.w,
                                       decoration: BoxDecoration(
                                         color: AppColors.sentryBlue,
                                         shape: BoxShape.circle,
@@ -793,10 +797,10 @@ class _HomeContentState extends State<_HomeContent> {
                     )
                   : Container(
                       color: AppColors.sentryBg,
-                      child: const Center(
+                      child: Center(
                         child: Icon(
                           Icons.map_outlined,
-                          size: 48,
+                          size: 48.sp,
                           color: AppColors.sentryGrey,
                         ),
                       ),
@@ -804,7 +808,7 @@ class _HomeContentState extends State<_HomeContent> {
             ),
           ),
 
-          const SizedBox(height: 14),
+          SizedBox(height: 14.h),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -818,7 +822,7 @@ class _HomeContentState extends State<_HomeContent> {
                       style: GoogleFonts.outfit(
                         color: statusColor,
                         fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                        fontSize: 13.sp,
                       ),
                     ),
                     if (_distanceMeters != null)
@@ -828,7 +832,7 @@ class _HomeContentState extends State<_HomeContent> {
                             : 'A ${_distanceMeters!.toStringAsFixed(0)} m del centro',
                         style: GoogleFonts.outfit(
                           color: AppColors.sentryGrey,
-                          fontSize: 12,
+                          fontSize: 11.sp,
                         ),
                       ),
                   ],
@@ -856,7 +860,7 @@ class _HomeContentState extends State<_HomeContent> {
             ),
           ),
         ),
-        const SizedBox(width: 16),
+        SizedBox(width: 16.w),
         Expanded(
           child: GestureDetector(
             onTap: () => widget.onActionTap(3),
@@ -904,10 +908,10 @@ class _HomeContentState extends State<_HomeContent> {
   }
 
   Widget _baseCard({required Widget child}) => Container(
-    padding: const EdgeInsets.all(20),
+    padding: EdgeInsets.all(20.r),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(20.r),
       boxShadow: [
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.02),
@@ -920,31 +924,31 @@ class _HomeContentState extends State<_HomeContent> {
   );
 
   Widget _badge(String text) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
     decoration: BoxDecoration(
       color: Colors.white24,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(12.r),
     ),
     child: Text(
       text,
       style: GoogleFonts.outfit(
         color: Colors.white,
-        fontSize: 12,
+        fontSize: 11.sp,
         fontWeight: FontWeight.w700,
       ),
     ),
   );
 
   Widget _infoRow(IconData icon, String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
+    padding: EdgeInsets.only(bottom: 10.h),
     child: Row(
       children: [
-        Icon(icon, color: Colors.white70, size: 18),
-        const SizedBox(width: 12),
+        Icon(icon, color: Colors.white70, size: 17.sp),
+        SizedBox(width: 12.w),
         Expanded(
           child: Text(
             text,
-            style: GoogleFonts.outfit(color: Colors.white, fontSize: 14),
+            style: GoogleFonts.outfit(color: Colors.white, fontSize: 13.sp),
           ),
         ),
       ],
@@ -953,26 +957,27 @@ class _HomeContentState extends State<_HomeContent> {
 
   Widget _actionBtn(String title, String sub, IconData icon, Color color) =>
       Container(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16.r),
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(20.r),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: Colors.white, size: 28),
-            const SizedBox(height: 12),
+            Icon(icon, color: Colors.white, size: 26.sp),
+            SizedBox(height: 10.h),
             Text(
               title,
               style: GoogleFonts.outfit(
                 color: Colors.white,
                 fontWeight: FontWeight.w700,
+                fontSize: 13.sp,
               ),
             ),
             Text(
               sub,
-              style: GoogleFonts.outfit(color: Colors.white70, fontSize: 11),
+              style: GoogleFonts.outfit(color: Colors.white70, fontSize: 11.sp),
             ),
           ],
         ),

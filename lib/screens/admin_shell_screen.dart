@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/support_service.dart';
 import '../services/supabase_service.dart';
@@ -70,11 +71,20 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.sentryBg,
-      body: IndexedStack(index: _selectedIndex, children: pages),
-      bottomNavigationBar: _AdminBottomBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: _selectTab,
-        unreadSupport: _unreadSupport,
+      body: Stack(
+        children: [
+          IndexedStack(index: _selectedIndex, children: pages),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _AdminBottomBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: _selectTab,
+              unreadSupport: _unreadSupport,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -91,24 +101,24 @@ class _MoreScreen extends StatelessWidget {
       backgroundColor: AppColors.sentryBg,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+          padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 20.h),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Más opciones',
                 style: TextStyle(
-                  fontSize: 22,
+                  fontSize: 22.sp,
                   fontWeight: FontWeight.w800,
                   color: AppColors.sentryNavy,
                 ),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6.h),
               Text(
                 'Herramientas adicionales',
-                style: TextStyle(fontSize: 13, color: AppColors.sentryGrey),
+                style: TextStyle(fontSize: 13.sp, color: AppColors.sentryGrey),
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 24.h),
               _MoreTile(
                 icon: Icons.groups_rounded,
                 color: AppColors.sentryBlue,
@@ -119,7 +129,7 @@ class _MoreScreen extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const AttendeesScreen()),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               _MoreTile(
                 icon: Icons.manage_accounts_rounded,
                 color: const Color(0xFF6A1B9A),
@@ -131,7 +141,7 @@ class _MoreScreen extends StatelessWidget {
                       builder: (_) => const UserManagementScreen()),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               _MoreTile(
                 icon: Icons.headset_mic_rounded,
                 color: AppColors.sentryCyan,
@@ -173,12 +183,12 @@ class _MoreTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(16.r),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16.r),
           border: Border.all(color: AppColors.cardBorder),
           boxShadow: [
             BoxShadow(
@@ -195,16 +205,16 @@ class _MoreTile extends StatelessWidget {
               label: Text('$badgeCount'),
               backgroundColor: AppColors.error,
               child: Container(
-                width: 44,
-                height: 44,
+                width: 44.w,
+                height: 44.w,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(12.r),
                 ),
-                child: Icon(icon, color: color, size: 22),
+                child: Icon(icon, color: color, size: 22.sp),
               ),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: 16.w),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,22 +222,22 @@ class _MoreTile extends StatelessWidget {
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 14.sp,
                       fontWeight: FontWeight.w700,
                       color: AppColors.sentryNavy,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2.h),
                   Text(
                     subtitle,
                     style: TextStyle(
-                        fontSize: 11, color: AppColors.sentryGrey),
+                        fontSize: 11.sp, color: AppColors.sentryGrey),
                   ),
                 ],
               ),
             ),
             Icon(Icons.chevron_right_rounded,
-                size: 20, color: AppColors.sentryGrey),
+                size: 20.sp, color: AppColors.sentryGrey),
           ],
         ),
       ),
@@ -251,11 +261,11 @@ class _AdminBottomBar extends StatelessWidget {
     return GestureDetector(
       onTap: () => onDestinationSelected(idx),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
         child: Icon(
           active ? filled : outline,
           color: active ? AppColors.sentryBlue : AppColors.sentryGrey,
-          size: 26,
+          size: 26.sp,
         ),
       ),
     );
@@ -264,12 +274,13 @@ class _AdminBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active3 = selectedIndex == 3;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Container(
-      margin: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-      height: 60,
+      margin: EdgeInsets.fromLTRB(24.w, 0, 24.w, 12.h + bottomPadding),
+      height: 60.h,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(22.r),
         boxShadow: [
           BoxShadow(
             color: AppColors.sentryNavy.withValues(alpha: 0.10),
@@ -287,7 +298,7 @@ class _AdminBottomBar extends StatelessWidget {
           GestureDetector(
             onTap: () => onDestinationSelected(3),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
               child: Badge(
                 isLabelVisible: unreadSupport > 0,
                 label: Text('$unreadSupport'),
@@ -295,7 +306,7 @@ class _AdminBottomBar extends StatelessWidget {
                 child: Icon(
                   Icons.grid_view_rounded,
                   color: active3 ? AppColors.sentryBlue : AppColors.sentryGrey,
-                  size: 26,
+                  size: 26.sp,
                 ),
               ),
             ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
@@ -60,56 +61,56 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: EdgeInsets.symmetric(horizontal: 24.w),
             child: Column(
               children: [
-                const SizedBox(height: 32),
+                SizedBox(height: 32.h),
 
                 // Icon
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(20.r),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [AppColors.sentryNavy, AppColors.sentryBlue],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(20.r),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.lock_reset_rounded,
                     color: Colors.white,
-                    size: 40,
+                    size: 40.sp,
                   ),
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24.h),
 
                 Text(
                   'Crea tu contraseña',
                   style: GoogleFonts.outfit(
-                    fontSize: 24,
+                    fontSize: 24.sp,
                     fontWeight: FontWeight.w800,
                     color: AppColors.sentryNavy,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8.h),
                 Text(
                   'Por seguridad, debes establecer una contraseña personal antes de continuar.',
                   style: GoogleFonts.outfit(
-                    fontSize: 13,
+                    fontSize: 13.sp,
                     color: AppColors.sentryGrey,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 32),
+                SizedBox(height: 32.h),
 
                 // Form card
                 Container(
-                  padding: const EdgeInsets.all(24),
+                  padding: EdgeInsets.all(24.r),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(24.r),
                     boxShadow: [
                       BoxShadow(
                         color: AppColors.sentryNavy.withAlpha(20),
@@ -146,7 +147,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16.h),
                         _buildField(
                           controller: _confirmCtrl,
                           label: 'Confirmar contraseña',
@@ -163,26 +164,26 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         ),
 
                         if (_errorMsg != null) ...[
-                          const SizedBox(height: 14),
+                          SizedBox(height: 14.h),
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 10),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 14.w, vertical: 10.h),
                             decoration: BoxDecoration(
                               color: Colors.redAccent.withAlpha(18),
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(10.r),
                               border: Border.all(
                                   color: Colors.redAccent.withAlpha(60)),
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.error_outline_rounded,
-                                    color: Colors.redAccent, size: 16),
-                                const SizedBox(width: 8),
+                                Icon(Icons.error_outline_rounded,
+                                    color: Colors.redAccent, size: 16.sp),
+                                SizedBox(width: 8.w),
                                 Expanded(
                                   child: Text(
                                     _errorMsg!,
                                     style: GoogleFonts.outfit(
-                                      fontSize: 12,
+                                      fontSize: 12.sp,
                                       color: Colors.redAccent,
                                     ),
                                   ),
@@ -192,11 +193,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                           ),
                         ],
 
-                        const SizedBox(height: 24),
+                        SizedBox(height: 24.h),
 
                         Container(
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(14.r),
                             gradient: const LinearGradient(
                               colors: [
                                 AppColors.sentryCyan,
@@ -219,15 +220,15 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                               backgroundColor: Colors.transparent,
                               shadowColor: Colors.transparent,
                               padding:
-                                  const EdgeInsets.symmetric(vertical: 16),
+                                  EdgeInsets.symmetric(vertical: 16.h),
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14)),
+                                  borderRadius: BorderRadius.circular(14.r)),
                             ),
                             child: _isLoading
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
+                                ? SizedBox(
+                                    width: 20.w,
+                                    height: 20.w,
+                                    child: const CircularProgressIndicator(
                                       color: Colors.white,
                                       strokeWidth: 2,
                                     ),
@@ -235,7 +236,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                                 : Text(
                                     'Guardar y continuar',
                                     style: GoogleFonts.outfit(
-                                      fontSize: 15,
+                                      fontSize: 15.sp,
                                       fontWeight: FontWeight.w700,
                                       color: Colors.white,
                                     ),
@@ -247,14 +248,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                SizedBox(height: 24.h),
 
                 // Requirements hint
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: EdgeInsets.all(14.r),
                   decoration: BoxDecoration(
                     color: AppColors.sentryCyan.withAlpha(20),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(12.r),
                     border: Border.all(
                         color: AppColors.sentryCyan.withAlpha(60)),
                   ),
@@ -264,29 +265,29 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       Text(
                         'Requisitos de contraseña',
                         style: GoogleFonts.outfit(
-                          fontSize: 12,
+                          fontSize: 12.sp,
                           fontWeight: FontWeight.w700,
                           color: AppColors.sentryNavy,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6.h),
                       ...[
                         'Mínimo 8 caracteres',
                         'Al menos una letra mayúscula',
                         'Al menos un número',
                       ].map(
                         (r) => Padding(
-                          padding: const EdgeInsets.only(top: 3),
+                          padding: EdgeInsets.only(top: 3.h),
                           child: Row(
                             children: [
-                              const Icon(Icons.check_circle_rounded,
-                                  size: 13,
+                              Icon(Icons.check_circle_rounded,
+                                  size: 13.sp,
                                   color: AppColors.sentryCyan),
-                              const SizedBox(width: 6),
+                              SizedBox(width: 6.w),
                               Text(
                                 r,
                                 style: GoogleFonts.outfit(
-                                  fontSize: 12,
+                                  fontSize: 12.sp,
                                   color: AppColors.sentryGrey,
                                 ),
                               ),
@@ -298,7 +299,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 40),
+                SizedBox(height: 40.h),
               ],
             ),
           ),
@@ -321,12 +322,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         Text(
           label,
           style: GoogleFonts.outfit(
-            fontSize: 13,
+            fontSize: 13.sp,
             fontWeight: FontWeight.w600,
             color: AppColors.sentryNavy,
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6.h),
         TextFormField(
           controller: controller,
           obscureText: obscure,
@@ -344,29 +345,29 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               icon: Icon(
                 obscure ? Icons.visibility_off : Icons.visibility,
                 color: AppColors.sentryGrey,
-                size: 20,
+                size: 20.sp,
               ),
               onPressed: onToggle,
             ),
             filled: true,
             fillColor: AppColors.sentryBg,
-            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+            contentPadding: EdgeInsets.symmetric(vertical: 16.h),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14.r),
               borderSide: BorderSide.none,
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14.r),
               borderSide: const BorderSide(
                   color: AppColors.sentryCyan, width: 2),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14.r),
               borderSide:
                   const BorderSide(color: Colors.redAccent, width: 1.5),
             ),
             focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14.r),
               borderSide:
                   const BorderSide(color: Colors.redAccent, width: 2),
             ),

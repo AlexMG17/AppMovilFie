@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/event_service.dart';
 import '../services/supabase_service.dart';
@@ -269,7 +270,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             Text(
               'Gestión de Usuarios',
               style: GoogleFonts.outfit(
-                fontSize: 18,
+                fontSize: 18.sp,
                 fontWeight: FontWeight.w800,
                 color: Colors.white,
               ),
@@ -277,7 +278,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             Text(
               'Asignación de roles',
               style: GoogleFonts.outfit(
-                fontSize: 11,
+                fontSize: 11.sp,
                 fontWeight: FontWeight.w400,
                 color: Colors.white70,
               ),
@@ -347,7 +348,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   Widget _buildStatsRow(int admins, int guardias, int estudiantes) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 0),
       child: Row(
         children: [
           _StatTile(
@@ -355,19 +356,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             value: _allUsers.length,
             color: AppColors.sentryBlue,
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10.w),
           _StatTile(
             label: 'Admins',
             value: admins,
             color: AppColors.sentryNavy,
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10.w),
           _StatTile(
             label: 'Validadores',
             value: guardias,
             color: AppColors.warning,
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10.w),
           _StatTile(
             label: 'Estudiantes',
             value: estudiantes,
@@ -390,15 +391,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         child: TextField(
           controller: _searchController,
           onChanged: _onSearch,
-          style: GoogleFonts.outfit(fontSize: 14, color: AppColors.sentryNavy),
+          style: GoogleFonts.outfit(fontSize: 14.sp, color: AppColors.sentryNavy),
           decoration: InputDecoration(
             hintText: 'Buscar por nombre o correo...',
             hintStyle: GoogleFonts.outfit(
-              fontSize: 14,
+              fontSize: 14.sp,
               color: AppColors.sentryGrey,
             ),
-            prefixIcon: const Icon(Icons.search_rounded,
-                color: AppColors.sentryGrey, size: 20),
+            prefixIcon: Icon(Icons.search_rounded,
+                color: AppColors.sentryGrey, size: 20.sp),
             suffixIcon: _search.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.clear_rounded,
@@ -450,7 +451,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               child: Text(
                 '$label ($count)',
                 style: GoogleFonts.outfit(
-                  fontSize: 12,
+                  fontSize: 12.sp,
                   fontWeight: FontWeight.w600,
                   color: selected ? Colors.white : AppColors.sentryGrey,
                 ),
@@ -539,20 +540,20 @@ class _UserRow extends StatelessWidget {
         child: Row(
           children: [
             CircleAvatar(
-              radius: 20,
+              radius: 20.r,
               backgroundColor: _avatarColor(),
               child: Text(
                 user.nombre.isNotEmpty
                     ? user.nombre[0].toUpperCase()
                     : '?',
                 style: GoogleFonts.outfit(
-                  fontSize: 15,
+                  fontSize: 15.sp,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10.w),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -563,7 +564,7 @@ class _UserRow extends StatelessWidget {
                         child: Text(
                           user.nombre,
                           style: GoogleFonts.outfit(
-                            fontSize: 13,
+                            fontSize: 13.sp,
                             fontWeight: FontWeight.w700,
                             color: AppColors.sentryNavy,
                           ),
@@ -594,7 +595,7 @@ class _UserRow extends StatelessWidget {
                   Text(
                     user.email,
                     style: GoogleFonts.outfit(
-                      fontSize: 11,
+                      fontSize: 11.sp,
                       color: AppColors.sentryGrey,
                     ),
                     overflow: TextOverflow.ellipsis,

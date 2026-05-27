@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/event_service.dart';
@@ -159,17 +160,17 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
         title: Row(
           children: [
             CircleAvatar(
-              radius: 17,
+              radius: 17.r,
               backgroundColor: AppColors.sentryCyan.withValues(alpha: 0.25),
               child: Text(
                 initial,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.sentryCyan,
                     fontWeight: FontWeight.w700,
-                    fontSize: 15),
+                    fontSize: 15.sp),
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10.w),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -178,12 +179,12 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                   style: GoogleFonts.outfit(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
-                      fontSize: 16),
+                      fontSize: 16.sp),
                 ),
                 Text(
                   'Conversación privada',
                   style: GoogleFonts.outfit(
-                      color: AppColors.sentryCyan, fontSize: 11),
+                      color: AppColors.sentryCyan, fontSize: 11.sp),
                 ),
               ],
             ),
@@ -205,13 +206,13 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       automaticallyImplyLeading: false,
       title: Row(
         children: [
-          const CircleAvatar(
-            radius: 18,
+          CircleAvatar(
+            radius: 18.r,
             backgroundColor: AppColors.sentryCyan,
             child: Icon(Icons.support_agent_rounded,
-                color: Colors.white, size: 20),
+                color: Colors.white, size: 20.sp),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10.w),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -220,7 +221,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                 style: GoogleFonts.outfit(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
-                    fontSize: 16),
+                    fontSize: 16.sp),
               ),
             ],
           ),
@@ -383,7 +384,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                   child: Text(
                     msg.mensaje,
                     style: GoogleFonts.outfit(
-                      fontSize: 14,
+                      fontSize: 14.sp,
                       color: isMe ? Colors.white : AppColors.sentryNavy,
                     ),
                   ),
@@ -405,7 +406,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   }
 
   Widget _buildInput() => Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+        padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 16.h),
         decoration: const BoxDecoration(
           color: Colors.white,
           boxShadow: [
@@ -426,25 +427,25 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                 decoration: InputDecoration(
                   hintText: 'Escribe tu mensaje...',
                   hintStyle: GoogleFonts.outfit(
-                      color: AppColors.sentryGrey, fontSize: 14),
+                      color: AppColors.sentryGrey, fontSize: 14.sp),
                   filled: true,
                   fillColor: AppColors.sentryBg,
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
+                  contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16.w, vertical: 12.h),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(24.r),
                     borderSide: BorderSide.none,
                   ),
                 ),
-                style: GoogleFonts.outfit(fontSize: 14),
+                style: GoogleFonts.outfit(fontSize: 14.sp),
               ),
             ),
             const SizedBox(width: 10),
             GestureDetector(
               onTap: _sendMessage,
               child: Container(
-                width: 46,
-                height: 46,
+                width: 46.w,
+                height: 46.w,
                 decoration: const BoxDecoration(
                   color: AppColors.sentryBlue,
                   shape: BoxShape.circle,

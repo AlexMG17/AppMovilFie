@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/event_service.dart';
 import '../services/payment_service.dart' show PaymentService, PagoModel;
@@ -63,7 +64,7 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
         color: AppColors.sentryBlue,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24.r),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -72,17 +73,17 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
                 style: GoogleFonts.outfit(
                   color: AppColors.sentryNavy,
                   fontWeight: FontWeight.w800,
-                  fontSize: 24,
+                  fontSize: 24.sp,
                 ),
               ),
               Text(
                 'Seguimiento de tu comprobante',
                 style: GoogleFonts.outfit(
                   color: AppColors.sentryGrey,
-                  fontSize: 14,
+                  fontSize: 14.sp,
                 ),
               ),
-              const SizedBox(height: 25),
+              SizedBox(height: 25.h),
               if (_loading)
                 const Center(
                   child: CircularProgressIndicator(color: AppColors.sentryBlue),
@@ -93,17 +94,17 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
                 _buildNoVoucherCard()
               else ...[
                 _buildStatusBanner(_voucher!),
-                const SizedBox(height: 25),
+                SizedBox(height: 25.h),
                 _buildSectionTitle('Detalles del comprobante'),
                 _buildDetailsCard(_voucher!),
-                const SizedBox(height: 25),
+                SizedBox(height: 25.h),
                 _buildSectionTitle('Seguimiento del proceso'),
                 _buildTimeline(_voucher!),
-                const SizedBox(height: 30),
+                SizedBox(height: 30.h),
                 if (_voucher!.isApproved) _buildQrButton(context),
                 if (_voucher!.isRejected) _buildRejectedActions(),
               ],
-              const SizedBox(height: 100),
+              SizedBox(height: 100.h),
             ],
           ),
         ),
@@ -113,16 +114,16 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
 
   Widget _buildErrorCard(String msg) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(20.r),
       decoration: BoxDecoration(
         color: AppColors.error.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.r),
         border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
           const Icon(Icons.error_outline, color: AppColors.error),
-          const SizedBox(width: 12),
+          SizedBox(width: 12.w),
           Expanded(
             child: Text(
               msg,
@@ -136,31 +137,31 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
 
   Widget _buildNoVoucherCard() {
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(28.r),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20.r),
       ),
       child: Column(
         children: [
-          const Icon(Icons.receipt_long_outlined,
-              size: 56, color: AppColors.sentryGrey),
-          const SizedBox(height: 16),
+          Icon(Icons.receipt_long_outlined,
+              size: 56.sp, color: AppColors.sentryGrey),
+          SizedBox(height: 16.h),
           Text(
             'Sin comprobante',
             style: GoogleFonts.outfit(
               color: AppColors.sentryNavy,
               fontWeight: FontWeight.w700,
-              fontSize: 16,
+              fontSize: 16.sp,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
           Text(
             'Aún no has subido ningún comprobante de pago.',
             textAlign: TextAlign.center,
             style: GoogleFonts.outfit(
               color: AppColors.sentryGrey,
-              fontSize: 13,
+              fontSize: 13.sp,
             ),
           ),
         ],
@@ -200,10 +201,10 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(20.r),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20.r),
         border: Border.all(color: border),
       ),
       child: Row(
@@ -212,7 +213,7 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
             backgroundColor: iconBg,
             child: Icon(icon, color: Colors.white),
           ),
-          const SizedBox(width: 15),
+          SizedBox(width: 15.w),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -222,14 +223,14 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
                   style: GoogleFonts.outfit(
                     color: AppColors.sentryNavy,
                     fontWeight: FontWeight.w700,
-                    fontSize: 16,
+                    fontSize: 16.sp,
                   ),
                 ),
                 Text(
                   subtitle,
                   style: GoogleFonts.outfit(
                     color: AppColors.sentryGrey,
-                    fontSize: 13,
+                    fontSize: 13.sp,
                   ),
                 ),
               ],
@@ -242,10 +243,10 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
 
   Widget _buildDetailsCard(PagoModel v) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(20.r),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20.r),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -305,10 +306,10 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(20.r),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20.r),
       ),
       child: Column(
         children: steps.asMap().entries.map((e) {
@@ -323,7 +324,7 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
   Widget _buildQrButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 55,
+      height: 55.h,
       child: ElevatedButton.icon(
         onPressed: () => Navigator.push(
           context,
@@ -334,14 +335,14 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
           'Ver mi código QR',
           style: GoogleFonts.outfit(
             color: Colors.white,
-            fontSize: 16,
+            fontSize: 16.sp,
             fontWeight: FontWeight.w700,
           ),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.success,
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.r)),
         ),
       ),
     );
@@ -355,13 +356,13 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
           textAlign: TextAlign.center,
           style: GoogleFonts.outfit(
             color: AppColors.sentryGrey,
-            fontSize: 13,
+            fontSize: 13.sp,
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16.h),
         SizedBox(
           width: double.infinity,
-          height: 50,
+          height: 50.h,
           child: ElevatedButton.icon(
             onPressed: () {},
             icon: const Icon(Icons.upload_file_rounded, color: Colors.white),
@@ -375,7 +376,7 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.sentryBlue,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12.r)),
             ),
           ),
         ),
@@ -386,32 +387,32 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
   // ── helpers ──────────────────────────────────────────────────────────────
 
   Widget _buildSectionTitle(String title) => Padding(
-        padding: const EdgeInsets.only(left: 4, bottom: 12),
+        padding: EdgeInsets.only(left: 4.w, bottom: 12.h),
         child: Text(
           title,
           style: GoogleFonts.outfit(
             color: AppColors.sentryNavy,
             fontWeight: FontWeight.w700,
-            fontSize: 16,
+            fontSize: 16.sp,
           ),
         ),
       );
 
   Widget _detailRow(String label, String value, {bool isLast = false}) =>
       Padding(
-        padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
+        padding: EdgeInsets.only(bottom: isLast ? 0 : 12.h),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label,
                 style: GoogleFonts.outfit(
-                    color: AppColors.sentryGrey, fontSize: 14)),
+                    color: AppColors.sentryGrey, fontSize: 14.sp)),
             Text(
               value,
               style: GoogleFonts.outfit(
                 color: AppColors.sentryNavy,
                 fontWeight: FontWeight.w700,
-                fontSize: 14,
+                fontSize: 14.sp,
               ),
             ),
           ],
@@ -428,19 +429,19 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
               Icon(
                 done ? Icons.check_circle : Icons.radio_button_unchecked,
                 color: done ? AppColors.success : AppColors.sentryGrey,
-                size: 20,
+                size: 20.sp,
               ),
               if (!isLast)
                 Container(
                   width: 2,
-                  height: 30,
+                  height: 30.h,
                   color: done
                       ? AppColors.success
                       : AppColors.sentryGrey.withValues(alpha: 0.3),
                 ),
             ],
           ),
-          const SizedBox(width: 15),
+          SizedBox(width: 15.w),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -449,17 +450,17 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
                 style: GoogleFonts.outfit(
                   color: AppColors.sentryNavy,
                   fontWeight: done ? FontWeight.w700 : FontWeight.w400,
-                  fontSize: 14,
+                  fontSize: 14.sp,
                 ),
               ),
               Text(
                 subtitle,
                 style: GoogleFonts.outfit(
                   color: AppColors.sentryGrey,
-                  fontSize: 12,
+                  fontSize: 12.sp,
                 ),
               ),
-              const SizedBox(height: 15),
+              SizedBox(height: 15.h),
             ],
           ),
         ],

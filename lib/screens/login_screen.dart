@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
@@ -116,8 +117,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
         top: MediaQuery.of(context).padding.top + 20,
-        left: 24,
-        right: 24,
+        left: 24.w,
+        right: 24.w,
         child: Material(
           color: Colors.transparent,
           child: TweenAnimationBuilder<double>(
@@ -131,10 +132,10 @@ class _LoginScreenState extends State<LoginScreen> {
               );
             },
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
               decoration: BoxDecoration(
                 color: isError ? Colors.redAccent : Colors.green,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16.r),
                 boxShadow: [
                   BoxShadow(
                     color: (isError ? Colors.redAccent : Colors.green)
@@ -149,16 +150,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   Icon(
                     isError ? Icons.error_outline : Icons.check_circle_outline,
                     color: Colors.white,
-                    size: 28,
+                    size: 28.sp,
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12.w),
                   Expanded(
                     child: Text(
                       message,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontSize: 14.sp,
                       ),
                     ),
                   ),
@@ -494,11 +495,11 @@ class _LoginScreenState extends State<LoginScreen> {
           // 1. DISEÑO DE FONDO
           Container(
             height: size.height * 0.45,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.sentryNavy,
               borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(60),
-                bottomRight: Radius.circular(60),
+                bottomLeft: Radius.circular(60.r),
+                bottomRight: Radius.circular(60.r),
               ),
             ),
           ),
@@ -537,7 +538,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 opacity: 0.9,
                 child: Image.asset(
                   'assets/images/Llamasgif.gif',
-                  height: 200,
+                  height: 180.h,
                   fit: BoxFit.fitWidth,
                   alignment: Alignment.bottomCenter,
                 ),
@@ -553,23 +554,23 @@ class _LoginScreenState extends State<LoginScreen> {
             child: SafeArea(
               child: Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  padding: EdgeInsets.symmetric(horizontal: 24.w),
                   child: Column(
                     children: [
-                      const SizedBox(height: 20),
+                      SizedBox(height: 20.h),
                       // LOGO
                       Image.asset(
                         'assets/images/logo.png',
-                        height: 210,
+                        height: 190.h,
                         fit: BoxFit.contain,
                       ),
-                      const SizedBox(height: 30),
+                      SizedBox(height: 24.h),
 
                       // TARJETA BLANCA
                       Container(
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(32),
+                          borderRadius: BorderRadius.circular(32.r),
                           boxShadow: [
                             BoxShadow(
                               color: AppColors.sentryNavy.withAlpha(38),
@@ -579,7 +580,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ],
                         ),
-                        padding: const EdgeInsets.all(28.0),
+                        padding: EdgeInsets.all(28.r),
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 300),
                           child: isStudent == null
@@ -594,7 +595,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 200),
+                      SizedBox(height: 180.h),
                     ],
                   ),
                 ),
@@ -614,20 +615,20 @@ class _LoginScreenState extends State<LoginScreen> {
       key: const ValueKey(1),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           '¡Bienvenido!',
           style: TextStyle(
-            fontSize: 28,
+            fontSize: 28.sp,
             color: AppColors.sentryNavy,
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 8),
-        const Text(
+        SizedBox(height: 8.h),
+        Text(
           'Por favor, selecciona tu perfil de ingreso:',
-          style: TextStyle(fontSize: 15, color: AppColors.sentryGrey),
+          style: TextStyle(fontSize: 15.sp, color: AppColors.sentryGrey),
         ),
-        const SizedBox(height: 30),
+        SizedBox(height: 28.h),
         _buildRoleButton(
           title: 'Estudiante Politécnico',
           subtitle: 'Acceso con @espoch.edu.ec',
@@ -639,7 +640,7 @@ class _LoginScreenState extends State<LoginScreen> {
             });
           },
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16.h),
         _buildRoleButton(
           title: 'Invitado / Externo',
           subtitle: 'Acceso con Google o correo',
@@ -668,10 +669,10 @@ class _LoginScreenState extends State<LoginScreen> {
           Row(
             children: [
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.arrow_back_ios_new,
                   color: AppColors.sentryNavy,
-                  size: 20,
+                  size: 20.sp,
                 ),
                 onPressed: () {
                   setState(() {
@@ -679,22 +680,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   });
                 },
               ),
-              const Text(
+              Text(
                 'Nueva Contraseña',
                 style: TextStyle(
                   color: AppColors.sentryNavy,
-                  fontSize: 20,
+                  fontSize: 20.sp,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          const Text(
+          SizedBox(height: 16.h),
+          Text(
             'Revisa tu correo electrónico. Te enviamos un código de recuperación.',
-            style: TextStyle(color: AppColors.sentryGrey, fontSize: 14),
+            style: TextStyle(color: AppColors.sentryGrey, fontSize: 14.sp),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
 
           _buildEpicTextField(
             controller: _otpController,
@@ -706,7 +707,7 @@ class _LoginScreenState extends State<LoginScreen> {
               return null;
             },
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20.h),
 
           _buildEpicTextField(
             controller: _newPasswordController,
@@ -722,7 +723,7 @@ class _LoginScreenState extends State<LoginScreen> {
               return null;
             },
           ),
-          const SizedBox(height: 30),
+          SizedBox(height: 28.h),
 
           _buildEpicButton(
             text: 'Cambiar Contraseña',
@@ -745,10 +746,10 @@ class _LoginScreenState extends State<LoginScreen> {
           Row(
             children: [
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.arrow_back_ios_new,
                   color: AppColors.sentryNavy,
-                  size: 20,
+                  size: 20.sp,
                 ),
                 onPressed: () {
                   setState(() {
@@ -757,22 +758,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   });
                 },
               ),
-              const Text(
+              Text(
                 'Verificar Cuenta',
                 style: TextStyle(
                   color: AppColors.sentryNavy,
-                  fontSize: 20,
+                  fontSize: 20.sp,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           Text(
             'Enviamos un código de validación al correo:\n${_emailController.text}',
-            style: const TextStyle(color: AppColors.sentryGrey, fontSize: 14),
+            style: TextStyle(color: AppColors.sentryGrey, fontSize: 14.sp),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
 
           _buildEpicTextField(
             controller: _otpController,
@@ -784,13 +785,13 @@ class _LoginScreenState extends State<LoginScreen> {
               return null;
             },
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20.h),
 
           _buildEpicButton(
             text: 'Completar Registro',
             onPressed: _handleVerifySignUp,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
 
           // BOTÓN DE REENVIAR CÓDIGO
           TextButton(
@@ -821,10 +822,10 @@ class _LoginScreenState extends State<LoginScreen> {
           Row(
             children: [
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.arrow_back_ios_new,
                   color: AppColors.sentryNavy,
-                  size: 20,
+                  size: 20.sp,
                 ),
                 onPressed: () {
                   setState(() {
@@ -835,15 +836,15 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               Text(
                 _isStudentLogin ? 'Acceso Estudiantil' : 'Registro Estudiantil',
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.sentryNavy,
-                  fontSize: 20,
+                  fontSize: 20.sp,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
 
           // Campo de Nombre (Solo visible en Registro)
           if (!_isStudentLogin) ...[
@@ -859,7 +860,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20.h),
           ],
 
           _buildEpicTextField(
@@ -877,7 +878,7 @@ class _LoginScreenState extends State<LoginScreen> {
               return null;
             },
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20.h),
 
           _buildEpicTextField(
             controller: _passwordController,
@@ -902,7 +903,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
           // Confirmar Contraseña (Solo visible en Registro)
           if (!_isStudentLogin) ...[
-            const SizedBox(height: 20),
+            SizedBox(height: 20.h),
             _buildEpicTextField(
               controller: _confirmPasswordController,
               label: 'Confirmar Contraseña',
@@ -936,16 +937,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10.h),
           ] else ...[
-            const SizedBox(height: 30),
+            SizedBox(height: 28.h),
           ],
 
           _buildEpicButton(
             text: _isStudentLogin ? 'Iniciar Sesión' : 'Crear Cuenta',
             onPressed: () => _handleAuth(true, _isStudentLogin),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
 
           // Botón para alternar entre Login y Registro
           Center(
@@ -962,14 +963,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   text: _isStudentLogin
                       ? '¿No tienes cuenta? '
                       : '¿Ya tienes cuenta? ',
-                  style: const TextStyle(color: AppColors.sentryGrey, fontSize: 14),
+                  style: TextStyle(color: AppColors.sentryGrey, fontSize: 14.sp),
                   children: [
                     TextSpan(
                       text: _isStudentLogin ? 'Regístrate' : 'Inicia Sesión',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.sentryNavy,
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontSize: 14.sp,
                       ),
                     ),
                   ],
@@ -995,10 +996,10 @@ class _LoginScreenState extends State<LoginScreen> {
           Row(
             children: [
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.arrow_back_ios_new,
                   color: AppColors.sentryNavy,
-                  size: 20,
+                  size: 20.sp,
                 ),
                 onPressed: () {
                   setState(() {
@@ -1009,15 +1010,15 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               Text(
                 _isExternalLogin ? 'Iniciar Sesión' : 'Crear Cuenta',
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.sentryNavy,
-                  fontSize: 20,
+                  fontSize: 20.sp,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
 
           if (!_isExternalLogin) ...[
             _buildEpicTextField(
@@ -1030,7 +1031,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20.h),
           ],
 
           _buildEpicTextField(
@@ -1043,7 +1044,7 @@ class _LoginScreenState extends State<LoginScreen> {
               return null;
             },
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20.h),
 
           _buildEpicTextField(
             controller: _passwordController,
@@ -1067,7 +1068,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
           // Confirmar Contraseña (Solo visible en Registro)
           if (!_isExternalLogin) ...[
-            const SizedBox(height: 20),
+            SizedBox(height: 20.h),
             _buildEpicTextField(
               controller: _confirmPasswordController,
               label: 'Confirmar Contraseña',
@@ -1101,16 +1102,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10.h),
           ] else ...[
-            const SizedBox(height: 30),
+            SizedBox(height: 28.h),
           ],
 
           _buildEpicButton(
             text: _isExternalLogin ? 'Iniciar Sesión' : 'Crear Cuenta',
             onPressed: () => _handleAuth(false, _isExternalLogin),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
 
           // Sección de Google siempre visible en usuario externo
           Row(
@@ -1121,13 +1122,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   thickness: 1,
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.w),
                 child: Text(
                   'o continúa con',
                   style: TextStyle(
                     color: AppColors.sentryGrey,
-                    fontSize: 13,
+                    fontSize: 13.sp,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1140,27 +1141,27 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
 
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.sentryBg,
               foregroundColor: AppColors.sentryNavy,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: EdgeInsets.symmetric(vertical: 16.h),
               elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16.r),
                 side: BorderSide(color: AppColors.sentryGrey.withAlpha(77)),
               ),
             ),
-            icon: const Icon(Icons.g_mobiledata, size: 36, color: Colors.red),
-            label: const Text(
+            icon: Icon(Icons.g_mobiledata, size: 36.sp, color: Colors.red),
+            label: Text(
               'Google',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
             ),
             onPressed: _handleGoogleSignIn,
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24.h),
 
           // Botón para alternar entre Login y Registro Externo
           Center(
@@ -1177,17 +1178,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   text: _isExternalLogin
                       ? '¿No tienes cuenta? '
                       : '¿Ya tienes cuenta? ',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.sentryGrey,
-                    fontSize: 14,
+                    fontSize: 14.sp,
                   ),
                   children: [
                     TextSpan(
                       text: _isExternalLogin ? 'Regístrate' : 'Inicia Sesión',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.sentryNavy,
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontSize: 14.sp,
                       ),
                     ),
                   ],
@@ -1212,12 +1213,12 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(20.r),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(20.r),
         decoration: BoxDecoration(
           color: AppColors.sentryBg,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(20.r),
           border: Border.all(
             color: AppColors.sentryCyan.withAlpha(77),
             width: 1.5,
@@ -1226,10 +1227,10 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(12.r),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16.r),
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.sentryNavy.withAlpha(13),
@@ -1237,36 +1238,36 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
-              child: Icon(icon, color: AppColors.sentryBlue, size: 28),
+              child: Icon(icon, color: AppColors.sentryBlue, size: 28.sp),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: 16.w),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.sentryNavy,
-                      fontSize: 17,
+                      fontSize: 17.sp,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4.h),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.sentryGrey,
-                      fontSize: 13,
+                      fontSize: 13.sp,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.arrow_forward_ios,
               color: AppColors.sentryGrey,
-              size: 18,
+              size: 18.sp,
             ),
           ],
         ),
@@ -1287,13 +1288,13 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.sentryNavy,
-            fontSize: 14,
+            fontSize: 14.sp,
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8.h),
         TextFormField(
           controller: controller,
           obscureText: isPassword ? _obscurePassword : false,
@@ -1323,20 +1324,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 : null,
             filled: true,
             fillColor: AppColors.sentryBg,
-            contentPadding: const EdgeInsets.symmetric(vertical: 18),
+            contentPadding: EdgeInsets.symmetric(vertical: 18.h),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(16.r),
               borderSide: BorderSide.none,
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(16.r),
               borderSide: const BorderSide(
                 color: AppColors.sentryCyan,
                 width: 2,
               ),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(16.r),
               borderSide: const BorderSide(color: Colors.redAccent, width: 2),
             ),
           ),
@@ -1351,7 +1352,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.r),
         boxShadow: [
           BoxShadow(
             color: AppColors.sentryBlue.withAlpha(77),
@@ -1369,25 +1370,25 @@ class _LoginScreenState extends State<LoginScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          padding: const EdgeInsets.symmetric(vertical: 18),
+          padding: EdgeInsets.symmetric(vertical: 18.h),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16.r),
           ),
         ),
         onPressed: _isLoading ? null : onPressed,
         child: _isLoading
-            ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
+            ? SizedBox(
+                height: 20.h,
+                width: 20.w,
+                child: const CircularProgressIndicator(
                   color: Colors.white,
                   strokeWidth: 2,
                 ),
               )
             : Text(
                 text,
-                style: const TextStyle(
-                  fontSize: 16,
+                style: TextStyle(
+                  fontSize: 16.sp,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),

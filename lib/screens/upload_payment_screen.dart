@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/event_service.dart';
 import '../services/payment_service.dart';
@@ -163,7 +164,7 @@ class _UploadPaymentScreenState extends State<UploadPaymentScreen> {
     return Scaffold(
       backgroundColor: AppColors.sentryBg,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24.r),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -172,17 +173,17 @@ class _UploadPaymentScreenState extends State<UploadPaymentScreen> {
               style: GoogleFonts.outfit(
                 color: AppColors.sentryNavy,
                 fontWeight: FontWeight.w800,
-                fontSize: 24,
+                fontSize: 24.sp,
               ),
             ),
             Text(
               'Sube tu comprobante de pago',
               style: GoogleFonts.outfit(
                 color: AppColors.sentryGrey,
-                fontSize: 14,
+                fontSize: 14.sp,
               ),
             ),
-            const SizedBox(height: 25),
+            SizedBox(height: 25.h),
 
             if (_isLoadingData)
               const Center(
@@ -257,32 +258,32 @@ class _UploadPaymentScreenState extends State<UploadPaymentScreen> {
 
   Widget _buildPreApprovedBanner() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(20.r),
       decoration: BoxDecoration(
         color: AppColors.success.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.r),
         border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
       ),
       child: Column(
         children: [
-          const Icon(Icons.check_circle_rounded,
-              color: AppColors.success, size: 48),
-          const SizedBox(height: 14),
+          Icon(Icons.check_circle_rounded,
+              color: AppColors.success, size: 48.sp),
+          SizedBox(height: 14.h),
           Text(
             'Tu entrada fue generada automáticamente',
             style: GoogleFonts.outfit(
               color: AppColors.sentryNavy,
               fontWeight: FontWeight.w700,
-              fontSize: 16,
+              fontSize: 16.sp,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
           Text(
             'Tu pago fue registrado por secretaría al momento de pagar tu matrícula. No necesitas subir ningún comprobante.',
             style: GoogleFonts.outfit(
               color: AppColors.sentryGrey,
-              fontSize: 13,
+              fontSize: 13.sp,
             ),
             textAlign: TextAlign.center,
           ),
@@ -334,7 +335,7 @@ class _UploadPaymentScreenState extends State<UploadPaymentScreen> {
             style: GoogleFonts.outfit(
               color: AppColors.sentryNavy,
               fontWeight: FontWeight.w700,
-              fontSize: 16,
+              fontSize: 16.sp,
             ),
             textAlign: TextAlign.center,
           ),
@@ -502,10 +503,10 @@ class _UploadPaymentScreenState extends State<UploadPaymentScreen> {
       onTap: _pickFile,
       child: Container(
         width: double.infinity,
-        height: 140,
+        height: 140.h,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(20.r),
           border: Border.all(
             color: picked
                 ? AppColors.success
@@ -707,9 +708,9 @@ class _UploadPaymentScreenState extends State<UploadPaymentScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          padding: const EdgeInsets.symmetric(vertical: 18),
+          padding: EdgeInsets.symmetric(vertical: 18.h),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16.r),
           ),
         ),
         onPressed: onPressed,
@@ -717,7 +718,7 @@ class _UploadPaymentScreenState extends State<UploadPaymentScreen> {
         label: Text(
           label,
           style: GoogleFonts.outfit(
-            fontSize: 16,
+            fontSize: 16.sp,
             fontWeight: FontWeight.w700,
             color: Colors.white,
           ),

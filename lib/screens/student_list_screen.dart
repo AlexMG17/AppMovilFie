@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/event_service.dart';
 import '../services/student_service.dart';
@@ -123,7 +124,7 @@ class _StudentListScreenState extends State<StudentListScreen>
   }
 
   TextStyle _ts(double size, {FontWeight fw = FontWeight.w400, Color? color}) =>
-      GoogleFonts.outfit(fontSize: size, fontWeight: fw, color: color ?? _kNavy);
+      GoogleFonts.outfit(fontSize: size.sp, fontWeight: fw, color: color ?? _kNavy);
 
   // ── RF33: Descargar CSV ────────────────────────────────────────────────────
   Future<void> _downloadCsv() async {
@@ -613,14 +614,14 @@ class _StudentListScreenState extends State<StudentListScreen>
                 child: Row(
                   children: [
                     CircleAvatar(
-                      radius: 20,
+                      radius: 20.r,
                       backgroundColor: _avatarColor(s.nombre).withValues(alpha: 0.2),
                       child: Text(
                         s.nombre.isNotEmpty ? s.nombre[0].toUpperCase() : '?',
-                        style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w800, color: _avatarColor(s.nombre)),
+                        style: GoogleFonts.outfit(fontSize: 14.sp, fontWeight: FontWeight.w800, color: _avatarColor(s.nombre)),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10.w),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -737,9 +738,9 @@ class _StatBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('$value', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w800, color: color)),
-          const SizedBox(width: 5),
-          Text(label, style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w500, color: _kNavy)),
+          Text('$value', style: GoogleFonts.outfit(fontSize: 14.sp, fontWeight: FontWeight.w800, color: color)),
+          SizedBox(width: 5.w),
+          Text(label, style: GoogleFonts.outfit(fontSize: 12.sp, fontWeight: FontWeight.w500, color: _kNavy)),
         ],
       ),
     );
@@ -768,7 +769,7 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: GoogleFonts.outfit(fontSize: 9, fontWeight: FontWeight.w700, color: color),
+        style: GoogleFonts.outfit(fontSize: 9.sp, fontWeight: FontWeight.w700, color: color),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -540,16 +541,19 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
     return Scaffold(
       backgroundColor: AppColors.sentryBg,
       floatingActionButton: _showScrollTop
-          ? FloatingActionButton.small(
-              onPressed: () => _scrollCtrl.animateTo(
-                0,
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOut,
-              ),
-              backgroundColor: AppColors.sentryBlue,
-              child: const Icon(
-                Icons.keyboard_arrow_up_rounded,
-                color: Colors.white,
+          ? Padding(
+              padding: EdgeInsets.only(bottom: 72.h),
+              child: FloatingActionButton.small(
+                onPressed: () => _scrollCtrl.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOut,
+                ),
+                backgroundColor: AppColors.sentryBlue,
+                child: const Icon(
+                  Icons.keyboard_arrow_up_rounded,
+                  color: Colors.white,
+                ),
               ),
             )
           : null,
@@ -1067,7 +1071,7 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
   TextStyle _ts(double sz,
           {FontWeight fw = FontWeight.w400, Color? c}) =>
       GoogleFonts.outfit(
-          fontSize: sz,
+          fontSize: sz.sp,
           fontWeight: fw,
           color: c ?? AppColors.sentryNavy);
 
