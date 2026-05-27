@@ -7,8 +7,8 @@ import 'admin_dashboard_screen.dart';
 import 'admin_support_list_screen.dart';
 import 'attendees_screen.dart';
 import 'import_students_screen.dart';
-import 'payment_vouchers_screen.dart';
-import 'student_list_screen.dart';
+import 'participants_screen.dart';
+import 'user_management_screen.dart';
 
 class AdminShellScreen extends StatefulWidget {
   final int initialIndex;
@@ -63,7 +63,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   Widget build(BuildContext context) {
     final pages = [
       AdminDashboardScreen(onSelectTab: _selectTab),
-      const PaymentVouchersScreen(),
+      const ParticipantsScreen(),
       const ImportStudentsScreen(),
       _MoreScreen(unreadSupport: _unreadSupport),
     ];
@@ -121,13 +121,14 @@ class _MoreScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _MoreTile(
-                icon: Icons.list_alt_rounded,
-                color: const Color(0xFF0891B2),
-                title: 'Lista de estudiantes',
-                subtitle: 'Consultar, editar y descargar',
+                icon: Icons.manage_accounts_rounded,
+                color: const Color(0xFF6A1B9A),
+                title: 'Gestión de usuarios',
+                subtitle: 'Ascender a admin o validador',
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const StudentListScreen()),
+                  MaterialPageRoute(
+                      builder: (_) => const UserManagementScreen()),
                 ),
               ),
               const SizedBox(height: 12),
@@ -281,7 +282,7 @@ class _AdminBottomBar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _item(0, Icons.home_outlined, Icons.home_rounded),
-          _item(1, Icons.receipt_long_outlined, Icons.receipt_long_rounded),
+          _item(1, Icons.people_outline_rounded, Icons.people_rounded),
           _item(2, Icons.group_add_outlined, Icons.group_add_rounded),
           GestureDetector(
             onTap: () => onDestinationSelected(3),

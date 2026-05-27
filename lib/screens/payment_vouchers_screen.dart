@@ -8,7 +8,8 @@ import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 
 class PaymentVouchersScreen extends StatefulWidget {
-  const PaymentVouchersScreen({super.key});
+  const PaymentVouchersScreen({super.key, this.showAppBar = true});
+  final bool showAppBar;
   @override
   State<PaymentVouchersScreen> createState() => _PaymentVouchersScreenState();
 }
@@ -560,7 +561,7 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
           controller: _scrollCtrl,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            _buildAppBar(),
+            if (widget.showAppBar) _buildAppBar(),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
               sliver: SliverList(

@@ -46,3 +46,9 @@ app.*.map.json
 
 # Archivos grandes / instaladores
 *.exe
+
+# Claude Code local settings
+.claude/
+
+# Supabase temp files
+supabase/.temp/

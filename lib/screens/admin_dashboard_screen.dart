@@ -1,8 +1,11 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:ui' as ui;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:fl_chart/fl_chart.dart';
+import 'package:printing/printing.dart';
 import '../services/event_service.dart';
 import '../services/payment_service.dart' show PaymentService;
 import '../services/supabase_service.dart';
@@ -72,24 +75,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   // ── Actividad reciente ────────────────────────────────────────
   List<_Activity> _activities = [];
 
-  // ── Datos gráfico línea (ingresos por hora) ───────────────────
-  List<double> _lineValues = List.filled(8, 0.0);
-  List<String> _lineLabels = const ['14h', '15h', '16h', '17h', '18h', '19h', '20h', '21h'];
-  double _lineMaxY = 10.0;
-
-  // ── Datos gráfico barras (pagos semanales) ────────────────────
-  List<double> _barAprobados = List.filled(7, 0.0);
-  List<double> _barRechazados = List.filled(7, 0.0);
-  double _barMaxY = 10.0;
-  final List<String> _barDays = const [
-    'Lun',
-    'Mar',
-    'Mié',
-    'Jue',
-    'Vie',
-    'Sáb',
-    'Dom',
-  ];
+  // â”€â”€ Datos gráfico línea (ingresos por hora) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  bool _generatingPdf = false;
+  List<FlSpot> _lineSpots = [];
+  List<String> _lineLabels = [];
+  List<double> _barAprobados = List.filled(7, 0);
+  List<double> _barRechazados = List.filled(7, 0);
+  List<String> _barDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
   @override
   void initState() {
@@ -230,15 +222,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         }
       }
 
-      final lineValuesTemp = <double>[];
-      double maxLineCount = 10.0;
-      for (int i = 0; i < 8; i++) {
-        final val = hourlyCounts[i].toDouble();
-        lineValuesTemp.add(val);
-        if (val > maxLineCount) maxLineCount = val;
-      }
-      final lineMaxYTemp = ((maxLineCount / 10).ceil() * 10).toDouble();
-
       // Procesar gráfico de pagos semanales (aprobados vs rechazados)
       final barAprobadosTemp = List<double>.filled(7, 0.0);
       final barRechazadosTemp = List<double>.filled(7, 0.0);
@@ -259,13 +242,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         }
       }
 
-      double maxBarVal = 10.0;
-      for (int i = 0; i < 7; i++) {
-        if (barAprobadosTemp[i] > maxBarVal) maxBarVal = barAprobadosTemp[i];
-        if (barRechazadosTemp[i] > maxBarVal) maxBarVal = barRechazadosTemp[i];
-      }
-      final barMaxYTemp = ((maxBarVal / 10).ceil() * 10).toDouble();
-
       setState(() {
         _activeEvent = event;
         _eventName = event.nombre;
@@ -278,16 +254,97 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         qrGenerados = stats['qr_generados'] ?? 0;
         _activities = activities;
 
-        _lineValues = lineValuesTemp;
         _lineLabels = lineLabelsTemp;
-        _lineMaxY = lineMaxYTemp;
 
         _barAprobados = barAprobadosTemp;
         _barRechazados = barRechazadosTemp;
-        _barMaxY = barMaxYTemp;
       });
 
       _subscribeRealtime(event.id);
+      _loadChartData(event.id);
+    } catch (_) {}
+  }
+
+  Future<void> _loadChartData(int idEvento) async {
+    try {
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final weekAgo = now.subtract(const Duration(days: 6));
+      final weekAgoStart = DateTime(weekAgo.year, weekAgo.month, weekAgo.day);
+
+      final results = await Future.wait([
+        SupabaseService.client
+            .from('scan_logs')
+            .select('escaneado_en')
+            .eq('resultado', 'valido')
+            .gte('escaneado_en', todayStart.toIso8601String()),
+        SupabaseService.client
+            .from('pagos')
+            .select('fecha_pago, estado')
+            .eq('id_evento', idEvento)
+            .gte('fecha_pago', weekAgoStart.toIso8601String()),
+      ]);
+
+      if (!mounted) return;
+
+      // Gráfico de línea: ingresos por hora hoy
+      final scanList = results[0] as List;
+      final hourCounts = <int, double>{};
+      for (final row in scanList) {
+        final ts = DateTime.tryParse(row['escaneado_en'] ?? '');
+        if (ts != null) hourCounts[ts.hour] = (hourCounts[ts.hour] ?? 0) + 1;
+      }
+
+      List<FlSpot> newSpots;
+      List<String> newLabels;
+
+      if (hourCounts.isEmpty) {
+        // Sin datos hoy: mostrar las últimas 6 horas con ceros
+        newSpots = List.generate(6, (i) => FlSpot(i.toDouble(), 0));
+        newLabels = List.generate(6, (i) {
+          final h = ((now.hour - 5 + i) % 24).clamp(0, 23);
+          return '${h}h';
+        });
+      } else {
+        final sortedHours = hourCounts.keys.toList()..sort();
+        final minH = sortedHours.first;
+        final maxH = sortedHours.last;
+        newSpots = [];
+        newLabels = [];
+        for (int h = minH; h <= maxH; h++) {
+          newSpots.add(FlSpot((h - minH).toDouble(), hourCounts[h] ?? 0));
+          newLabels.add('${h}h');
+        }
+      }
+
+      // Gráfico de barras: pagos aprobados/rechazados por día (últimos 7 días)
+      final pagosList = results[1] as List;
+      final newBarAprobados = List<double>.filled(7, 0);
+      final newBarRechazados = List<double>.filled(7, 0);
+      final newBarDays = List<String>.generate(7, (i) {
+        final d = weekAgoStart.add(Duration(days: i));
+        const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+        return days[d.weekday - 1];
+      });
+
+      for (final pago in pagosList) {
+        final ts = DateTime.tryParse(pago['fecha_pago'] ?? '');
+        if (ts == null) continue;
+        final tsDay = DateTime(ts.year, ts.month, ts.day);
+        final dayIdx = tsDay.difference(weekAgoStart).inDays;
+        if (dayIdx < 0 || dayIdx >= 7) continue;
+        final estado = pago['estado'] as String? ?? '';
+        if (estado == 'aprobado') newBarAprobados[dayIdx] += 1;
+        if (estado == 'rechazado') newBarRechazados[dayIdx] += 1;
+      }
+
+      setState(() {
+        _lineSpots = newSpots;
+        _lineLabels = newLabels;
+        _barAprobados = newBarAprobados;
+        _barRechazados = newBarRechazados;
+        _barDays = newBarDays;
+      });
     } catch (_) {}
   }
 
@@ -346,6 +403,276 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+  String _formatDate(DateTime dt) =>
+      '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}  '
+      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+  double get _lineMaxX =>
+      _lineSpots.isEmpty ? 5 : (_lineSpots.length - 1).toDouble();
+
+  double get _lineMaxY {
+    if (_lineSpots.isEmpty) return 10;
+    double max = 5;
+    for (final s in _lineSpots) {
+      if (s.y > max) max = s.y;
+    }
+    return (max * 1.3).ceilToDouble();
+  }
+
+  double get _barMaxY {
+    double max = 5;
+    for (final v in [..._barAprobados, ..._barRechazados]) {
+      if (v > max) max = v;
+    }
+    return (max * 1.3).ceilToDouble();
+  }
+
+  Future<void> _generatePdfReport() async {
+    if (_generatingPdf) return;
+    setState(() => _generatingPdf = true);
+    try {
+      final doc = pw.Document();
+      final now = DateTime.now();
+
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(36),
+          header: (_) => pw.Column(children: [
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('SENTRY',
+                        style: pw.TextStyle(
+                          fontSize: 22,
+                          fontWeight: pw.FontWeight.bold,
+                          color: const PdfColor.fromInt(0xFF0D2B6B),
+                        )),
+                    pw.Text('Control de Acceso \u2014 FIE ESPOCH',
+                        style: const pw.TextStyle(
+                            fontSize: 9, color: PdfColors.grey700)),
+                  ],
+                ),
+                pw.Text('REPORTE DE EVENTO',
+                    style: pw.TextStyle(
+                        fontSize: 13, fontWeight: pw.FontWeight.bold)),
+              ],
+            ),
+            pw.SizedBox(height: 6),
+            pw.Divider(
+                color: const PdfColor.fromInt(0xFF0D2B6B), thickness: 1.5),
+            pw.SizedBox(height: 4),
+          ]),
+          footer: (ctx) => pw.Column(children: [
+            pw.Divider(color: PdfColors.grey300),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('Generado: ${_formatDate(now)}',
+                    style: const pw.TextStyle(
+                        fontSize: 8, color: PdfColors.grey)),
+                pw.Text('P\u00e1gina ${ctx.pageNumber} de ${ctx.pagesCount}',
+                    style: const pw.TextStyle(
+                        fontSize: 8, color: PdfColors.grey)),
+              ],
+            ),
+          ]),
+          build: (_) => [
+            pw.Container(
+              padding: const pw.EdgeInsets.all(14),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.blueGrey200),
+                borderRadius:
+                    const pw.BorderRadius.all(pw.Radius.circular(8)),
+                color: PdfColors.blueGrey50,
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('Informaci\u00f3n del Evento',
+                      style: pw.TextStyle(
+                          fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 8),
+                  _pdfLabelRow('Nombre del evento', _eventName),
+                  if (_activeEvent != null) ...[
+                    _pdfLabelRow('Fecha', _formatDate(_activeEvent!.fecha)),
+                    _pdfLabelRow('Lugar', _activeEvent!.lugar),
+                  ],
+                  _pdfLabelRow('Reporte generado', _formatDate(now)),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 20),
+            pw.Text('Estad\u00edsticas de Asistencia',
+                style: pw.TextStyle(
+                    fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 8),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300),
+              columnWidths: {
+                0: const pw.FlexColumnWidth(2),
+                1: const pw.FlexColumnWidth(1),
+                2: const pw.FlexColumnWidth(2),
+              },
+              children: [
+                _pdfHeaderRow(['M\u00e9trica', 'Valor', 'Descripci\u00f3n']),
+                _pdfDataRow(
+                    ['Registrados', '$totalRegistrados', 'Total en sistema']),
+                _pdfDataRow(
+                    ['Aprobados', '$aprobados', 'Pagos verificados']),
+                _pdfDataRow(['Pendientes', '$pendientes', 'En revisi\u00f3n']),
+                _pdfDataRow(
+                    ['Rechazados', '$rechazados', 'Pagos inv\u00e1lidos']),
+                _pdfDataRow(
+                    ['Ingresaron', '$ingresaron', 'Entradas al evento']),
+                _pdfDataRow(
+                    ['QR Generados', '$qrGenerados', 'C\u00f3digos activos']),
+              ],
+            ),
+            pw.SizedBox(height: 20),
+            if (aprobados + pendientes + rechazados > 0) ...[
+              pw.Text('Distribuci\u00f3n de Pagos',
+                  style: pw.TextStyle(
+                      fontSize: 13, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              _pdfProgressBar('Aprobados', aprobados,
+                  aprobados + pendientes + rechazados,
+                  const PdfColor.fromInt(0xFF22C55E)),
+              pw.SizedBox(height: 6),
+              _pdfProgressBar('Pendientes', pendientes,
+                  aprobados + pendientes + rechazados,
+                  const PdfColor.fromInt(0xFFF59E0B)),
+              pw.SizedBox(height: 6),
+              _pdfProgressBar('Rechazados', rechazados,
+                  aprobados + pendientes + rechazados,
+                  const PdfColor.fromInt(0xFFEF4444)),
+              pw.SizedBox(height: 20),
+            ],
+            pw.Text('Pagos por D\u00eda \u2014 \u00daltimos 7 d\u00edas',
+                style: pw.TextStyle(
+                    fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 8),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300),
+              children: [
+                _pdfHeaderRow(['D\u00eda', 'Aprobados', 'Rechazados', 'Total']),
+                for (int i = 0; i < 7; i++)
+                  _pdfDataRow([
+                    _barDays[i],
+                    '${_barAprobados[i].toInt()}',
+                    '${_barRechazados[i].toInt()}',
+                    '${(_barAprobados[i] + _barRechazados[i]).toInt()}',
+                  ]),
+              ],
+            ),
+            pw.SizedBox(height: 20),
+            if (_activities.isNotEmpty) ...[
+              pw.Text('Actividad Reciente',
+                  style: pw.TextStyle(
+                      fontSize: 13, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 8),
+              pw.Table(
+                border: pw.TableBorder.all(color: PdfColors.grey300),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(3),
+                  1: const pw.FlexColumnWidth(1),
+                },
+                children: [
+                  _pdfHeaderRow(['Actividad', 'Tiempo']),
+                  for (final a in _activities)
+                    _pdfDataRow([a.title, a.time]),
+                ],
+              ),
+            ],
+          ],
+        ),
+      );
+
+      await Printing.layoutPdf(
+        onLayout: (_) async => doc.save(),
+        name:
+            'Reporte_${_eventName.replaceAll(' ', '_')}_${now.day}-${now.month}-${now.year}.pdf',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al generar PDF: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _generatingPdf = false);
+    }
+  }
+
+  pw.Widget _pdfLabelRow(String label, String value) => pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+        child: pw.Row(children: [
+          pw.Text('$label: ',
+              style: pw.TextStyle(
+                  fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          pw.Text(value, style: const pw.TextStyle(fontSize: 10)),
+        ]),
+      );
+
+  pw.TableRow _pdfHeaderRow(List<String> cells) => pw.TableRow(
+        decoration: const pw.BoxDecoration(
+            color: PdfColor.fromInt(0xFF0D2B6B)),
+        children: cells
+            .map((c) => pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 6),
+                  child: pw.Text(c,
+                      style: pw.TextStyle(
+                          color: PdfColors.white,
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 10)),
+                ))
+            .toList(),
+      );
+
+  pw.TableRow _pdfDataRow(List<String> cells) => pw.TableRow(
+        children: cells
+            .map((c) => pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 5),
+                  child: pw.Text(c, style: const pw.TextStyle(fontSize: 10)),
+                ))
+            .toList(),
+      );
+
+  pw.Widget _pdfProgressBar(
+      String label, int value, int total, PdfColor color) {
+    final pct = total > 0 ? value / total : 0.0;
+    final pctStr = '${(pct * 100).toStringAsFixed(1)}%';
+    const barMaxWidth = 290.0;
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+        pw.SizedBox(
+            width: 80,
+            child: pw.Text(label,
+                style: const pw.TextStyle(fontSize: 10))),
+        pw.Stack(children: [
+          pw.Container(
+              width: barMaxWidth, height: 11, color: PdfColors.grey200),
+          pw.Container(
+              width: barMaxWidth * pct.clamp(0.0, 1.0),
+              height: 11,
+              color: color),
+        ]),
+        pw.SizedBox(width: 8),
+        pw.Text('$value  ($pctStr)',
+            style: const pw.TextStyle(fontSize: 10)),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -411,6 +738,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ],
       ),
       actions: [
+        IconButton(
+          onPressed: _generatingPdf ? null : _generatePdfReport,
+          tooltip: 'Generar reporte PDF',
+          icon: _generatingPdf
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.picture_as_pdf_rounded),
+        ),
         PopupMenuButton<String>(
           offset: const Offset(0, 44),
           onSelected: (value) async {
@@ -650,14 +988,81 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           const SizedBox(height: 16),
           SizedBox(
             height: 160,
-            child: _LineChartWidget(
-              values: _lineValues,
-              labels: _lineLabels,
-              maxY: _lineMaxY,
-              lineColor: _blue,
-              gridColor: _border,
-              labelColor: _grey,
-              bgColor: _bg,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (_) =>
+                      FlLine(color: _border, strokeWidth: 0.8),
+                ),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 32,
+                      interval: 25,
+                      getTitlesWidget: (v, _) =>
+                          Text('${v.toInt()}', style: _ts(9, color: _grey)),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 22,
+                      getTitlesWidget: (v, _) {
+                        final idx = v.toInt();
+                        if (idx < 0 || idx >= _lineLabels.length) {
+                          return const SizedBox();
+                        }
+                        return Text(
+                          _lineLabels[idx],
+                          style: _ts(9, color: _grey),
+                        );
+                      },
+                    ),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                minX: 0,
+                maxX: _lineMaxX,
+                minY: 0,
+                maxY: _lineMaxY,
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: _lineSpots,
+                    isCurved: true,
+                    color: _blue,
+                    barWidth: 2.5,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (_, _, _, _) => FlDotCirclePainter(
+                        radius: 3.5,
+                        color: _blue,
+                        strokeWidth: 2,
+                        strokeColor: _bg,
+                      ),
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        colors: [
+                          _blue.withValues(alpha: 0.25),
+                          _blue.withValues(alpha: 0.0),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -696,15 +1101,67 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           const SizedBox(height: 16),
           SizedBox(
             height: 170,
-            child: _BarChartWidget(
-              valuesA: _barAprobados,
-              valuesB: _barRechazados,
-              labels: _barDays,
-              maxY: _barMaxY,
-              colorA: _blue,
-              colorB: _red,
-              gridColor: _border,
-              labelColor: _grey,
+            child: BarChart(
+              BarChartData(
+                alignment: BarChartAlignment.spaceAround,
+                maxY: _barMaxY,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (_) =>
+                      FlLine(color: _border, strokeWidth: 0.8),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 22,
+                      getTitlesWidget: (v, _) {
+                        final idx = v.toInt();
+                        if (idx < 0 || idx >= _barDays.length) {
+                          return const SizedBox();
+                        }
+                        return Text(_barDays[idx], style: _ts(9, color: _grey));
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 28,
+                      interval: 15,
+                      getTitlesWidget: (v, _) =>
+                          Text('${v.toInt()}', style: _ts(9, color: _grey)),
+                    ),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                ),
+                barGroups: List.generate(_barDays.length, (i) {
+                  return BarChartGroupData(
+                    x: i,
+                    barRods: [
+                      BarChartRodData(
+                        toY: _barAprobados[i],
+                        color: _blue,
+                        width: 8,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      BarChartRodData(
+                        toY: _barRechazados[i],
+                        color: _red,
+                        width: 8,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ],
+                  );
+                }),
+              ),
             ),
           ),
         ],
@@ -728,7 +1185,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 color: _blue,
                 title: 'Asistentes',
                 subtitle: 'Lista en tiempo real',
-                onTap: () => _openAdminTab(1, const AttendeesScreen()),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AttendeesScreen()),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -738,7 +1198,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 color: _cyan,
                 title: 'Comprobantes',
                 subtitle: 'Gestión de pagos',
-                onTap: () => _openAdminTab(2, const PaymentVouchersScreen()),
+                onTap: () => _openAdminTab(1, const PaymentVouchersScreen()),
               ),
             ),
           ],
@@ -1341,329 +1801,4 @@ class _EventFormSheetState extends State<_EventFormSheet> {
     validator: (v) =>
         (v == null || v.trim().isEmpty) ? 'Campo requerido' : null,
   );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Custom Line Chart
-// ══════════════════════════════════════════════════════════════════════════════
-
-class _LineChartWidget extends StatelessWidget {
-  final List<double> values;
-  final List<String> labels;
-  final double maxY;
-  final Color lineColor;
-  final Color gridColor;
-  final Color labelColor;
-  final Color bgColor;
-
-  const _LineChartWidget({
-    required this.values,
-    required this.labels,
-    required this.maxY,
-    required this.lineColor,
-    required this.gridColor,
-    required this.labelColor,
-    required this.bgColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRect(
-      child: CustomPaint(
-        painter: _LineChartPainter(
-          values: values,
-          labels: labels,
-          maxY: maxY,
-          lineColor: lineColor,
-          gridColor: gridColor,
-          labelColor: labelColor,
-          bgColor: bgColor,
-        ),
-        child: const SizedBox.expand(),
-      ),
-    );
-  }
-}
-
-class _LineChartPainter extends CustomPainter {
-  final List<double> values;
-  final List<String> labels;
-  final double maxY;
-  final Color lineColor;
-  final Color gridColor;
-  final Color labelColor;
-  final Color bgColor;
-
-  _LineChartPainter({
-    required this.values,
-    required this.labels,
-    required this.maxY,
-    required this.lineColor,
-    required this.gridColor,
-    required this.labelColor,
-    required this.bgColor,
-  });
-
-  static const _lp = 36.0; // left padding for Y labels
-  static const _bp = 22.0; // bottom padding for X labels
-  static const _tp = 6.0;  // top padding
-  static const _rp = 4.0;  // right padding
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (values.isEmpty) return;
-
-    final chartW = size.width - _lp - _rp;
-    final chartH = size.height - _bp - _tp;
-    final chartRect = Rect.fromLTWH(_lp, _tp, chartW, chartH);
-
-    final gridPaint = Paint()
-      ..color = gridColor
-      ..strokeWidth = 0.8;
-
-    final labelStyle = ui.TextStyle(fontSize: 9, color: labelColor);
-    const gridLines = 4;
-
-    // Draw horizontal grid lines + Y labels
-    for (int i = 0; i <= gridLines; i++) {
-      final frac = i / gridLines;
-      final y = _tp + chartH * (1 - frac);
-      canvas.drawLine(Offset(_lp, y), Offset(_lp + chartW, y), gridPaint);
-
-      final value = (maxY * frac).toInt();
-      final pb = ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: TextAlign.right))
-        ..pushStyle(labelStyle)
-        ..addText('$value');
-      final para = pb.build()..layout(ui.ParagraphConstraints(width: _lp - 4));
-      canvas.drawParagraph(para, Offset(0, y - para.height / 2));
-    }
-
-    final n = values.length;
-    if (n < 2) return;
-
-    // Compute screen points
-    final pts = <Offset>[];
-    for (int i = 0; i < n; i++) {
-      final x = _lp + chartW * i / (n - 1);
-      final y = _tp + chartH * (1 - (values[i] / maxY).clamp(0.0, 1.0));
-      pts.add(Offset(x, y));
-    }
-
-    // Clip all drawing to chart area
-    canvas.save();
-    canvas.clipRect(chartRect);
-
-    // Gradient fill
-    final fillPath = Path()
-      ..moveTo(pts.first.dx, chartRect.bottom)
-      ..lineTo(pts.first.dx, pts.first.dy);
-    for (int i = 0; i < pts.length - 1; i++) {
-      final cpX = (pts[i].dx + pts[i + 1].dx) / 2;
-      fillPath.cubicTo(cpX, pts[i].dy, cpX, pts[i + 1].dy, pts[i + 1].dx, pts[i + 1].dy);
-    }
-    fillPath
-      ..lineTo(pts.last.dx, chartRect.bottom)
-      ..close();
-
-    canvas.drawPath(
-      fillPath,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          Offset(_lp, _tp),
-          Offset(_lp, _tp + chartH),
-          [lineColor.withValues(alpha: 0.22), lineColor.withValues(alpha: 0.0)],
-        ),
-    );
-
-    // Line
-    final linePath = Path()..moveTo(pts.first.dx, pts.first.dy);
-    for (int i = 0; i < pts.length - 1; i++) {
-      final cpX = (pts[i].dx + pts[i + 1].dx) / 2;
-      linePath.cubicTo(cpX, pts[i].dy, cpX, pts[i + 1].dy, pts[i + 1].dx, pts[i + 1].dy);
-    }
-    canvas.drawPath(
-      linePath,
-      Paint()
-        ..color = lineColor
-        ..strokeWidth = 2.5
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-
-    // Dots
-    final dotFill = Paint()..color = lineColor;
-    final dotBg = Paint()..color = bgColor;
-    for (final p in pts) {
-      canvas.drawCircle(p, 4.5, dotFill);
-      canvas.drawCircle(p, 2.5, dotBg);
-    }
-
-    canvas.restore(); // release chart clip
-
-    // X labels (drawn outside clip so they appear below chart)
-    for (int i = 0; i < n; i++) {
-      final x = _lp + chartW * i / (n - 1);
-      final lbl = i < labels.length ? labels[i] : '';
-      final pb = ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: TextAlign.center))
-        ..pushStyle(labelStyle)
-        ..addText(lbl);
-      final para = pb.build()..layout(const ui.ParagraphConstraints(width: 28));
-      canvas.drawParagraph(para, Offset(x - 14, _tp + chartH + 5));
-    }
-  }
-
-  @override
-  bool shouldRepaint(_LineChartPainter old) =>
-      old.values != values || old.maxY != maxY || old.labels != labels;
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Custom Bar Chart
-// ══════════════════════════════════════════════════════════════════════════════
-
-class _BarChartWidget extends StatelessWidget {
-  final List<double> valuesA;
-  final List<double> valuesB;
-  final List<String> labels;
-  final double maxY;
-  final Color colorA;
-  final Color colorB;
-  final Color gridColor;
-  final Color labelColor;
-
-  const _BarChartWidget({
-    required this.valuesA,
-    required this.valuesB,
-    required this.labels,
-    required this.maxY,
-    required this.colorA,
-    required this.colorB,
-    required this.gridColor,
-    required this.labelColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRect(
-      child: CustomPaint(
-        painter: _BarChartPainter(
-          valuesA: valuesA,
-          valuesB: valuesB,
-          labels: labels,
-          maxY: maxY,
-          colorA: colorA,
-          colorB: colorB,
-          gridColor: gridColor,
-          labelColor: labelColor,
-        ),
-        child: const SizedBox.expand(),
-      ),
-    );
-  }
-}
-
-class _BarChartPainter extends CustomPainter {
-  final List<double> valuesA;
-  final List<double> valuesB;
-  final List<String> labels;
-  final double maxY;
-  final Color colorA;
-  final Color colorB;
-  final Color gridColor;
-  final Color labelColor;
-
-  _BarChartPainter({
-    required this.valuesA,
-    required this.valuesB,
-    required this.labels,
-    required this.maxY,
-    required this.colorA,
-    required this.colorB,
-    required this.gridColor,
-    required this.labelColor,
-  });
-
-  static const _lp = 32.0;
-  static const _bp = 22.0;
-  static const _tp = 6.0;
-  static const _rp = 4.0;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final n = labels.length;
-    if (n == 0) return;
-
-    final chartW = size.width - _lp - _rp;
-    final chartH = size.height - _bp - _tp;
-    final chartRect = Rect.fromLTWH(_lp, _tp, chartW, chartH);
-    final safeMaxY = maxY < 1 ? 10.0 : maxY;
-
-    final gridPaint = Paint()
-      ..color = gridColor
-      ..strokeWidth = 0.8;
-
-    final labelStyle = ui.TextStyle(fontSize: 9, color: labelColor);
-    const gridLines = 4;
-
-    // Grid + Y labels
-    for (int i = 0; i <= gridLines; i++) {
-      final frac = i / gridLines;
-      final y = _tp + chartH * (1 - frac);
-      canvas.drawLine(Offset(_lp, y), Offset(_lp + chartW, y), gridPaint);
-
-      final value = (safeMaxY * frac).toInt();
-      final pb = ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: TextAlign.right))
-        ..pushStyle(labelStyle)
-        ..addText('$value');
-      final para = pb.build()..layout(ui.ParagraphConstraints(width: _lp - 4));
-      canvas.drawParagraph(para, Offset(0, y - para.height / 2));
-    }
-
-    // Clip bars to chart area
-    canvas.save();
-    canvas.clipRect(chartRect);
-
-    final groupW = chartW / n;
-    const barW = 7.0;
-    const gap = 2.0;
-    const radius = Radius.circular(4);
-
-    for (int i = 0; i < n; i++) {
-      final groupCenterX = _lp + groupW * i + groupW / 2;
-      final aX = groupCenterX - barW - gap / 2;
-      final bX = groupCenterX + gap / 2;
-
-      void drawBar(double x, double val, Color color) {
-        if (val <= 0) return;
-        final barH = (val / safeMaxY).clamp(0.0, 1.0) * chartH;
-        final top = _tp + chartH - barH;
-        final rect = RRect.fromLTRBR(x, top, x + barW, _tp + chartH, radius);
-        canvas.drawRRect(rect, Paint()..color = color);
-      }
-
-      drawBar(aX, valuesA[i], colorA);
-      drawBar(bX, valuesB[i], colorB);
-    }
-
-    canvas.restore();
-
-    // X labels
-    for (int i = 0; i < n; i++) {
-      final cx = _lp + groupW * i + groupW / 2;
-      final lbl = i < labels.length ? labels[i] : '';
-      final pb = ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: TextAlign.center))
-        ..pushStyle(labelStyle)
-        ..addText(lbl);
-      final para = pb.build()..layout(const ui.ParagraphConstraints(width: 28));
-      canvas.drawParagraph(para, Offset(cx - 14, _tp + chartH + 5));
-    }
-  }
-
-  @override
-  bool shouldRepaint(_BarChartPainter old) =>
-      old.valuesA != valuesA ||
-      old.valuesB != valuesB ||
-      old.maxY != maxY ||
-      old.labels != labels;
 }
