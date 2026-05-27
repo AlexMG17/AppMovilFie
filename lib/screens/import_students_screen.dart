@@ -3,6 +3,7 @@ import 'package:excel/excel.dart' show Excel;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/event_service.dart';
 import '../services/student_service.dart';
@@ -143,7 +144,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
 
   TextStyle _ts(double size, {FontWeight fw = FontWeight.w400, Color? color}) =>
       GoogleFonts.outfit(
-        fontSize: size,
+        fontSize: size.sp,
         fontWeight: fw,
         color: color ?? _kNavy,
       );
@@ -687,7 +688,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                     _buildTemplateCard(),
                     const SizedBox(height: 16),
                     _buildContent(),
-                    const SizedBox(height: 32),
+                    SizedBox(height: 120.h),
                   ]),
                 ),
               ),

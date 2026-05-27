@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -307,7 +308,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
         color: AppColors.sentryBlue,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24.r),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -323,14 +324,14 @@ class _MyQrScreenState extends State<MyQrScreen> {
                         style: GoogleFonts.outfit(
                           color: AppColors.sentryNavy,
                           fontWeight: FontWeight.w800,
-                          fontSize: 24,
+                          fontSize: 24.sp,
                         ),
                       ),
                       Text(
                         'Entrada al evento',
                         style: GoogleFonts.outfit(
                           color: AppColors.sentryGrey,
-                          fontSize: 14,
+                          fontSize: 14.sp,
                         ),
                       ),
                     ],
@@ -341,18 +342,18 @@ class _MyQrScreenState extends State<MyQrScreen> {
 
               // ── Banner offline ────────────────────────────────────────
               if (_isOffline && _codigoQr != null) ...[
-                const SizedBox(height: 14),
+                SizedBox(height: 14.h),
                 _offlineBanner(),
               ],
 
-              const SizedBox(height: 25),
+              SizedBox(height: 25.h),
 
               // ── Contenido principal ───────────────────────────────────
               if (_loading)
-                const Center(
+                Center(
                   child: Padding(
-                    padding: EdgeInsets.only(top: 60),
-                    child: CircularProgressIndicator(
+                    padding: EdgeInsets.only(top: 60.h),
+                    child: const CircularProgressIndicator(
                         color: AppColors.sentryBlue),
                   ),
                 )
@@ -360,7 +361,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
                 _buildMessageCard(_message!)
               else ...[
                 _buildQrMainCard(),
-                const SizedBox(height: 25),
+                SizedBox(height: 25.h),
                 Row(
                   children: [
                     Expanded(
@@ -371,7 +372,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
                         _copyCode,
                       ),
                     ),
-                    const SizedBox(width: 15),
+                    SizedBox(width: 15.w),
                     Expanded(
                       child: _actionButton(
                         _syncing ? 'Sincronizando…' : 'Actualizar',
@@ -384,24 +385,24 @@ class _MyQrScreenState extends State<MyQrScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 25),
+                SizedBox(height: 25.h),
                 _buildInfoNotice(),
-                const SizedBox(height: 25),
+                SizedBox(height: 25.h),
                 Text(
                   '¿Cómo usarlo?',
                   style: GoogleFonts.outfit(
                     color: AppColors.sentryNavy,
                     fontWeight: FontWeight.w700,
-                    fontSize: 16,
+                    fontSize: 16.sp,
                   ),
                 ),
-                const SizedBox(height: 15),
+                SizedBox(height: 15.h),
                 _stepItem(1, 'Llega al punto de ingreso del evento'),
                 _stepItem(2, 'Muestra esta pantalla al guardia'),
                 _stepItem(3, 'El guardia escaneará el código con Sentry'),
                 _stepItem(4, 'Recibirás confirmación de acceso'),
               ],
-              const SizedBox(height: 100),
+              SizedBox(height: 100.h),
             ],
           ),
         ),
@@ -412,19 +413,18 @@ class _MyQrScreenState extends State<MyQrScreen> {
   // ── Banner de modo offline ──────────────────────────────────────────────
 
   Widget _offlineBanner() => Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
         decoration: BoxDecoration(
           color: AppColors.warning.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(12.r),
           border: Border.all(
               color: AppColors.warning.withValues(alpha: 0.35)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.wifi_off_rounded,
-                color: AppColors.warning, size: 18),
-            const SizedBox(width: 10),
+            Icon(Icons.wifi_off_rounded,
+                color: AppColors.warning, size: 18.sp),
+            SizedBox(width: 10.w),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -434,7 +434,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
                     style: GoogleFonts.outfit(
                       color: AppColors.warning,
                       fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                      fontSize: 13.sp,
                     ),
                   ),
                   if (_cachedAt != null)
@@ -442,17 +442,17 @@ class _MyQrScreenState extends State<MyQrScreen> {
                       'Guardado ${_timeAgo(_cachedAt!)} · desliza para intentar actualizar',
                       style: GoogleFonts.outfit(
                         color: AppColors.warning.withValues(alpha: 0.8),
-                        fontSize: 11,
+                        fontSize: 11.sp,
                       ),
                     ),
                 ],
               ),
             ),
             if (_syncing)
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
+              SizedBox(
+                width: 16.w,
+                height: 16.w,
+                child: const CircularProgressIndicator(
                   strokeWidth: 2,
                   color: AppColors.warning,
                 ),
@@ -475,17 +475,16 @@ class _MyQrScreenState extends State<MyQrScreen> {
   }
 
   Widget _badge(String label, Color color) => Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(8.r),
         ),
         child: Text(
           label,
           style: GoogleFonts.outfit(
             color: color,
-            fontSize: 11,
+            fontSize: 11.sp,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -501,10 +500,10 @@ class _MyQrScreenState extends State<MyQrScreen> {
 
   Widget _buildQrMainCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(20.r),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(24.r),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -519,7 +518,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
             children: [
               CircleAvatar(
                 backgroundColor: AppColors.sentryBlue,
-                radius: 22,
+                radius: 22.r,
                 child: Text(
                   _userName?.isNotEmpty == true
                       ? _userName![0].toUpperCase()
@@ -527,11 +526,11 @@ class _MyQrScreenState extends State<MyQrScreen> {
                   style: GoogleFonts.outfit(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
-                    fontSize: 18,
+                    fontSize: 18.sp,
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12.w),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -541,7 +540,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
                       style: GoogleFonts.outfit(
                         color: AppColors.sentryNavy,
                         fontWeight: FontWeight.w700,
-                        fontSize: 15,
+                        fontSize: 15.sp,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -549,7 +548,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
                       _userEmail ?? '',
                       style: GoogleFonts.outfit(
                         color: AppColors.sentryGrey,
-                        fontSize: 12,
+                        fontSize: 12.sp,
                       ),
                     ),
                   ],
@@ -581,15 +580,15 @@ class _MyQrScreenState extends State<MyQrScreen> {
             )
           else
             Container(
-              padding: const EdgeInsets.all(15),
+              padding: EdgeInsets.all(15.r),
               decoration: BoxDecoration(
                 border: Border.all(color: AppColors.sentryBg, width: 2),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(20.r),
               ),
               child: QrImageView(
                 data: _codigoQr!,
                 version: QrVersions.auto,
-                size: 200,
+                size: 200.w,
                 eyeStyle: const QrEyeStyle(
                   eyeShape: QrEyeShape.square,
                   color: AppColors.sentryNavy,
@@ -601,17 +600,17 @@ class _MyQrScreenState extends State<MyQrScreen> {
               ),
             ),
 
-          const SizedBox(height: 15),
+          SizedBox(height: 15.h),
           if (!_dentroEvento && !_isExpired)
             Text(
               'Muestra este código al entrar al evento',
               style: GoogleFonts.outfit(
                 color: AppColors.sentryGrey,
-                fontSize: 12,
+                fontSize: 12.sp,
                 fontStyle: FontStyle.italic,
               ),
             ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20.h),
 
           _qrDataRow(
             'Código',
@@ -637,31 +636,31 @@ class _MyQrScreenState extends State<MyQrScreen> {
     required String subtitle,
   }) =>
       Container(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(20.r),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16.r),
           border: Border.all(color: color.withValues(alpha: 0.25)),
         ),
         child: Column(
           children: [
-            Icon(icon, size: 64, color: color),
-            const SizedBox(height: 8),
+            Icon(icon, size: 64.sp, color: color),
+            SizedBox(height: 8.h),
             Text(
               title,
               style: GoogleFonts.outfit(
                 color: AppColors.sentryNavy,
                 fontWeight: FontWeight.w700,
-                fontSize: 16,
+                fontSize: 16.sp,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4.h),
             Text(
               subtitle,
               textAlign: TextAlign.center,
               style: GoogleFonts.outfit(
                 color: AppColors.sentryGrey,
-                fontSize: 12,
+                fontSize: 12.sp,
               ),
             ),
           ],
@@ -679,16 +678,16 @@ class _MyQrScreenState extends State<MyQrScreen> {
   }
 
   Widget _chipBadge(String label, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(8.r),
         ),
         child: Text(
           label,
           style: GoogleFonts.outfit(
             color: color,
-            fontSize: 11,
+            fontSize: 11.sp,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -697,47 +696,47 @@ class _MyQrScreenState extends State<MyQrScreen> {
   // ── Tarjeta de mensaje (sin QR) ─────────────────────────────────────────
 
   Widget _buildMessageCard(String msg) => Container(
-        padding: const EdgeInsets.all(28),
+        padding: EdgeInsets.all(28.r),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(20.r),
         ),
         child: Column(
           children: [
-            const Icon(Icons.qr_code_2_rounded,
-                size: 56, color: AppColors.sentryGrey),
-            const SizedBox(height: 16),
+            Icon(Icons.qr_code_2_rounded,
+                size: 56.sp, color: AppColors.sentryGrey),
+            SizedBox(height: 16.h),
             Text(
               'QR no disponible',
               style: GoogleFonts.outfit(
                 color: AppColors.sentryNavy,
                 fontWeight: FontWeight.w700,
-                fontSize: 16,
+                fontSize: 16.sp,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8.h),
             Text(
               msg,
               textAlign: TextAlign.center,
               style: GoogleFonts.outfit(
                 color: AppColors.sentryGrey,
-                fontSize: 13,
+                fontSize: 13.sp,
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16.h),
             ElevatedButton.icon(
               onPressed: _loadWithCache,
-              icon: const Icon(Icons.refresh_rounded,
-                  color: Colors.white, size: 18),
+              icon: Icon(Icons.refresh_rounded,
+                  color: Colors.white, size: 18.sp),
               label: Text(
                 'Reintentar',
                 style:
-                    GoogleFonts.outfit(color: Colors.white, fontSize: 14),
+                    GoogleFonts.outfit(color: Colors.white, fontSize: 14.sp),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.sentryBlue,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12.r)),
               ),
             ),
           ],
@@ -747,25 +746,25 @@ class _MyQrScreenState extends State<MyQrScreen> {
   // ── Helpers ─────────────────────────────────────────────────────────────
 
   Widget _buildInfoNotice() => Container(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16.r),
         decoration: BoxDecoration(
           color: AppColors.sentryNavy.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(15.r),
           border: Border.all(
               color: AppColors.sentryNavy.withValues(alpha: 0.05)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.shield_outlined,
-                color: AppColors.sentryNavy, size: 20),
-            const SizedBox(width: 12),
+            Icon(Icons.shield_outlined,
+                color: AppColors.sentryNavy, size: 20.sp),
+            SizedBox(width: 12.w),
             Expanded(
               child: Text(
                 'Este QR es personal e intransferible. El sistema detecta y rechaza usos duplicados automáticamente.',
                 style: GoogleFonts.outfit(
                   color: AppColors.sentryNavy,
-                  fontSize: 12,
+                  fontSize: 12.sp,
                 ),
               ),
             ),
@@ -774,19 +773,19 @@ class _MyQrScreenState extends State<MyQrScreen> {
       );
 
   Widget _qrDataRow(String label, String val) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: EdgeInsets.symmetric(vertical: 4.h),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label,
                 style: GoogleFonts.outfit(
-                    color: AppColors.sentryGrey, fontSize: 13)),
+                    color: AppColors.sentryGrey, fontSize: 13.sp)),
             Text(
               val,
               style: GoogleFonts.outfit(
                 color: AppColors.sentryNavy,
                 fontWeight: FontWeight.w700,
-                fontSize: 13,
+                fontSize: 13.sp,
               ),
             ),
           ],
@@ -797,7 +796,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
           String label, IconData icon, Color color, VoidCallback onTap) =>
       ElevatedButton.icon(
         onPressed: onTap,
-        icon: Icon(icon, size: 18, color: Colors.white),
+        icon: Icon(icon, size: 18.sp, color: Colors.white),
         label: Text(
           label,
           style: GoogleFonts.outfit(
@@ -807,35 +806,35 @@ class _MyQrScreenState extends State<MyQrScreen> {
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: EdgeInsets.symmetric(vertical: 12.h),
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
+              borderRadius: BorderRadius.circular(12.r)),
         ),
       );
 
   Widget _stepItem(int num, String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
+        padding: EdgeInsets.only(bottom: 12.h),
         child: Row(
           children: [
             CircleAvatar(
-              radius: 12,
+              radius: 12.r,
               backgroundColor: AppColors.sentryBlue,
               child: Text(
                 '$num',
                 style: GoogleFonts.outfit(
                   color: Colors.white,
-                  fontSize: 10,
+                  fontSize: 10.sp,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12.w),
             Expanded(
               child: Text(
                 text,
                 style: GoogleFonts.outfit(
                   color: AppColors.sentryNavy,
-                  fontSize: 14,
+                  fontSize: 14.sp,
                 ),
               ),
             ),

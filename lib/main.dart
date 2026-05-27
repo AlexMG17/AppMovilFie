@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/admin_shell_screen.dart';
 import 'screens/change_password_screen.dart';
@@ -81,36 +82,40 @@ class SentryApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Sentry',
-      debugShowCheckedModeBanner: false,
-      // CONFIGURACIÓN DE IDIOMA AL ESPAÑOL POR DEFECTO
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('es', 'ES'), // Español
-        Locale('en', 'US'), // Inglés
-      ],
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.sentryBlue),
-        textTheme: GoogleFonts.outfitTextTheme(Theme.of(context).textTheme),
-        useMaterial3: true,
+    return ScreenUtilInit(
+      designSize: const Size(390, 844),
+      minTextAdapt: true,
+      splitScreenMode: true,
+      builder: (context, child) => MaterialApp(
+        title: 'Sentry',
+        debugShowCheckedModeBanner: false,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('es', 'ES'),
+          Locale('en', 'US'),
+        ],
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: AppColors.sentryBlue),
+          textTheme: GoogleFonts.outfitTextTheme(Theme.of(context).textTheme),
+          useMaterial3: true,
+        ),
+        home: const _AppRouter(),
+        routes: {
+          '/login': (_) => const LoginScreen(),
+          '/change-password': (_) => const ChangePasswordScreen(),
+          '/home': (_) => const HomeScreen(),
+          '/guard': (_) => const GuardScreen(),
+          '/admin': (_) => const AdminShellScreen(),
+          '/vouchers': (_) => const AdminShellScreen(initialIndex: 1),
+          '/import': (_) => const AdminShellScreen(initialIndex: 2),
+          '/attendees': (_) => const AdminShellScreen(initialIndex: 3),
+          '/students': (_) => const AdminShellScreen(initialIndex: 1),
+        },
       ),
-      home: const _AppRouter(),
-      routes: {
-        '/login': (_) => const LoginScreen(),
-        '/change-password': (_) => const ChangePasswordScreen(),
-        '/home': (_) => const HomeScreen(),
-        '/guard': (_) => const GuardScreen(),
-        '/admin': (_) => const AdminShellScreen(),
-        '/vouchers': (_) => const AdminShellScreen(initialIndex: 1),
-        '/import': (_) => const AdminShellScreen(initialIndex: 2),
-        '/attendees': (_) => const AdminShellScreen(initialIndex: 3),
-        '/students': (_) => const AdminShellScreen(initialIndex: 1),
-      },
     );
   }
 }

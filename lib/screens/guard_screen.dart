@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../services/event_service.dart';
@@ -235,10 +236,10 @@ class _GuardScreenState extends State<GuardScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               const CircularProgressIndicator(color: AppColors.sentryCyan),
-              const SizedBox(height: 16),
+              SizedBox(height: 16.h),
               Text(
                 'Inicializando validador...',
-                style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 14),
+                style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 14.sp),
               ),
             ],
           ),
@@ -254,18 +255,18 @@ class _GuardScreenState extends State<GuardScreen>
             _buildHeader(),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: EdgeInsets.symmetric(horizontal: 16.w),
                 child: Column(
                   children: [
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12.h),
                     _buildCameraSection(),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
                     _buildManualInput(),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20.h),
                     _buildRecentScans(),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20.h),
                     _buildStatsSection(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: 24.h),
                   ],
                 ),
               ),
@@ -280,7 +281,7 @@ class _GuardScreenState extends State<GuardScreen>
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
       decoration: BoxDecoration(
         color: sentryDarkCard,
         border: Border(
@@ -291,8 +292,8 @@ class _GuardScreenState extends State<GuardScreen>
         children: [
           // Logo
           Container(
-            width: 40,
-            height: 40,
+            width: 40.w,
+            height: 40.w,
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.white,
@@ -303,7 +304,7 @@ class _GuardScreenState extends State<GuardScreen>
               child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10.w),
           // Título
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,25 +315,25 @@ class _GuardScreenState extends State<GuardScreen>
                     'Sentry',
                     style: GoogleFonts.outfit(
                       color: AppColors.sentryNavy,
-                      fontSize: 18,
+                      fontSize: 18.sp,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8.w),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 8.w,
+                      vertical: 2.h,
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.sentryCyan.withValues(alpha:0.15),
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(6.r),
                     ),
                     child: Text(
                       'Validador',
                       style: GoogleFonts.outfit(
                         color: AppColors.sentryCyan,
-                        fontSize: 11,
+                        fontSize: 11.sp,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -344,10 +345,10 @@ class _GuardScreenState extends State<GuardScreen>
           const Spacer(),
           // Indicador de estado
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
             decoration: BoxDecoration(
               color: sentrySuccess.withValues(alpha:0.15),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(20.r),
               border: Border.all(
                 color: sentrySuccess.withValues(alpha:0.3),
                 width: 1,
@@ -357,26 +358,26 @@ class _GuardScreenState extends State<GuardScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 7,
-                  height: 7,
+                  width: 7.w,
+                  height: 7.w,
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     color: sentrySuccess,
                   ),
                 ),
-                const SizedBox(width: 5),
+                SizedBox(width: 5.w),
                 Text(
                   'Activo',
                   style: GoogleFonts.outfit(
                     color: sentrySuccess,
-                    fontSize: 11,
+                    fontSize: 11.sp,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8.w),
           PopupMenuButton<String>(
             offset: const Offset(0, 44),
             onSelected: (value) async {
@@ -387,10 +388,10 @@ class _GuardScreenState extends State<GuardScreen>
                 if (mounted) Navigator.pushReplacementNamed(context, '/login');
               }
             },
-            child: const CircleAvatar(
-              radius: 18,
+            child: CircleAvatar(
+              radius: 18.r,
               backgroundColor: AppColors.sentryCyan,
-              child: Icon(Icons.person_rounded, color: Colors.white, size: 20),
+              child: Icon(Icons.person_rounded, color: Colors.white, size: 20.sp),
             ),
             itemBuilder: (_) => [
               PopupMenuItem(
@@ -400,14 +401,14 @@ class _GuardScreenState extends State<GuardScreen>
                   children: [
                     Text(
                       _userName,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          fontSize: 14,
+                          fontSize: 14.sp,
                           color: Colors.black87),
                     ),
                     Text(
                       SupabaseService.currentUser?.email ?? '',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      style: TextStyle(fontSize: 11.sp, color: Colors.grey),
                     ),
                   ],
                 ),
@@ -436,14 +437,14 @@ class _GuardScreenState extends State<GuardScreen>
   Widget _buildCameraSection() {
     return Container(
       width: double.infinity,
-      height: 280,
+      height: 280.h,
       decoration: BoxDecoration(
         color: sentryDarkCard,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20.r),
         border: Border.all(color: AppColors.sentryCyan.withValues(alpha:0.1), width: 1),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20.r),
         child: Stack(
           children: [
             // Cámara/Scanner
@@ -480,19 +481,19 @@ class _GuardScreenState extends State<GuardScreen>
                 right: 0,
                 child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 6.h,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.black54,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(20.r),
                     ),
                     child: Text(
                       'Apunta la cámara al QR del asistente',
                       style: GoogleFonts.outfit(
                         color: Colors.white70,
-                        fontSize: 12,
+                        fontSize: 12.sp,
                       ),
                     ),
                   ),
@@ -523,19 +524,19 @@ class _GuardScreenState extends State<GuardScreen>
             Icon(
               Icons.videocam_off_outlined,
               color: AppColors.sentryGrey.withValues(alpha:0.5),
-              size: 48,
+              size: 48.sp,
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8.h),
             Text(
               'Cámara no disponible',
-              style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 13),
+              style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 13.sp),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4.h),
             Text(
               'Usa el ingreso manual',
               style: GoogleFonts.outfit(
                 color: AppColors.sentryGrey.withValues(alpha:0.6),
-                fontSize: 11,
+                fontSize: 11.sp,
               ),
             ),
           ],
@@ -552,8 +553,8 @@ class _GuardScreenState extends State<GuardScreen>
           return Transform.scale(scale: _pulseAnim.value, child: child);
         },
         child: SizedBox(
-          width: 180,
-          height: 180,
+          width: 180.w,
+          height: 180.w,
           child: CustomPaint(painter: _ScanFramePainter(color: AppColors.sentryCyan)),
         ),
       ),
@@ -614,37 +615,37 @@ class _GuardScreenState extends State<GuardScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, color: iconColor, size: 64),
-                const SizedBox(height: 12),
+                Icon(icon, color: iconColor, size: 64.sp),
+                SizedBox(height: 12.h),
                 Text(
                   title,
                   style: GoogleFonts.outfit(
                     color: Colors.white,
-                    fontSize: 22,
+                    fontSize: 22.sp,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.5,
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6.h),
                 Text(
                   result.nombreAsistente,
                   style: GoogleFonts.outfit(
                     color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 16,
+                    fontSize: 16.sp,
                   ),
                 ),
                 if (result.razon != null) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4.h),
                   Text(
                     result.razon!,
                     style: GoogleFonts.outfit(
                       color: Colors.white.withValues(alpha: 0.75),
-                      fontSize: 12,
+                      fontSize: 12.sp,
                     ),
                   ),
                 ],
                 if (result.resultado == 'valido' && result.codigoQR != null) ...[
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16.h),
                   GestureDetector(
                     onTap: () async {
                       await GuardService.undoEntry(codigoQR: result.codigoQR!);
@@ -652,22 +653,22 @@ class _GuardScreenState extends State<GuardScreen>
                       if (mounted) setState(() => _lastScanResult = null);
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
                       decoration: BoxDecoration(
                         color: Colors.black26,
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(20.r),
                         border: Border.all(color: Colors.white30),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.undo_rounded, color: Colors.white70, size: 16),
-                          const SizedBox(width: 6),
+                          Icon(Icons.undo_rounded, color: Colors.white70, size: 16.sp),
+                          SizedBox(width: 6.w),
                           Text(
                             'Deshacer entrada',
                             style: GoogleFonts.outfit(
                               color: Colors.white70,
-                              fontSize: 13,
+                              fontSize: 13.sp,
                             ),
                           ),
                         ],
@@ -690,12 +691,12 @@ class _GuardScreenState extends State<GuardScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          padding: EdgeInsets.only(left: 4.w, bottom: 8.h),
           child: Text(
             'Ingreso manual del código',
             style: GoogleFonts.outfit(
               color: AppColors.sentryGrey,
-              fontSize: 13,
+              fontSize: 13.sp,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -704,10 +705,10 @@ class _GuardScreenState extends State<GuardScreen>
           children: [
             Expanded(
               child: Container(
-                height: 48,
+                height: 48.h,
                 decoration: BoxDecoration(
                   color: sentryDarkCard,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(12.r),
                   border: Border.all(
                     color: AppColors.sentryCyan.withValues(alpha:0.15),
                     width: 1,
@@ -715,34 +716,34 @@ class _GuardScreenState extends State<GuardScreen>
                 ),
                 child: TextField(
                   controller: _manualCodeController,
-                  style: GoogleFonts.outfit(color: AppColors.sentryNavy, fontSize: 14),
+                  style: GoogleFonts.outfit(color: AppColors.sentryNavy, fontSize: 14.sp),
                   decoration: InputDecoration(
                     hintText: 'Pegar o escribir código QR...',
                     hintStyle: GoogleFonts.outfit(
                       color: AppColors.sentryGrey.withValues(alpha:0.5),
-                      fontSize: 13,
+                      fontSize: 13.sp,
                     ),
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 14.h,
                     ),
                   ),
                   onSubmitted: (_) => _handleManualCode(),
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10.w),
             GestureDetector(
               onTap: _handleManualCode,
               child: Container(
-                height: 48,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                height: 48.h,
+                padding: EdgeInsets.symmetric(horizontal: 20.w),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [AppColors.sentryBlue, AppColors.sentryCyan],
                   ),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(12.r),
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.sentryCyan.withValues(alpha:0.3),
@@ -756,7 +757,7 @@ class _GuardScreenState extends State<GuardScreen>
                     'Validar',
                     style: GoogleFonts.outfit(
                       color: Colors.white,
-                      fontSize: 14,
+                      fontSize: 14.sp,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -776,12 +777,12 @@ class _GuardScreenState extends State<GuardScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          padding: EdgeInsets.only(left: 4.w, bottom: 12.h),
           child: Text(
             'Escaneos recientes',
             style: GoogleFonts.outfit(
               color: AppColors.sentryNavy,
-              fontSize: 16,
+              fontSize: 16.sp,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -789,16 +790,16 @@ class _GuardScreenState extends State<GuardScreen>
         if (_recentScans.isEmpty)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 24),
+            padding: EdgeInsets.symmetric(vertical: 24.h),
             decoration: BoxDecoration(
               color: sentryDarkCard,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(14.r),
               border: Border.all(color: AppColors.sentryCyan.withValues(alpha:0.08), width: 1),
             ),
             child: Center(
               child: Text(
                 'Aún no hay escaneos registrados',
-                style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 13),
+                style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 13.sp),
               ),
             ),
           )
@@ -838,26 +839,26 @@ class _GuardScreenState extends State<GuardScreen>
         '${scan.timestamp.hour.toString().padLeft(2, '0')}:${scan.timestamp.minute.toString().padLeft(2, '0')}';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      margin: EdgeInsets.only(bottom: 8.h),
+      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
       decoration: BoxDecoration(
         color: sentryDarkCard,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14.r),
         border: Border.all(color: statusColor.withValues(alpha:0.15), width: 1),
       ),
       child: Row(
         children: [
           // Icono de estado
           Container(
-            width: 36,
-            height: 36,
+            width: 36.w,
+            height: 36.w,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: statusColor.withValues(alpha:0.15),
             ),
-            child: Icon(statusIcon, color: statusColor, size: 20),
+            child: Icon(statusIcon, color: statusColor, size: 20.sp),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12.w),
           // Info
           Expanded(
             child: Column(
@@ -867,7 +868,7 @@ class _GuardScreenState extends State<GuardScreen>
                   scan.nombreAsistente,
                   style: GoogleFonts.outfit(
                     color: AppColors.sentryNavy,
-                    fontSize: 14,
+                    fontSize: 14.sp,
                     fontWeight: FontWeight.w600,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -879,7 +880,7 @@ class _GuardScreenState extends State<GuardScreen>
                         : scan.codigoQR!,
                     style: GoogleFonts.outfit(
                       color: AppColors.sentryGrey.withValues(alpha:0.6),
-                      fontSize: 11,
+                      fontSize: 11.sp,
                     ),
                   ),
               ],
@@ -888,19 +889,19 @@ class _GuardScreenState extends State<GuardScreen>
           // Hora
           Text(
             timeStr,
-            style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 12),
+            style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 12.sp),
           ),
           if (scan.resultado == 'valido' && scan.codigoQR != null) ...[
-            const SizedBox(width: 8),
+            SizedBox(width: 8.w),
             GestureDetector(
               onTap: () => _confirmUndoScan(scan),
               child: Container(
-                padding: const EdgeInsets.all(6),
+                padding: EdgeInsets.all(6.r),
                 decoration: BoxDecoration(
                   color: sentryWarning.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(8.r),
                 ),
-                child: Icon(Icons.undo_rounded, color: sentryWarning, size: 16),
+                child: Icon(Icons.undo_rounded, color: sentryWarning, size: 16.sp),
               ),
             ),
           ],
@@ -920,14 +921,14 @@ class _GuardScreenState extends State<GuardScreen>
           color: sentrySuccess,
           icon: Icons.login_rounded,
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10.w),
         _buildStatCard(
           value: _stats.invalidos.toString(),
           label: 'Inválidos',
           color: sentryError,
           icon: Icons.block_rounded,
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10.w),
         _buildStatCard(
           value: _stats.usados.toString(),
           label: 'Usados',
@@ -946,10 +947,10 @@ class _GuardScreenState extends State<GuardScreen>
   }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: EdgeInsets.symmetric(vertical: 16.h),
         decoration: BoxDecoration(
           color: sentryDarkCard,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(14.r),
           border: Border.all(color: color.withValues(alpha:0.2), width: 1),
         ),
         child: Column(
@@ -958,16 +959,16 @@ class _GuardScreenState extends State<GuardScreen>
               value,
               style: GoogleFonts.outfit(
                 color: color,
-                fontSize: 28,
+                fontSize: 28.sp,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4.h),
             Text(
               label,
               style: GoogleFonts.outfit(
                 color: AppColors.sentryGrey,
-                fontSize: 11,
+                fontSize: 11.sp,
                 fontWeight: FontWeight.w500,
               ),
             ),

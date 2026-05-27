@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/event_service.dart';
 import '../services/supabase_service.dart';
@@ -45,7 +46,7 @@ class _ParticipantsScreenState extends State<ParticipantsScreen>
 
   TextStyle _ts(double sz, {FontWeight fw = FontWeight.w400, Color? c}) =>
       GoogleFonts.outfit(
-          fontSize: sz, fontWeight: fw, color: c ?? AppColors.sentryNavy);
+          fontSize: sz.sp, fontWeight: fw, color: c ?? AppColors.sentryNavy);
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +66,7 @@ class _ParticipantsScreenState extends State<ParticipantsScreen>
         ),
         actions: [
           PopupMenuButton<String>(
-            offset: const Offset(0, 44),
+            offset: Offset(0, 44.h),
             onSelected: (value) async {
               if (value == 'logout') {
                 final nav = Navigator.of(context);
@@ -74,10 +75,10 @@ class _ParticipantsScreenState extends State<ParticipantsScreen>
               }
             },
             child: CircleAvatar(
-              radius: 16,
+              radius: 16.r,
               backgroundColor: AppColors.sentryCyan.withValues(alpha: 0.16),
-              child: const Icon(Icons.person_rounded,
-                  size: 18, color: AppColors.sentryBlue),
+              child: Icon(Icons.person_rounded,
+                  size: 18.sp, color: AppColors.sentryBlue),
             ),
             itemBuilder: (_) => [
               PopupMenuItem(
@@ -87,34 +88,33 @@ class _ParticipantsScreenState extends State<ParticipantsScreen>
                   children: [
                     Text(
                       _userName,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          fontSize: 14,
+                          fontSize: 14.sp,
                           color: Colors.black87),
                     ),
                     Text(
                       SupabaseService.currentUser?.email ?? '',
-                      style:
-                          const TextStyle(fontSize: 11, color: Colors.grey),
+                      style: TextStyle(fontSize: 11.sp, color: Colors.grey),
                     ),
                   ],
                 ),
               ),
               const PopupMenuDivider(),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'logout',
                 child: Row(
                   children: [
-                    Icon(Icons.logout_rounded, size: 16, color: Colors.red),
-                    SizedBox(width: 8),
+                    Icon(Icons.logout_rounded, size: 16.sp, color: Colors.red),
+                    SizedBox(width: 8.w),
                     Text('Cerrar sesión',
-                        style: TextStyle(color: Colors.red, fontSize: 14)),
+                        style: TextStyle(color: Colors.red, fontSize: 14.sp)),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12.w),
         ],
         bottom: TabBar(
           controller: _tab,
@@ -123,9 +123,9 @@ class _ParticipantsScreenState extends State<ParticipantsScreen>
           indicatorColor: AppColors.sentryBlue,
           indicatorWeight: 3,
           labelStyle:
-              GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w600),
+              GoogleFonts.outfit(fontSize: 13.sp, fontWeight: FontWeight.w600),
           unselectedLabelStyle:
-              GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w500),
+              GoogleFonts.outfit(fontSize: 13.sp, fontWeight: FontWeight.w500),
           tabs: const [
             Tab(text: 'Comprobantes'),
             Tab(text: 'Lista'),
