@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -158,7 +159,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
 
   TextStyle _ts(double sz, {FontWeight fw = FontWeight.w400, Color? color}) =>
       GoogleFonts.outfit(
-        fontSize: sz,
+        fontSize: sz.sp,
         fontWeight: fw,
         color: color ?? AppColors.sentryNavy,
       );
@@ -169,23 +170,23 @@ class _AttendeesScreenState extends State<AttendeesScreen>
       context: context,
       builder: (_) => Dialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24.r),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 children: [
                   CircleAvatar(
-                    radius: 20,
+                    radius: 20.r,
                     backgroundColor: _avatarColor(a.name).withValues(alpha: 0.15),
                     child: Text(
                       a.name[0],
                       style: _ts(15, fw: FontWeight.w700, color: _avatarColor(a.name)),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12.w),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -201,23 +202,23 @@ class _AttendeesScreenState extends State<AttendeesScreen>
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16.h),
               Text(
                 'Código QR de Acceso',
                 style: _ts(12, fw: FontWeight.w600, color: AppColors.sentryGrey),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14.h),
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: EdgeInsets.all(14.r),
                 decoration: BoxDecoration(
                   color: AppColors.sentryBg,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(14.r),
                   border: Border.all(color: AppColors.cardBorder),
                 ),
                 child: QrImageView(
                   data: a.qrData ?? 'SENTRY|${a.name}',
                   version: QrVersions.auto,
-                  size: 180,
+                  size: 180.w,
                   eyeStyle: const QrEyeStyle(
                     color: AppColors.sentryNavy,
                     eyeShape: QrEyeShape.square,
@@ -228,14 +229,14 @@ class _AttendeesScreenState extends State<AttendeesScreen>
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14.h),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
                 decoration: BoxDecoration(
                   color: a.status == AttendeeStatus.entered
                       ? AppColors.success.withValues(alpha: 0.1)
                       : AppColors.sentryBlue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(20.r),
                   border: Border.all(
                     color: a.status == AttendeeStatus.entered
                         ? AppColors.success.withValues(alpha: 0.4)
@@ -249,12 +250,12 @@ class _AttendeesScreenState extends State<AttendeesScreen>
                       a.status == AttendeeStatus.entered
                           ? Icons.verified_rounded
                           : Icons.qr_code_rounded,
-                      size: 14,
+                      size: 14.sp,
                       color: a.status == AttendeeStatus.entered
                           ? AppColors.success
                           : AppColors.sentryBlue,
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6.w),
                     Text(
                       a.status == AttendeeStatus.entered ? 'Acceso verificado' : 'Acceso pendiente',
                       style: _ts(
@@ -268,7 +269,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
                   ],
                 ),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6.h),
               Text(a.email, style: _ts(11, color: AppColors.sentryGrey)),
             ],
           ),
@@ -291,20 +292,20 @@ class _AttendeesScreenState extends State<AttendeesScreen>
             slivers: [
               _buildAppBar(),
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 32.h),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4.h),
                     _buildHeader(),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20.h),
                     _buildStatsRow(),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20.h),
                     _buildFilterTabs(),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14.h),
                     _buildSearchBar(),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20.h),
                     _buildTableHeader(),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8.h),
                     if (_loading)
                       const Center(
                         child: Padding(
@@ -341,21 +342,21 @@ class _AttendeesScreenState extends State<AttendeesScreen>
     title: Text('Asistentes', style: _ts(17, fw: FontWeight.w800)),
     actions: [
       Container(
-        margin: const EdgeInsets.only(right: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        margin: EdgeInsets.only(right: 4.w),
+        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
         decoration: BoxDecoration(
           color: AppColors.success.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(20.r),
           border: Border.all(color: AppColors.success.withValues(alpha: 0.4)),
         ),
         child: Row(
           children: [
             Container(
-              width: 6,
-              height: 6,
+              width: 6.w,
+              height: 6.w,
               decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
             ),
-            const SizedBox(width: 5),
+            SizedBox(width: 5.w),
             Text('En vivo', style: _ts(10, fw: FontWeight.w600, color: AppColors.success)),
           ],
         ),
@@ -369,9 +370,9 @@ class _AttendeesScreenState extends State<AttendeesScreen>
           }
         },
         child: CircleAvatar(
-          radius: 16,
+          radius: 16.r,
           backgroundColor: AppColors.sentryBlue.withValues(alpha: 0.15),
-          child: const Icon(Icons.person_rounded, size: 18, color: AppColors.sentryBlue),
+          child: Icon(Icons.person_rounded, size: 18.sp, color: AppColors.sentryBlue),
         ),
         itemBuilder: (_) => [
           PopupMenuItem(
@@ -419,23 +420,23 @@ class _AttendeesScreenState extends State<AttendeesScreen>
           ],
         ),
       ),
-      const SizedBox(width: 12),
+      SizedBox(width: 12.w),
       Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
         decoration: BoxDecoration(
           color: AppColors.success.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(24.r),
           border: Border.all(color: AppColors.success.withValues(alpha: 0.5)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 7,
-              height: 7,
+              width: 7.w,
+              height: 7.w,
               decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle),
             ),
-            const SizedBox(width: 7),
+            SizedBox(width: 7.w),
             Text(
               '$_entered ingresaron',
               style: _ts(13, fw: FontWeight.w700, color: AppColors.success),
@@ -456,7 +457,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
         label: 'Ingresaron',
         ts: _ts,
       ),
-      const SizedBox(width: 10),
+      SizedBox(width: 10.w),
       _StatTile(
         icon: Icons.how_to_reg_rounded,
         color: AppColors.sentryBlue,
@@ -464,7 +465,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
         label: 'Registrados',
         ts: _ts,
       ),
-      const SizedBox(width: 10),
+      SizedBox(width: 10.w),
       _StatTile(
         icon: Icons.people_alt_rounded,
         color: AppColors.sentryNavy,
@@ -484,7 +485,7 @@ class _AttendeesScreenState extends State<AttendeesScreen>
         active: !_showOnlyEntered,
         onTap: () => setState(() => _showOnlyEntered = false),
       ),
-      const SizedBox(width: 10),
+      SizedBox(width: 10.w),
       _FilterTab(
         label: 'Ingresaron',
         count: _entered,
@@ -512,18 +513,18 @@ class _AttendeesScreenState extends State<AttendeesScreen>
       filled: true,
       fillColor: Colors.white,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14.r),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14.r),
         borderSide: const BorderSide(color: AppColors.cardBorder),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14.r),
         borderSide: const BorderSide(color: AppColors.sentryCyan, width: 1.5),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
     ),
   );
 
@@ -583,10 +584,10 @@ class _StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Expanded(
     child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+      padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 10.w),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14.r),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
           BoxShadow(
@@ -599,20 +600,20 @@ class _StatTile extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 36.w,
+            height: 36.w,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(10.r),
             ),
-            child: Icon(icon, color: color, size: 18),
+            child: Icon(icon, color: color, size: 18.sp),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8.h),
           Text(
             value,
-            style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.w800, color: color),
+            style: GoogleFonts.outfit(fontSize: 24.sp, fontWeight: FontWeight.w800, color: color),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2.h),
           Text(label, textAlign: TextAlign.center, style: ts(10, color: AppColors.sentryGrey)),
         ],
       ),
@@ -639,10 +640,10 @@ class _FilterTab extends StatelessWidget {
     onTap: onTap,
     child: AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 12.h),
       decoration: BoxDecoration(
         color: active ? AppColors.sentryBlue : Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(24.r),
         border: Border.all(
           color: active ? AppColors.sentryBlue : AppColors.cardBorder,
         ),
@@ -656,22 +657,22 @@ class _FilterTab extends StatelessWidget {
           Text(
             label,
             style: GoogleFonts.outfit(
-              fontSize: 13,
+              fontSize: 13.sp,
               fontWeight: FontWeight.w700,
               color: active ? Colors.white : AppColors.sentryNavy,
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8.w),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
             decoration: BoxDecoration(
               color: active ? Colors.white.withValues(alpha: 0.25) : AppColors.sentryBg,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(12.r),
             ),
             child: Text(
               '$count',
               style: GoogleFonts.outfit(
-                fontSize: 11,
+                fontSize: 11.sp,
                 fontWeight: FontWeight.w700,
                 color: active ? Colors.white : AppColors.sentryBlue,
               ),
@@ -702,10 +703,10 @@ class _AttendeeRow extends StatelessWidget {
     final accent = a.status == AttendeeStatus.entered ? AppColors.success : AppColors.sentryBlue;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: EdgeInsets.only(bottom: 8.h),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14.r),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
           BoxShadow(
@@ -716,7 +717,7 @@ class _AttendeeRow extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
         child: Row(
           children: [
             // Avatar + nombre + estado
@@ -726,7 +727,7 @@ class _AttendeeRow extends StatelessWidget {
                   Stack(
                     children: [
                       CircleAvatar(
-                        radius: 18,
+                        radius: 18.r,
                         backgroundColor: aColor.withValues(alpha: 0.15),
                         child: Text(
                           a.name.isNotEmpty ? a.name[0].toUpperCase() : '?',
@@ -737,8 +738,8 @@ class _AttendeeRow extends StatelessWidget {
                         bottom: 0,
                         right: 0,
                         child: Container(
-                          width: 8,
-                          height: 8,
+                          width: 8.w,
+                          height: 8.w,
                           decoration: BoxDecoration(
                             color: accent,
                             shape: BoxShape.circle,
@@ -748,7 +749,7 @@ class _AttendeeRow extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10.w),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -770,7 +771,7 @@ class _AttendeeRow extends StatelessWidget {
             ),
             // Email abreviado
             SizedBox(
-              width: 84,
+              width: 84.w,
               child: Text(
                 a.email.split('@').first,
                 style: ts(11, color: AppColors.sentryGrey),
@@ -779,21 +780,21 @@ class _AttendeeRow extends StatelessWidget {
             ),
             // Botón QR
             SizedBox(
-              width: 40,
+              width: 40.w,
               child: Center(
                 child: onQr != null
                     ? GestureDetector(
                         onTap: onQr,
                         child: Container(
-                          padding: const EdgeInsets.all(6),
+                          padding: EdgeInsets.all(6.r),
                           decoration: BoxDecoration(
                             color: AppColors.sentryBlue.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(8.r),
                           ),
-                          child: const Icon(Icons.qr_code_rounded, size: 16, color: AppColors.sentryBlue),
+                          child: Icon(Icons.qr_code_rounded, size: 16.sp, color: AppColors.sentryBlue),
                         ),
                       )
-                    : Icon(Icons.remove, size: 14, color: AppColors.sentryGrey.withValues(alpha: 0.4)),
+                    : Icon(Icons.remove, size: 14.sp, color: AppColors.sentryGrey.withValues(alpha: 0.4)),
               ),
             ),
           ],
