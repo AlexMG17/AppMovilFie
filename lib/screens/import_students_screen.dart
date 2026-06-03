@@ -160,11 +160,13 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     setState(() => _isDownloadingTemplate = true);
 
     try {
+      // 1. Leer el archivo desde assets
       final ByteData data = await rootBundle.load(
         'assets/templates/PLANTILLA_CSV_SENTRY.xlsx',
       );
       final List<int> bytes = data.buffer.asUint8List();
 
+      // 2. Abrir selector de carpeta para guardar
       final String? outputPath = await FilePicker.saveFile(
         dialogTitle: 'Guardar plantilla',
         fileName: 'plantilla_estudiantes_sentry.xlsx',
@@ -174,6 +176,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       if (!mounted) return;
 
       if (outputPath != null) {
+        // Éxito
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -354,9 +357,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       final row = rows[i];
       if (row.every(
         (c) => c?.value == null || c!.value.toString().trim().isEmpty,
-      )) {
-        continue;
-      }
+      )) continue;
 
       final data = <String, String>{};
       for (int j = 0; j < headers.length && j < row.length; j++) {
@@ -704,6 +705,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                     const SizedBox(height: 20),
                     _buildRequirementsCard(),
                     const SizedBox(height: 16),
+                    // ── Tarjeta de plantilla descargable ──────────────────
                     _buildTemplateCard(),
                     const SizedBox(height: 16),
                     _buildContent(),
@@ -733,6 +735,31 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
         ],
       ),
       actions: [
+        Container(
+          margin: const EdgeInsets.only(right: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: _kGreen.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _kGreen.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: _kGreen,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text('En línea',
+                  style: _ts(10, color: _kGreen, fw: FontWeight.w600)),
+            ],
+          ),
+        ),
+        const SizedBox(width: 4),
         PopupMenuButton<String>(
           offset: const Offset(0, 44),
           onSelected: (value) async {
@@ -901,6 +928,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
+        // Fondo con gradiente sutil verde
         gradient: LinearGradient(
           colors: [
             const Color(0xFF16A34A).withValues(alpha: 0.07),
@@ -914,6 +942,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       ),
       child: Row(
         children: [
+          // Icono Excel
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -927,6 +956,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
             ),
           ),
           const SizedBox(width: 14),
+          // Texto
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -944,6 +974,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
             ),
           ),
           const SizedBox(width: 12),
+          // Botón de descarga
           SizedBox(
             height: 38,
             child: ElevatedButton.icon(
