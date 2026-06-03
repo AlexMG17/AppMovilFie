@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -31,9 +34,84 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   List<SupportMessage> _messages = [];
   bool _loading = true;
   bool _sending = false;
+  bool _uploadingFile = false;
   RealtimeChannel? _channel;
   late final String _convUserId;
   String _userName = '';
+
+  static const _storageBucket = 'comprobantes';
+
+  // ── Parsear mensaje: si es adjunto devuelve el mapa, si no null ────────────
+  static Map<String, dynamic>? _parseAttachment(String mensaje) {
+    if (!mensaje.startsWith('{')) return null;
+    try {
+      final map = jsonDecode(mensaje) as Map<String, dynamic>;
+      if (map['_sentry_attachment'] == true) return map;
+    } catch (_) {}
+    return null;
+  }
+
+  // ── Subir archivo y enviar como mensaje ────────────────────────────────────
+  Future<void> _pickAndSendFile() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+      withData: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.first;
+    if (file.path == null) return;
+
+    setState(() => _uploadingFile = true);
+    try {
+      final bytes = await File(file.path!).readAsBytes();
+      final ext = file.extension?.toLowerCase() ?? 'bin';
+      final mime = (ext == 'pdf') ? 'application/pdf' : 'image/$ext';
+      final isImage = mime.startsWith('image/');
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final storagePath =
+          'soporte/$_convUserId/${timestamp}_${file.name}';
+
+      await SupabaseService.client.storage
+          .from(_storageBucket)
+          .uploadBinary(
+            storagePath,
+            bytes,
+            fileOptions: FileOptions(contentType: mime, upsert: false),
+          );
+
+      final url = SupabaseService.client.storage
+          .from(_storageBucket)
+          .getPublicUrl(storagePath);
+
+      final attachmentMsg = jsonEncode({
+        '_sentry_attachment': true,
+        'url': url,
+        'name': file.name,
+        'mime': mime,
+        'is_image': isImage,
+      });
+
+      await SupportService.sendMessage(
+        mensaje: attachmentMsg,
+        esAdmin: widget.isAdmin,
+        convUserId: _convUserId,
+      );
+      await _loadMessages(scroll: true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al subir archivo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingFile = false);
+    }
+  }
 
   @override
   void initState() {
@@ -199,11 +277,18 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       );
     }
 
-    // Estudiante: AppBar original con logout
+    // Estudiante: AppBar con botón de regreso + logout
     return AppBar(
       backgroundColor: AppColors.sentryNavy,
       elevation: 0,
       automaticallyImplyLeading: false,
+      leading: Navigator.canPop(context)
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            )
+          : null,
       title: Row(
         children: [
           CircleAvatar(
@@ -314,11 +399,10 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       );
 
   Widget _buildBubble(SupportMessage msg) {
-    // Admin: sus mensajes (es_admin=true) van a la derecha.
-    // Estudiante: sus propios mensajes (usuarioId == convUserId) van a la derecha.
     final isMe =
         widget.isAdmin ? msg.esAdmin : (msg.usuarioId == _convUserId);
     final isAdminMsg = msg.esAdmin;
+    final attachment = _parseAttachment(msg.mensaje);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -362,33 +446,36 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                 ),
               if (!isMe) const SizedBox(width: 6),
               Flexible(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isMe ? AppColors.sentryBlue : Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isMe ? 16 : 4),
-                      bottomRight: Radius.circular(isMe ? 4 : 16),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
+                child: attachment != null
+                    ? _buildAttachmentBubble(attachment, isMe)
+                    : Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isMe ? AppColors.sentryBlue : Colors.white,
+                          borderRadius: BorderRadius.only(
+                            topLeft: const Radius.circular(16),
+                            topRight: const Radius.circular(16),
+                            bottomLeft: Radius.circular(isMe ? 16 : 4),
+                            bottomRight: Radius.circular(isMe ? 4 : 16),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          msg.mensaje,
+                          style: GoogleFonts.outfit(
+                            fontSize: 14.sp,
+                            color:
+                                isMe ? Colors.white : AppColors.sentryNavy,
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
-                  child: Text(
-                    msg.mensaje,
-                    style: GoogleFonts.outfit(
-                      fontSize: 14.sp,
-                      color: isMe ? Colors.white : AppColors.sentryNavy,
-                    ),
-                  ),
-                ),
               ),
             ],
           ),
@@ -405,8 +492,77 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     );
   }
 
+  Widget _buildAttachmentBubble(Map<String, dynamic> att, bool isMe) {
+    final url = att['url'] as String? ?? '';
+    final name = att['name'] as String? ?? 'Archivo';
+    final isImage = att['is_image'] == true;
+
+    final bubbleColor = isMe ? AppColors.sentryBlue : Colors.white;
+    final radius = BorderRadius.only(
+      topLeft: const Radius.circular(16),
+      topRight: const Radius.circular(16),
+      bottomLeft: Radius.circular(isMe ? 16 : 4),
+      bottomRight: Radius.circular(isMe ? 4 : 16),
+    );
+
+    if (isImage) {
+      return ClipRRect(
+        borderRadius: radius,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 220.w, maxHeight: 200.h),
+          child: Image.network(
+            url,
+            fit: BoxFit.cover,
+            loadingBuilder: (_, child, progress) => progress == null
+                ? child
+                : Container(
+                    width: 220.w,
+                    height: 120.h,
+                    color: AppColors.sentryBg,
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                          color: AppColors.sentryBlue, strokeWidth: 2),
+                    ),
+                  ),
+            errorBuilder: (_, _, _) => _fileFallback(name, isMe, radius, bubbleColor),
+          ),
+        ),
+      );
+    }
+
+    return _fileFallback(name, isMe, radius, bubbleColor);
+  }
+
+  Widget _fileFallback(
+      String name, bool isMe, BorderRadius radius, Color bg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: bg, borderRadius: radius,
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.insert_drive_file_rounded,
+              color: isMe ? Colors.white70 : AppColors.sentryBlue, size: 22.sp),
+          SizedBox(width: 8.w),
+          Flexible(
+            child: Text(
+              name,
+              style: GoogleFonts.outfit(
+                  fontSize: 13.sp,
+                  color: isMe ? Colors.white : AppColors.sentryNavy,
+                  fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInput() => Container(
-        padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 16.h),
+        padding: EdgeInsets.fromLTRB(8.w, 10.h, 12.w, 16.h),
         decoration: const BoxDecoration(
           color: Colors.white,
           boxShadow: [
@@ -419,6 +575,27 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
         ),
         child: Row(
           children: [
+            // Botón adjunto
+            GestureDetector(
+              onTap: (_sending || _uploadingFile) ? null : _pickAndSendFile,
+              child: Container(
+                width: 40.w,
+                height: 40.w,
+                decoration: BoxDecoration(
+                  color: AppColors.sentryBg,
+                  shape: BoxShape.circle,
+                ),
+                child: _uploadingFile
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(
+                            color: AppColors.sentryBlue, strokeWidth: 2),
+                      )
+                    : Icon(Icons.attach_file_rounded,
+                        color: AppColors.sentryGrey, size: 20.sp),
+              ),
+            ),
+            SizedBox(width: 6.w),
             Expanded(
               child: TextField(
                 controller: _msgCtrl,
@@ -440,7 +617,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                 style: GoogleFonts.outfit(fontSize: 14.sp),
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 8.w),
             GestureDetector(
               onTap: _sendMessage,
               child: Container(

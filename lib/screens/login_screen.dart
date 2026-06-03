@@ -476,6 +476,7 @@ class _LoginScreenState extends State<LoginScreen> {
         idToken: idToken,
       );
     } catch (error) {
+      debugPrint('[GoogleSignIn] ERROR: $error');
       setState(() => _googleSignInInProgress = false);
       if (mounted) {
         _showTopToast('Error al conectar con Google.', isError: true);

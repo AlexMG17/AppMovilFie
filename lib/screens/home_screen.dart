@@ -333,7 +333,7 @@ class _HomeContentState extends State<_HomeContent> {
       final email = SupabaseService.currentUser?.email;
       if (!_activationChecked && uid != null && email != null) {
         _activationChecked = true;
-        StudentService.checkAndActivateIfPreApproved(
+        await StudentService.checkAndActivateIfPreApproved(
           email: email,
           idUsuario: uid,
           idEvento: event.id,

@@ -339,6 +339,13 @@ class _AttendeesScreenState extends State<AttendeesScreen>
     elevation: 0,
     pinned: true,
     automaticallyImplyLeading: false,
+    leading: Navigator.canPop(context)
+        ? IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                color: AppColors.sentryNavy),
+            onPressed: () => Navigator.pop(context),
+          )
+        : null,
     title: Text('Asistentes', style: _ts(17, fw: FontWeight.w800)),
     actions: [
       Container(

@@ -85,14 +85,20 @@ enum _ImportPhase { idle, loading, preview, importing, done }
 
 class _ImportResult {
   final int imported;
-  final int duplicates;
+  final int duplicates;     // duplicados dentro del archivo
+  final int existingInDb;   // ya existían en la base de datos
   final int errors;
   final int accountsCreated;
+  final List<Map<String, String>> importedList;
+  final List<Map<String, String>> existingList;
   const _ImportResult({
     required this.imported,
     required this.duplicates,
+    required this.existingInDb,
     required this.errors,
     required this.accountsCreated,
+    this.importedList = const [],
+    this.existingList = const [],
   });
 }
 
@@ -406,13 +412,23 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     }
 
     int imported = 0;
+    int existingInDb = 0;
     int errors = 0;
     int accountsCreated = 0;
+    List<Map<String, String>> importedList = [];
+    List<Map<String, String>> existingList = [];
 
     try {
       final result = await StudentService.batchUpsert(unique);
       imported = result['inserted'] ?? 0;
+      existingInDb = result['skipped'] ?? 0;
       accountsCreated = result['accounts_created'] ?? 0;
+      importedList = List<Map<String, String>>.from(
+        (result['inserted_list'] as List? ?? []).map((e) => Map<String, String>.from(e as Map)),
+      );
+      existingList = List<Map<String, String>>.from(
+        (result['skipped_list'] as List? ?? []).map((e) => Map<String, String>.from(e as Map)),
+      );
     } catch (e) {
       debugPrint('ERROR IMPORT: $e');
       errors = unique.length;
@@ -422,8 +438,11 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       _result = _ImportResult(
         imported: imported,
         duplicates: duplicates,
+        existingInDb: existingInDb,
         errors: errors,
         accountsCreated: accountsCreated,
+        importedList: importedList,
+        existingList: existingList,
       );
       _phase = _ImportPhase.done;
     });
@@ -1362,11 +1381,18 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                   const SizedBox(width: 8),
                   Expanded(
                       child: _StatChip(
-                          value: '${r.duplicates}',
+                          value: '${r.existingInDb}',
                           label: 'Ya existían',
                           color: _kYellow)),
                 ],
               ),
+              if (r.duplicates > 0) ...[
+                const SizedBox(height: 8),
+                _StatChip(
+                    value: '${r.duplicates}',
+                    label: 'Duplicados en archivo',
+                    color: _kYellow),
+              ],
               if (r.errors > 0) ...[
                 const SizedBox(height: 8),
                 _StatChip(
@@ -1398,6 +1424,30 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                   ),
                 ),
               ],
+              if (r.importedList.isNotEmpty || r.existingList.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                GestureDetector(
+                  onTap: () => _showImportDetail(r),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _kNavy.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _kNavy.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.list_alt_rounded, color: _kNavy, size: 16),
+                        const SizedBox(width: 8),
+                        Text('Ver detalle completo',
+                            style: _ts(12, fw: FontWeight.w600, color: _kNavy)),
+                        const Spacer(),
+                        const Icon(Icons.chevron_right_rounded, color: _kNavy, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1420,6 +1470,126 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       ],
     );
   }
+
+  // ── Modal de detalle de importación ──────────────────────────────────────
+  void _showImportDetail(_ImportResult r) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.92,
+        builder: (_, scrollCtrl) => Container(
+          decoration: const BoxDecoration(
+            color: _kCard,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(color: _kBorder, borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Text('Detalle de importación', style: _ts(17, fw: FontWeight.w800)),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Icon(Icons.close_rounded, color: _kGrey, size: 22),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  '${r.imported} importados · ${r.existingInDb} ya existían · ${r.duplicates} duplicados en archivo',
+                  style: _ts(11, color: _kGrey),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  children: [
+                    if (r.importedList.isNotEmpty) ...[
+                      _detailSectionHeader(
+                        '✅ Importados (${r.importedList.length})', _kGreen),
+                      const SizedBox(height: 8),
+                      ...r.importedList.map((s) => _detailRow(
+                        s['nombre'] ?? '',
+                        s['correo_electronico'] ?? '',
+                        _kGreen,
+                      )),
+                      const SizedBox(height: 16),
+                    ],
+                    if (r.existingList.isNotEmpty) ...[
+                      _detailSectionHeader(
+                        '⚠️ Ya existían (${r.existingList.length})', _kYellow),
+                      const SizedBox(height: 8),
+                      ...r.existingList.map((s) => _detailRow(
+                        s['nombre'] ?? '',
+                        s['correo_electronico'] ?? '',
+                        _kYellow,
+                      )),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailSectionHeader(String title, Color color) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Text(title, style: _ts(13, fw: FontWeight.w700, color: color)),
+  );
+
+  Widget _detailRow(String nombre, String email, Color accent) => Container(
+    margin: const EdgeInsets.only(bottom: 6),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: accent.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: accent.withValues(alpha: 0.2)),
+    ),
+    child: Row(
+      children: [
+        CircleAvatar(
+          radius: 14,
+          backgroundColor: accent.withValues(alpha: 0.15),
+          child: Text(
+            nombre.isNotEmpty ? nombre[0].toUpperCase() : '?',
+            style: _ts(11, fw: FontWeight.w700, color: accent),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(nombre, style: _ts(12, fw: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis),
+              Text(email, style: _ts(10, color: _kGrey),
+                  overflow: TextOverflow.ellipsis),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -261,6 +261,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       pinned: true,
       expandedHeight: 100,
       backgroundColor: AppColors.sentryNavy,
+      automaticallyImplyLeading: false,
+      leading: Navigator.canPop(context)
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            )
+          : null,
       flexibleSpace: FlexibleSpaceBar(
         titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
         title: Column(
