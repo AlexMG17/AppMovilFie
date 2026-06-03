@@ -225,6 +225,7 @@ class _HomeContentState extends State<_HomeContent> {
   bool _loading = true;
 
   RealtimeChannel? _eventChannel;
+  RealtimeChannel? _entradaChannel;
 
   Timer? _countdownTimer;
   Duration _remaining = Duration.zero;
@@ -235,9 +236,12 @@ class _HomeContentState extends State<_HomeContent> {
   int? _idEntrada;
   bool _activationChecked = false;
   double? _distanceMeters;
-  LatLng? _userLocation; // <-- Para pintar el punto azul
-  String _gpsStatus = 'Buscando señal...';
+  LatLng? _userLocation;
   bool _isUpdatingGps = false;
+  int _segundosSalida = 0;
+
+  // Variable de control para el estado de ingreso (Código QR)
+  bool _qrValidado = false;
 
   final _mapController = MapController();
 
@@ -254,6 +258,7 @@ class _HomeContentState extends State<_HomeContent> {
     _countdownTimer?.cancel();
     _geofenceService?.dispose();
     _eventChannel?.unsubscribe();
+    _entradaChannel?.unsubscribe();
     _mapController.dispose();
     super.dispose();
   }
@@ -267,25 +272,24 @@ class _HomeContentState extends State<_HomeContent> {
           _distanceMeters = distancia;
           _userLocation = ubicacion;
 
-          if (estado == GeofenceState.adentro) {
-            _gpsStatus = 'Adentro de la zona ✓';
-          } else if (estado == GeofenceState.cerca) {
-            _gpsStatus = 'Cerca (Zona advertencia)';
-          } else {
-            _gpsStatus = '¡Fuera de la zona!';
+          // Reactivación automática al salir del recinto
+          if (estado == GeofenceState.afuera) {
+            if (_qrValidado) {
+              _qrValidado = false; // Se resetea el QR al abandonar la zona
+            }
           }
         });
       },
-      onTimerTick: (_) {},
+      onTimerTick: (segundos) {
+        if (!mounted) return;
+        setState(() => _segundosSalida = segundos);
+      },
       onTimerExpired: () {
         if (!mounted) return;
-        // Registrar salida en Supabase → dentro_evento = false → QR visible
+        // Si el tiempo de salida expira, registramos formalmente la salida en BD
         if (_idEntrada != null) {
           QrUniqueService.registrarSalida(_idEntrada!);
         }
-        setState(() {
-          _gpsStatus = 'Salida registrada. QR habilitado.';
-        });
       },
     );
 
@@ -303,6 +307,7 @@ class _HomeContentState extends State<_HomeContent> {
   }
 
   void _subscribeToEvents() {
+    // Escucha cambios en aforo
     _eventChannel = SupabaseService.client
         .channel('public:eventos')
         .onPostgresChanges(
@@ -311,6 +316,33 @@ class _HomeContentState extends State<_HomeContent> {
           table: 'eventos',
           callback: (_) {
             if (mounted) _loadEvent();
+          },
+        )
+        .subscribe();
+  }
+
+  void _subscribeToEntrada(int idEntrada) {
+    _entradaChannel?.unsubscribe();
+    _entradaChannel = SupabaseService.client
+        .channel('home_entradas_$idEntrada')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'entradas',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id_entrada',
+            value: idEntrada,
+          ),
+          callback: (payload) {
+            if (!mounted) return;
+            final estado = payload.newRecord['estado'] as String?;
+            if (estado != null) {
+              setState(() {
+                // Si el guardia actualiza a 'usado', lo detectamos en vivo
+                _qrValidado = estado.toLowerCase() == 'usado';
+              });
+            }
           },
         )
         .subscribe();
@@ -347,15 +379,27 @@ class _HomeContentState extends State<_HomeContent> {
           idEvento: event.id,
         );
       }
+
       if (!mounted) return;
       setState(() {
         _event = event;
         _aforo = aforo;
         _capacidad = capacidad > 0 ? capacidad : 350;
-        _idEntrada = entry?['id_entrada'] as int?;
+
+        if (entry != null) {
+          _idEntrada = entry['id_entrada'] as int?;
+          final estado = entry['estado'] as String? ?? 'activo';
+          _qrValidado = estado.toLowerCase() == 'usado';
+        }
+
         _loading = false;
       });
       _startCountdown(event.fecha);
+
+      // Si tenemos entrada, escuchamos en tiempo real si el guardia nos aprueba
+      if (_idEntrada != null) {
+        _subscribeToEntrada(_idEntrada!);
+      }
     } else {
       setState(() => _loading = false);
     }
@@ -375,6 +419,125 @@ class _HomeContentState extends State<_HomeContent> {
   }
 
   String _pad(int n) => n.toString().padLeft(2, '0');
+
+  // =========================================================================
+  // MÉTODO PARA ABRIR MAPA EN PANTALLA COMPLETA
+  // =========================================================================
+  void _abrirMapaPantallaCompleta() {
+    if (_event == null) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (context) {
+          return Scaffold(
+            body: Stack(
+              children: [
+                FlutterMap(
+                  options: MapOptions(
+                    initialCenter:
+                        _userLocation ??
+                        _geofenceService?.eventCenter ??
+                        LatLng(_event!.lat, _event!.lng),
+                    initialZoom: 16.5,
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.all,
+                    ),
+                  ),
+                  children: _buildMapLayers(),
+                ),
+                // Botón "X" para cerrar
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 16,
+                  right: 16,
+                  child: FloatingActionButton(
+                    mini: true,
+                    backgroundColor: Colors.white,
+                    elevation: 4,
+                    onPressed: () => Navigator.pop(context),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      color: AppColors.sentryNavy,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // Capas del mapa extraídas para reusarlas
+  List<Widget> _buildMapLayers() {
+    return [
+      TileLayer(
+        urlTemplate:
+            'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        userAgentPackageName: 'com.fie.sentry_app',
+      ),
+      PolygonLayer(
+        polygons: [
+          if (_geofenceService != null)
+            Polygon(
+              points: _geofenceService!.eventPolygon,
+              color: AppColors.sentryCyan.withValues(alpha: 0.2),
+              borderColor: AppColors.sentryBlue,
+              borderStrokeWidth: 2.5,
+            ),
+        ],
+      ),
+      CircleLayer(
+        circles: [
+          if (_geofenceService != null)
+            CircleMarker(
+              point: _geofenceService!.eventCenter,
+              radius: _geofenceService!.radioCerca,
+              useRadiusInMeter: true,
+              color: Colors.orange.withValues(alpha: 0.05),
+              borderColor: Colors.orange.withValues(alpha: 0.5),
+              borderStrokeWidth: 1,
+            ),
+        ],
+      ),
+      MarkerLayer(
+        markers: [
+          if (_geofenceService != null)
+            Marker(
+              point: _geofenceService!.eventCenter,
+              child: const Icon(Icons.flag, color: AppColors.error, size: 24),
+            ),
+          if (_userLocation != null)
+            Marker(
+              point: _userLocation!,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 24.w,
+                    height: 24.w,
+                    decoration: BoxDecoration(
+                      color: AppColors.sentryBlue.withValues(alpha: 0.3),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Container(
+                    width: 14.w,
+                    height: 14.w,
+                    decoration: BoxDecoration(
+                      color: AppColors.sentryBlue,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -545,7 +708,10 @@ class _HomeContentState extends State<_HomeContent> {
           ),
           Text(
             label,
-            style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 10.sp),
+            style: GoogleFonts.outfit(
+              color: AppColors.sentryGrey,
+              fontSize: 10.sp,
+            ),
           ),
         ],
       ),
@@ -575,7 +741,8 @@ class _HomeContentState extends State<_HomeContent> {
                   ),
                   SizedBox(width: 6.w),
                   Tooltip(
-                    message: 'Personas con pago aprobado\ny acceso confirmado al evento',
+                    message:
+                        'Personas con pago aprobado\ny acceso confirmado al evento',
                     triggerMode: TooltipTriggerMode.tap,
                     showDuration: const Duration(seconds: 3),
                     child: Icon(
@@ -627,10 +794,6 @@ class _HomeContentState extends State<_HomeContent> {
   Widget _buildGeofenceCard() {
     final event = _event;
 
-    final Color statusColor = _geoState == GeofenceState.adentro
-        ? AppColors.success
-        : (_geoState == GeofenceState.cerca ? Colors.orange : AppColors.error);
-
     return _baseCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -666,7 +829,9 @@ class _HomeContentState extends State<_HomeContent> {
                           ? SizedBox(
                               width: 12.w,
                               height: 12.h,
-                              child: const CircularProgressIndicator(strokeWidth: 2),
+                              child: const CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
                             )
                           : Icon(
                               Icons.my_location,
@@ -698,104 +863,31 @@ class _HomeContentState extends State<_HomeContent> {
             ),
           SizedBox(height: 14.h),
 
+          // Mapa Miniatura Ampliable
           ClipRRect(
             borderRadius: BorderRadius.circular(14.r),
             child: SizedBox(
               height: 200.h,
-              child: event != null
-                  ? FlutterMap(
-                      mapController: _mapController,
-                      options: MapOptions(
-                        initialCenter:
-                            _geofenceService?.eventCenter ??
-                            LatLng(event.lat, event.lng),
-                        initialZoom: 16.0,
-                        interactionOptions: const InteractionOptions(
-                          flags:
-                              InteractiveFlag.pinchZoom | InteractiveFlag.drag,
+              child: Stack(
+                children: [
+                  if (event != null)
+                    GestureDetector(
+                      onTap: _abrirMapaPantallaCompleta,
+                      child: AbsorbPointer(
+                        child: FlutterMap(
+                          mapController: _mapController,
+                          options: MapOptions(
+                            initialCenter:
+                                _geofenceService?.eventCenter ??
+                                LatLng(event.lat, event.lng),
+                            initialZoom: 16.0,
+                          ),
+                          children: _buildMapLayers(),
                         ),
                       ),
-                      children: [
-                        TileLayer(
-                          urlTemplate:
-                              'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-                          userAgentPackageName: 'com.fie.sentry_app',
-                        ),
-                        PolygonLayer(
-                          polygons: [
-                            if (_geofenceService != null)
-                              Polygon(
-                                points: _geofenceService!.eventPolygon,
-                                color: AppColors.sentryCyan.withValues(
-                                  alpha: 0.2,
-                                ),
-                                borderColor: AppColors.sentryBlue,
-                                borderStrokeWidth: 2.5,
-                              ),
-                          ],
-                        ),
-                        CircleLayer(
-                          circles: [
-                            if (_geofenceService != null)
-                              CircleMarker(
-                                point: _geofenceService!.eventCenter,
-                                radius: _geofenceService!.radioCerca,
-                                useRadiusInMeter: true,
-                                color: Colors.orange.withValues(alpha: 0.05),
-                                borderColor: Colors.orange.withValues(
-                                  alpha: 0.5,
-                                ),
-                                borderStrokeWidth: 1,
-                              ),
-                          ],
-                        ),
-                        MarkerLayer(
-                          markers: [
-                            if (_geofenceService != null)
-                              Marker(
-                                point: _geofenceService!.eventCenter,
-                                child: const Icon(
-                                  Icons.flag,
-                                  color: AppColors.error,
-                                  size: 24,
-                                ),
-                              ),
-                            if (_userLocation != null)
-                              Marker(
-                                point: _userLocation!,
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    Container(
-                                      width: 24.w,
-                                      height: 24.w,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.sentryBlue.withValues(
-                                          alpha: 0.3,
-                                        ),
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                    Container(
-                                      width: 14.w,
-                                      height: 14.w,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.sentryBlue,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: Colors.white,
-                                          width: 2,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
                     )
-                  : Container(
+                  else
+                    Container(
                       color: AppColors.sentryBg,
                       child: Center(
                         child: Icon(
@@ -805,41 +897,137 @@ class _HomeContentState extends State<_HomeContent> {
                         ),
                       ),
                     ),
-            ),
-          ),
 
-          SizedBox(height: 14.h),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _gpsStatus,
-                      style: GoogleFonts.outfit(
-                        color: statusColor,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13.sp,
-                      ),
-                    ),
-                    if (_distanceMeters != null)
-                      Text(
-                        _geoState == GeofenceState.adentro
-                            ? 'Estás en zona segura'
-                            : 'A ${_distanceMeters!.toStringAsFixed(0)} m del centro',
-                        style: GoogleFonts.outfit(
-                          color: AppColors.sentryGrey,
-                          fontSize: 11.sp,
+                  // Botón flotante para sugerir ampliación
+                  if (event != null)
+                    Positioned(
+                      bottom: 10,
+                      right: 10,
+                      child: GestureDetector(
+                        onTap: _abrirMapaPantallaCompleta,
+                        child: Container(
+                          padding: EdgeInsets.all(8.r),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.fullscreen_rounded,
+                            color: AppColors.sentryNavy,
+                            size: 20.sp,
+                          ),
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
+            ),
+          ),
+          SizedBox(height: 14.h),
 
-            ],
+          // AVISO DINÁMICO DE GEOFENCING Y QR
+          _buildStatusBanner(),
+        ],
+      ),
+    );
+  }
+
+  // LÓGICA DEL BANNER DE AVISOS (Amarillo, Verde, Rojo)
+  Widget _buildStatusBanner() {
+    Color bgColor;
+    Color textColor;
+    IconData icon;
+    String text;
+
+    if (_geoState == GeofenceState.adentro) {
+      if (_qrValidado) {
+        bgColor = AppColors.success.withValues(alpha: 0.1);
+        textColor = AppColors.success;
+        icon = Icons.verified_user_rounded;
+        text = '¡Ingreso registrado con éxito! Disfruta del evento.';
+      } else {
+        bgColor = Colors.amber.withValues(alpha: 0.15);
+        textColor = Colors.orange.shade800;
+        icon = Icons.qr_code_scanner_rounded;
+        text =
+            '📍 Zona alcanzada.\nMuestra tu código QR al guardia para registrar tu entrada.';
+      }
+    } else if (_geoState == GeofenceState.cerca) {
+      bgColor = Colors.orange.withValues(alpha: 0.1);
+      textColor = Colors.orange.shade800;
+      icon = Icons.directions_walk_rounded;
+      text = 'Acércate más a la entrada principal...';
+    } else {
+      bgColor = AppColors.error.withValues(alpha: 0.1);
+      textColor = AppColors.error;
+      icon = Icons.location_off_rounded;
+      text =
+          '¡Fuera de la zona!\nEstás a ${_distanceMeters?.toStringAsFixed(0) ?? 0} m del recinto.';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(16.r),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: textColor.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: textColor, size: 28.sp),
+          SizedBox(width: 12.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text,
+                  style: GoogleFonts.outfit(
+                    color: textColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.sp,
+                    height: 1.3,
+                  ),
+                ),
+                // Si está afuera y hay timer de salida, lo mostramos integrado aquí
+                if (_geoState == GeofenceState.afuera &&
+                    _segundosSalida > 0) ...[
+                  SizedBox(height: 8.h),
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 10.w,
+                      vertical: 4.h,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.timer, color: AppColors.error, size: 14.sp),
+                        SizedBox(width: 6.w),
+                        Text(
+                          'Tiempo para volver: 00:${_segundosSalida.toString().padLeft(2, '0')}',
+                          style: GoogleFonts.outfit(
+                            color: AppColors.error,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12.sp,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
