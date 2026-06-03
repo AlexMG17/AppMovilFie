@@ -30,7 +30,7 @@ class SupportMessage {
         conversacionUsuarioId: map['conversacion_usuario_id'] as String? ??
             map['usuario_id'] as String? ??
             '',
-        createdAt: DateTime.tryParse(map['created_at'] ?? '') ?? DateTime.now(),
+        createdAt: (DateTime.tryParse(map['created_at'] ?? '') ?? DateTime.now()).toLocal(),
       );
 }
 

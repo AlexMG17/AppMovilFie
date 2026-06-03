@@ -35,6 +35,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   bool _loading = true;
   bool _sending = false;
   bool _uploadingFile = false;
+  PlatformFile? _selectedFile;
   RealtimeChannel? _channel;
   late final String _convUserId;
   String _userName = '';
@@ -51,8 +52,8 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     return null;
   }
 
-  // ── Subir archivo y enviar como mensaje ────────────────────────────────────
-  Future<void> _pickAndSendFile() async {
+  // ── Seleccionar archivo sin enviar automáticamente ─────────────────────────
+  Future<void> _pickFile() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
@@ -63,54 +64,86 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     final file = result.files.first;
     if (file.path == null) return;
 
-    setState(() => _uploadingFile = true);
-    try {
-      final bytes = await File(file.path!).readAsBytes();
-      final ext = file.extension?.toLowerCase() ?? 'bin';
-      final mime = (ext == 'pdf') ? 'application/pdf' : 'image/$ext';
-      final isImage = mime.startsWith('image/');
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final storagePath =
-          'soporte/$_convUserId/${timestamp}_${file.name}';
+    setState(() {
+      _selectedFile = file;
+    });
+  }
 
-      await SupabaseService.client.storage
-          .from(_storageBucket)
-          .uploadBinary(
-            storagePath,
-            bytes,
-            fileOptions: FileOptions(contentType: mime, upsert: false),
-          );
+  // ── Construir vista previa del adjunto seleccionado ────────────────────────
+  Widget _buildAttachmentPreview() {
+    if (_selectedFile == null) return const SizedBox.shrink();
 
-      final url = SupabaseService.client.storage
-          .from(_storageBucket)
-          .getPublicUrl(storagePath);
+    final ext = _selectedFile!.extension?.toLowerCase() ?? '';
+    final isImage = ['jpg', 'jpeg', 'png'].contains(ext);
 
-      final attachmentMsg = jsonEncode({
-        '_sentry_attachment': true,
-        'url': url,
-        'name': file.name,
-        'mime': mime,
-        'is_image': isImage,
-      });
-
-      await SupportService.sendMessage(
-        mensaje: attachmentMsg,
-        esAdmin: widget.isAdmin,
-        convUserId: _convUserId,
-      );
-      await _loadMessages(scroll: true);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al subir archivo: $e'),
-            backgroundColor: Colors.red,
+    return Container(
+      margin: EdgeInsets.only(bottom: 8.h, left: 4.w, right: 4.w),
+      padding: EdgeInsets.all(8.r),
+      decoration: BoxDecoration(
+        color: AppColors.sentryBg,
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AppColors.sentryGrey.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40.w,
+            height: 40.w,
+            decoration: BoxDecoration(
+              color: AppColors.sentryBlue.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8.r),
+            ),
+            child: isImage && _selectedFile!.path != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(8.r),
+                    child: Image.file(
+                      File(_selectedFile!.path!),
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                : const Icon(
+                    Icons.insert_drive_file_rounded,
+                    color: AppColors.sentryBlue,
+                    size: 20,
+                  ),
           ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _uploadingFile = false);
-    }
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _selectedFile!.name,
+                  style: GoogleFonts.outfit(
+                    color: AppColors.sentryNavy,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.sp,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '${(_selectedFile!.size / 1024).toStringAsFixed(1)} KB · Listo para enviar',
+                  style: GoogleFonts.outfit(
+                    color: AppColors.success,
+                    fontSize: 10.sp,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () => setState(() => _selectedFile = null),
+            child: const Icon(
+              Icons.close_rounded,
+              color: AppColors.sentryGrey,
+              size: 20,
+            ),
+          ),
+          SizedBox(width: 4.w),
+        ],
+      ),
+    );
   }
 
   @override
@@ -170,15 +203,68 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
 
   Future<void> _sendMessage() async {
     final text = _msgCtrl.text.trim();
-    if (text.isEmpty || _sending || _convUserId.isEmpty) return;
+    if ((text.isEmpty && _selectedFile == null) || _sending || _convUserId.isEmpty) return;
+
     setState(() => _sending = true);
-    _msgCtrl.clear();
+
     try {
-      await SupportService.sendMessage(
-        mensaje: text,
-        esAdmin: widget.isAdmin,
-        convUserId: _convUserId,
-      );
+      // 1. Si hay un archivo seleccionado, subirlo y enviarlo primero
+      if (_selectedFile != null) {
+        setState(() => _uploadingFile = true);
+        final file = _selectedFile!;
+        final bytes = await File(file.path!).readAsBytes();
+        final ext = file.extension?.toLowerCase() ?? 'bin';
+        final mime = (ext == 'pdf')
+            ? 'application/pdf'
+            : (ext == 'jpg' || ext == 'jpeg')
+                ? 'image/jpeg'
+                : 'image/$ext';
+        final isImage = mime.startsWith('image/');
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final storagePath = 'soporte/$_convUserId/${timestamp}_${file.name}';
+
+        await SupabaseService.client.storage
+            .from(_storageBucket)
+            .uploadBinary(
+              storagePath,
+              bytes,
+              fileOptions: FileOptions(contentType: mime, upsert: false),
+            );
+
+        final url = SupabaseService.client.storage
+            .from(_storageBucket)
+            .getPublicUrl(storagePath);
+
+        final attachmentMsg = jsonEncode({
+          '_sentry_attachment': true,
+          'url': url,
+          'name': file.name,
+          'mime': mime,
+          'is_image': isImage,
+        });
+
+        await SupportService.sendMessage(
+          mensaje: attachmentMsg,
+          esAdmin: widget.isAdmin,
+          convUserId: _convUserId,
+        );
+
+        setState(() {
+          _selectedFile = null;
+          _uploadingFile = false;
+        });
+      }
+
+      // 2. Si hay texto, enviarlo después
+      if (text.isNotEmpty) {
+        _msgCtrl.clear();
+        await SupportService.sendMessage(
+          mensaje: text,
+          esAdmin: widget.isAdmin,
+          convUserId: _convUserId,
+        );
+      }
+
       await _loadMessages(scroll: true);
     } catch (e) {
       if (mounted) {
@@ -190,7 +276,12 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) {
+        setState(() {
+          _sending = false;
+          _uploadingFile = false;
+        });
+      }
     }
   }
 
@@ -573,69 +664,76 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Botón adjunto
-            GestureDetector(
-              onTap: (_sending || _uploadingFile) ? null : _pickAndSendFile,
-              child: Container(
-                width: 40.w,
-                height: 40.w,
-                decoration: BoxDecoration(
-                  color: AppColors.sentryBg,
-                  shape: BoxShape.circle,
-                ),
-                child: _uploadingFile
-                    ? const Padding(
-                        padding: EdgeInsets.all(10),
-                        child: CircularProgressIndicator(
-                            color: AppColors.sentryBlue, strokeWidth: 2),
-                      )
-                    : Icon(Icons.attach_file_rounded,
-                        color: AppColors.sentryGrey, size: 20.sp),
-              ),
-            ),
-            SizedBox(width: 6.w),
-            Expanded(
-              child: TextField(
-                controller: _msgCtrl,
-                textCapitalization: TextCapitalization.sentences,
-                onSubmitted: (_) => _sendMessage(),
-                decoration: InputDecoration(
-                  hintText: 'Escribe tu mensaje...',
-                  hintStyle: GoogleFonts.outfit(
-                      color: AppColors.sentryGrey, fontSize: 14.sp),
-                  filled: true,
-                  fillColor: AppColors.sentryBg,
-                  contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16.w, vertical: 12.h),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24.r),
-                    borderSide: BorderSide.none,
+            _buildAttachmentPreview(),
+            Row(
+              children: [
+                // Botón adjunto
+                GestureDetector(
+                  onTap: (_sending || _uploadingFile) ? null : _pickFile,
+                  child: Container(
+                    width: 40.w,
+                    height: 40.w,
+                    decoration: BoxDecoration(
+                      color: AppColors.sentryBg,
+                      shape: BoxShape.circle,
+                    ),
+                    child: _uploadingFile
+                        ? const Padding(
+                            padding: EdgeInsets.all(10),
+                            child: CircularProgressIndicator(
+                                color: AppColors.sentryBlue, strokeWidth: 2),
+                          )
+                        : Icon(Icons.attach_file_rounded,
+                            color: AppColors.sentryGrey, size: 20.sp),
                   ),
                 ),
-                style: GoogleFonts.outfit(fontSize: 14.sp),
-              ),
-            ),
-            SizedBox(width: 8.w),
-            GestureDetector(
-              onTap: _sendMessage,
-              child: Container(
-                width: 46.w,
-                height: 46.w,
-                decoration: const BoxDecoration(
-                  color: AppColors.sentryBlue,
-                  shape: BoxShape.circle,
+                SizedBox(width: 6.w),
+                Expanded(
+                  child: TextField(
+                    controller: _msgCtrl,
+                    textCapitalization: TextCapitalization.sentences,
+                    onSubmitted: (_) => _sendMessage(),
+                    decoration: InputDecoration(
+                      hintText: 'Escribe tu mensaje...',
+                      hintStyle: GoogleFonts.outfit(
+                          color: AppColors.sentryGrey, fontSize: 14.sp),
+                      filled: true,
+                      fillColor: AppColors.sentryBg,
+                      contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16.w, vertical: 12.h),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24.r),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    style: GoogleFonts.outfit(fontSize: 14.sp),
+                  ),
                 ),
-                child: _sending
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send_rounded,
-                        color: Colors.white, size: 20),
-              ),
+                SizedBox(width: 8.w),
+                GestureDetector(
+                  onTap: _sendMessage,
+                  child: Container(
+                    width: 46.w,
+                    height: 46.w,
+                    decoration: const BoxDecoration(
+                      color: AppColors.sentryBlue,
+                      shape: BoxShape.circle,
+                    ),
+                    child: _sending
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send_rounded,
+                            color: Colors.white, size: 20),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
