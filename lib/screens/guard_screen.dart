@@ -19,11 +19,11 @@ class GuardScreen extends StatefulWidget {
 class _GuardScreenState extends State<GuardScreen>
     with TickerProviderStateMixin {
   // ── Paleta Sentry ───────────────────────────────────────────
-  static const Color sentryDarkBg   = AppColors.sentryBg;    // Fondo claro
-  static const Color sentryDarkCard = Color(0xFFFFFFFF);     // Tarjeta blanca
-  static const Color sentrySuccess  = Color(0xFF00E676);
-  static const Color sentryError    = Color(0xFFFF5252);
-  static const Color sentryWarning  = Color(0xFFFFCA28);
+  static const Color sentryDarkBg = AppColors.sentryBg; // Fondo claro
+  static const Color sentryDarkCard = Color(0xFFFFFFFF); // Tarjeta blanca
+  static const Color sentrySuccess = Color(0xFF00E676);
+  static const Color sentryError = Color(0xFFFF5252);
+  static const Color sentryWarning = Color(0xFFFFCA28);
   // ────────────────────────────────────────────────────────────
 
   final TextEditingController _manualCodeController = TextEditingController();
@@ -76,7 +76,10 @@ class _GuardScreenState extends State<GuardScreen>
 
   Future<void> _loadUserName() async {
     final name = await EventService.getCurrentUserName();
-    if (mounted) setState(() => _userName = name ?? SupabaseService.currentUser?.email ?? '');
+    if (mounted)
+      setState(
+        () => _userName = name ?? SupabaseService.currentUser?.email ?? '',
+      );
   }
 
   Future<void> _initializeGuard() async {
@@ -142,9 +145,21 @@ class _GuardScreenState extends State<GuardScreen>
       idEvento: _eventoId,
     );
 
-    // Vibración según resultado
+    // Vibración según resultado y ACTUALIZACIÓN A SUPABASE
     if (result.resultado == 'valido') {
       HapticFeedback.heavyImpact();
+
+      // 🔥 LA MAGIA EN TIEMPO REAL 🔥
+      // Le decimos a Supabase que este código ha sido USADO exitosamente
+      // Esto disparará la señal al celular del estudiante para ocultar su QR
+      try {
+        await SupabaseService.client
+            .from('entradas')
+            .update({'estado': 'usado'})
+            .eq('codigo_qr', code);
+      } catch (e) {
+        debugPrint("Error actualizando estado a usado en BD: $e");
+      }
     } else {
       HapticFeedback.vibrate();
     }
@@ -183,14 +198,20 @@ class _GuardScreenState extends State<GuardScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancelar', style: GoogleFonts.outfit(color: Colors.grey)),
+            child: Text(
+              'Cancelar',
+              style: GoogleFonts.outfit(color: Colors.grey),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: sentryWarning),
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
               'Deshacer',
-              style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+              style: GoogleFonts.outfit(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -199,6 +220,21 @@ class _GuardScreenState extends State<GuardScreen>
 
     if (confirm == true && scan.codigoQR != null && mounted) {
       final ok = await GuardService.undoEntry(codigoQR: scan.codigoQR!);
+
+      if (ok) {
+        // 🔥 MAGIA INVERSA 🔥
+        // Si el guardia deshace la entrada, el QR vuelve a estar "activo"
+        // para que al estudiante le reaparezca en su celular.
+        try {
+          await SupabaseService.client
+              .from('entradas')
+              .update({'estado': 'activo'})
+              .eq('codigo_qr', scan.codigoQR!);
+        } catch (e) {
+          debugPrint("Error revirtiendo estado a activo en BD: $e");
+        }
+      }
+
       await _refreshData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -239,7 +275,10 @@ class _GuardScreenState extends State<GuardScreen>
               SizedBox(height: 16.h),
               Text(
                 'Inicializando validador...',
-                style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 14.sp),
+                style: GoogleFonts.outfit(
+                  color: AppColors.sentryGrey,
+                  fontSize: 14.sp,
+                ),
               ),
             ],
           ),
@@ -285,7 +324,10 @@ class _GuardScreenState extends State<GuardScreen>
       decoration: BoxDecoration(
         color: sentryDarkCard,
         border: Border(
-          bottom: BorderSide(color: AppColors.sentryCyan.withValues(alpha:0.15), width: 1),
+          bottom: BorderSide(
+            color: AppColors.sentryCyan.withValues(alpha: 0.15),
+            width: 1,
+          ),
         ),
       ),
       child: Row(
@@ -326,7 +368,7 @@ class _GuardScreenState extends State<GuardScreen>
                       vertical: 2.h,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.sentryCyan.withValues(alpha:0.15),
+                      color: AppColors.sentryCyan.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6.r),
                     ),
                     child: Text(
@@ -347,10 +389,10 @@ class _GuardScreenState extends State<GuardScreen>
           Container(
             padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
             decoration: BoxDecoration(
-              color: sentrySuccess.withValues(alpha:0.15),
+              color: sentrySuccess.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(20.r),
               border: Border.all(
-                color: sentrySuccess.withValues(alpha:0.3),
+                color: sentrySuccess.withValues(alpha: 0.3),
                 width: 1,
               ),
             ),
@@ -391,7 +433,11 @@ class _GuardScreenState extends State<GuardScreen>
             child: CircleAvatar(
               radius: 18.r,
               backgroundColor: AppColors.sentryCyan,
-              child: Icon(Icons.person_rounded, color: Colors.white, size: 20.sp),
+              child: Icon(
+                Icons.person_rounded,
+                color: Colors.white,
+                size: 20.sp,
+              ),
             ),
             itemBuilder: (_) => [
               PopupMenuItem(
@@ -402,9 +448,10 @@ class _GuardScreenState extends State<GuardScreen>
                     Text(
                       _userName,
                       style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14.sp,
-                          color: Colors.black87),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.sp,
+                        color: Colors.black87,
+                      ),
                     ),
                     Text(
                       SupabaseService.currentUser?.email ?? '',
@@ -420,8 +467,10 @@ class _GuardScreenState extends State<GuardScreen>
                   children: [
                     Icon(Icons.logout_rounded, size: 16, color: Colors.red),
                     SizedBox(width: 8),
-                    Text('Cerrar sesión',
-                        style: TextStyle(color: Colors.red, fontSize: 14)),
+                    Text(
+                      'Cerrar sesión',
+                      style: TextStyle(color: Colors.red, fontSize: 14),
+                    ),
                   ],
                 ),
               ),
@@ -441,7 +490,10 @@ class _GuardScreenState extends State<GuardScreen>
       decoration: BoxDecoration(
         color: sentryDarkCard,
         borderRadius: BorderRadius.circular(20.r),
-        border: Border.all(color: AppColors.sentryCyan.withValues(alpha:0.1), width: 1),
+        border: Border.all(
+          color: AppColors.sentryCyan.withValues(alpha: 0.1),
+          width: 1,
+        ),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20.r),
@@ -523,19 +575,22 @@ class _GuardScreenState extends State<GuardScreen>
           children: [
             Icon(
               Icons.videocam_off_outlined,
-              color: AppColors.sentryGrey.withValues(alpha:0.5),
+              color: AppColors.sentryGrey.withValues(alpha: 0.5),
               size: 48.sp,
             ),
             SizedBox(height: 8.h),
             Text(
               'Cámara no disponible',
-              style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 13.sp),
+              style: GoogleFonts.outfit(
+                color: AppColors.sentryGrey,
+                fontSize: 13.sp,
+              ),
             ),
             SizedBox(height: 4.h),
             Text(
               'Usa el ingreso manual',
               style: GoogleFonts.outfit(
-                color: AppColors.sentryGrey.withValues(alpha:0.6),
+                color: AppColors.sentryGrey.withValues(alpha: 0.6),
                 fontSize: 11.sp,
               ),
             ),
@@ -555,7 +610,9 @@ class _GuardScreenState extends State<GuardScreen>
         child: SizedBox(
           width: 180.w,
           height: 180.w,
-          child: CustomPaint(painter: _ScanFramePainter(color: AppColors.sentryCyan)),
+          child: CustomPaint(
+            painter: _ScanFramePainter(color: AppColors.sentryCyan),
+          ),
         ),
       ),
     );
@@ -644,16 +701,31 @@ class _GuardScreenState extends State<GuardScreen>
                     ),
                   ),
                 ],
-                if (result.resultado == 'valido' && result.codigoQR != null) ...[
+                if (result.resultado == 'valido' &&
+                    result.codigoQR != null) ...[
                   SizedBox(height: 16.h),
                   GestureDetector(
                     onTap: () async {
                       await GuardService.undoEntry(codigoQR: result.codigoQR!);
+
+                      // Magia inversa: Al deshacer, vuelve a estado activo
+                      try {
+                        await SupabaseService.client
+                            .from('entradas')
+                            .update({'estado': 'activo'})
+                            .eq('codigo_qr', result.codigoQR!);
+                      } catch (e) {
+                        debugPrint("Error revirtiendo: $e");
+                      }
+
                       await _refreshData();
                       if (mounted) setState(() => _lastScanResult = null);
                     },
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16.w,
+                        vertical: 8.h,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.black26,
                         borderRadius: BorderRadius.circular(20.r),
@@ -662,7 +734,11 @@ class _GuardScreenState extends State<GuardScreen>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.undo_rounded, color: Colors.white70, size: 16.sp),
+                          Icon(
+                            Icons.undo_rounded,
+                            color: Colors.white70,
+                            size: 16.sp,
+                          ),
                           SizedBox(width: 6.w),
                           Text(
                             'Deshacer entrada',
@@ -710,17 +786,20 @@ class _GuardScreenState extends State<GuardScreen>
                   color: sentryDarkCard,
                   borderRadius: BorderRadius.circular(12.r),
                   border: Border.all(
-                    color: AppColors.sentryCyan.withValues(alpha:0.15),
+                    color: AppColors.sentryCyan.withValues(alpha: 0.15),
                     width: 1,
                   ),
                 ),
                 child: TextField(
                   controller: _manualCodeController,
-                  style: GoogleFonts.outfit(color: AppColors.sentryNavy, fontSize: 14.sp),
+                  style: GoogleFonts.outfit(
+                    color: AppColors.sentryNavy,
+                    fontSize: 14.sp,
+                  ),
                   decoration: InputDecoration(
                     hintText: 'Pegar o escribir código QR...',
                     hintStyle: GoogleFonts.outfit(
-                      color: AppColors.sentryGrey.withValues(alpha:0.5),
+                      color: AppColors.sentryGrey.withValues(alpha: 0.5),
                       fontSize: 13.sp,
                     ),
                     border: InputBorder.none,
@@ -746,7 +825,7 @@ class _GuardScreenState extends State<GuardScreen>
                   borderRadius: BorderRadius.circular(12.r),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.sentryCyan.withValues(alpha:0.3),
+                      color: AppColors.sentryCyan.withValues(alpha: 0.3),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -794,12 +873,18 @@ class _GuardScreenState extends State<GuardScreen>
             decoration: BoxDecoration(
               color: sentryDarkCard,
               borderRadius: BorderRadius.circular(14.r),
-              border: Border.all(color: AppColors.sentryCyan.withValues(alpha:0.08), width: 1),
+              border: Border.all(
+                color: AppColors.sentryCyan.withValues(alpha: 0.08),
+                width: 1,
+              ),
             ),
             child: Center(
               child: Text(
                 'Aún no hay escaneos registrados',
-                style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 13.sp),
+                style: GoogleFonts.outfit(
+                  color: AppColors.sentryGrey,
+                  fontSize: 13.sp,
+                ),
               ),
             ),
           )
@@ -844,7 +929,10 @@ class _GuardScreenState extends State<GuardScreen>
       decoration: BoxDecoration(
         color: sentryDarkCard,
         borderRadius: BorderRadius.circular(14.r),
-        border: Border.all(color: statusColor.withValues(alpha:0.15), width: 1),
+        border: Border.all(
+          color: statusColor.withValues(alpha: 0.15),
+          width: 1,
+        ),
       ),
       child: Row(
         children: [
@@ -854,7 +942,7 @@ class _GuardScreenState extends State<GuardScreen>
             height: 36.w,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: statusColor.withValues(alpha:0.15),
+              color: statusColor.withValues(alpha: 0.15),
             ),
             child: Icon(statusIcon, color: statusColor, size: 20.sp),
           ),
@@ -879,7 +967,7 @@ class _GuardScreenState extends State<GuardScreen>
                         ? '${scan.codigoQR!.substring(0, 20)}...'
                         : scan.codigoQR!,
                     style: GoogleFonts.outfit(
-                      color: AppColors.sentryGrey.withValues(alpha:0.6),
+                      color: AppColors.sentryGrey.withValues(alpha: 0.6),
                       fontSize: 11.sp,
                     ),
                   ),
@@ -889,7 +977,10 @@ class _GuardScreenState extends State<GuardScreen>
           // Hora
           Text(
             timeStr,
-            style: GoogleFonts.outfit(color: AppColors.sentryGrey, fontSize: 12.sp),
+            style: GoogleFonts.outfit(
+              color: AppColors.sentryGrey,
+              fontSize: 12.sp,
+            ),
           ),
           if (scan.resultado == 'valido' && scan.codigoQR != null) ...[
             SizedBox(width: 8.w),
@@ -901,7 +992,11 @@ class _GuardScreenState extends State<GuardScreen>
                   color: sentryWarning.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8.r),
                 ),
-                child: Icon(Icons.undo_rounded, color: sentryWarning, size: 16.sp),
+                child: Icon(
+                  Icons.undo_rounded,
+                  color: sentryWarning,
+                  size: 16.sp,
+                ),
               ),
             ),
           ],
@@ -951,7 +1046,7 @@ class _GuardScreenState extends State<GuardScreen>
         decoration: BoxDecoration(
           color: sentryDarkCard,
           borderRadius: BorderRadius.circular(14.r),
-          border: Border.all(color: color.withValues(alpha:0.2), width: 1),
+          border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
         ),
         child: Column(
           children: [
