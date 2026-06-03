@@ -1,11 +1,11 @@
 {
-    "name": "fie_eventos_app",
-    "short_name": "fie_eventos_app",
+    "name": "Sentry",
+    "short_name": "Sentry",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Sentry - Control de acceso seguro a eventos.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

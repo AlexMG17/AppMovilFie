@@ -39,9 +39,24 @@ class EventService {
 
   static SupabaseClient get _client => SupabaseService.client;
 
+  static EventModel? _cachedEvent;
+  static DateTime? _cacheTime;
+  static const _cacheTtl = Duration(seconds: 30);
+
+  static void clearEventCache() {
+    _cachedEvent = null;
+    _cacheTime = null;
+  }
+
   /// Retorna el próximo evento activo (fecha_evento >= hoy).
   /// Si no hay futuro, retorna el más reciente.
+  /// Resultado cacheado 30 s para evitar múltiples consultas simultáneas.
   static Future<EventModel?> getActiveEvent() async {
+    if (_cachedEvent != null &&
+        _cacheTime != null &&
+        DateTime.now().difference(_cacheTime!) < _cacheTtl) {
+      return _cachedEvent;
+    }
     try {
       final today = DateTime.now().toIso8601String().substring(0, 10);
 
@@ -62,10 +77,11 @@ class EventService {
           .limit(1)
           .maybeSingle();
 
-      if (data == null) return null;
-      return EventModel.fromMap(data);
+      _cachedEvent = data != null ? EventModel.fromMap(data) : null;
+      _cacheTime = DateTime.now();
+      return _cachedEvent;
     } catch (_) {
-      return null;
+      return _cachedEvent; // Devuelve caché obsoleto antes de reportar null
     }
   }
 
@@ -96,6 +112,7 @@ class EventService {
   }
 
   /// id_usuario del usuario autenticado.
+  /// Si no existe fila en `usuarios` (trigger falló), la crea automáticamente.
   static Future<int?> getCurrentUserId() async {
     final user = SupabaseService.currentUser;
     if (user == null) return null;
@@ -104,8 +121,23 @@ class EventService {
           .from('usuarios')
           .select('id_usuario')
           .eq('email', user.email!)
+          .maybeSingle();
+
+      if (data != null) return data['id_usuario'] as int?;
+
+      // Registro faltante: reconstruir desde metadatos de auth
+      final meta = user.userMetadata ?? {};
+      final nombre =
+          meta['nombre'] as String? ?? user.email ?? 'Usuario';
+      final idRol = (meta['id_rol'] as num?)?.toInt() ?? 1;
+
+      final inserted = await _client
+          .from('usuarios')
+          .insert({'email': user.email, 'nombre': nombre, 'id_rol': idRol})
+          .select('id_usuario')
           .single();
-      return data['id_usuario'] as int?;
+
+      return inserted['id_usuario'] as int?;
     } catch (_) {
       return null;
     }
@@ -123,7 +155,7 @@ class EventService {
     await _client.from('eventos').insert({
       'nombre': nombre,
       'descripcion': descripcion,
-      'fecha_evento': fecha.toIso8601String().substring(0, 10),
+      'fecha_evento': fecha.toIso8601String(),
       'ubicacion': lugar,
       'latitud': lat,
       'longitud': lng,
@@ -143,7 +175,7 @@ class EventService {
     await _client.from('eventos').update({
       'nombre': nombre,
       'descripcion': descripcion,
-      'fecha_evento': fecha.toIso8601String().substring(0, 10),
+      'fecha_evento': fecha.toIso8601String(),
       'ubicacion': lugar,
       'latitud': lat,
       'longitud': lng,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/support_service.dart';
 import '../services/supabase_service.dart';
@@ -7,8 +8,8 @@ import 'admin_dashboard_screen.dart';
 import 'admin_support_list_screen.dart';
 import 'attendees_screen.dart';
 import 'import_students_screen.dart';
-import 'payment_vouchers_screen.dart';
-import 'student_list_screen.dart';
+import 'participants_screen.dart';
+import 'user_management_screen.dart';
 
 class AdminShellScreen extends StatefulWidget {
   final int initialIndex;
@@ -63,18 +64,27 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   Widget build(BuildContext context) {
     final pages = [
       AdminDashboardScreen(onSelectTab: _selectTab),
-      const AttendeesScreen(),
-      const PaymentVouchersScreen(),
-      const _MoreScreen(),
+      const ParticipantsScreen(),
+      const ImportStudentsScreen(),
+      _MoreScreen(unreadSupport: _unreadSupport),
     ];
 
     return Scaffold(
       backgroundColor: AppColors.sentryBg,
-      body: IndexedStack(index: _selectedIndex, children: pages),
-      bottomNavigationBar: _AdminBottomBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: _selectTab,
-        unreadSupport: _unreadSupport,
+      body: Stack(
+        children: [
+          IndexedStack(index: _selectedIndex, children: pages),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _AdminBottomBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: _selectTab,
+              unreadSupport: _unreadSupport,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -82,7 +92,8 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
 
 // ── Pantalla "Más opciones" ───────────────────────────────────────────────────
 class _MoreScreen extends StatelessWidget {
-  const _MoreScreen();
+  final int unreadSupport;
+  const _MoreScreen({this.unreadSupport = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -90,52 +101,53 @@ class _MoreScreen extends StatelessWidget {
       backgroundColor: AppColors.sentryBg,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+          padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 20.h),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Más opciones',
                 style: TextStyle(
-                  fontSize: 22,
+                  fontSize: 22.sp,
                   fontWeight: FontWeight.w800,
                   color: AppColors.sentryNavy,
                 ),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6.h),
               Text(
                 'Herramientas adicionales',
-                style: TextStyle(fontSize: 13, color: AppColors.sentryGrey),
+                style: TextStyle(fontSize: 13.sp, color: AppColors.sentryGrey),
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 24.h),
               _MoreTile(
-                icon: Icons.list_alt_rounded,
+                icon: Icons.groups_rounded,
                 color: AppColors.sentryBlue,
-                title: 'Lista de estudiantes',
-                subtitle: 'Consultar, editar y descargar',
+                title: 'Asistentes',
+                subtitle: 'Lista en tiempo real de entradas',
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const StudentListScreen()),
+                  MaterialPageRoute(builder: (_) => const AttendeesScreen()),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               _MoreTile(
-                icon: Icons.upload_file_rounded,
-                color: const Color(0xFF7C3AED),
-                title: 'Importar estudiantes',
-                subtitle: 'Carga masiva desde Excel / CSV',
+                icon: Icons.manage_accounts_rounded,
+                color: const Color(0xFF6A1B9A),
+                title: 'Gestión de usuarios',
+                subtitle: 'Ascender a admin o validador',
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => const ImportStudentsScreen()),
+                      builder: (_) => const UserManagementScreen()),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               _MoreTile(
                 icon: Icons.headset_mic_rounded,
                 color: AppColors.sentryCyan,
                 title: 'Soporte técnico',
                 subtitle: 'Tickets y mensajes de usuarios',
+                badgeCount: unreadSupport,
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -156,6 +168,7 @@ class _MoreTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final int badgeCount;
 
   const _MoreTile({
     required this.icon,
@@ -163,18 +176,19 @@ class _MoreTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(16.r),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(16.r),
           border: Border.all(color: AppColors.cardBorder),
           boxShadow: [
             BoxShadow(
@@ -186,16 +200,21 @@ class _MoreTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
+            Badge(
+              isLabelVisible: badgeCount > 0,
+              label: Text('$badgeCount'),
+              backgroundColor: AppColors.error,
+              child: Container(
+                width: 44.w,
+                height: 44.w,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Icon(icon, color: color, size: 22.sp),
               ),
-              child: Icon(icon, color: color, size: 22),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: 16.w),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,22 +222,22 @@ class _MoreTile extends StatelessWidget {
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 14.sp,
                       fontWeight: FontWeight.w700,
                       color: AppColors.sentryNavy,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2.h),
                   Text(
                     subtitle,
                     style: TextStyle(
-                        fontSize: 11, color: AppColors.sentryGrey),
+                        fontSize: 11.sp, color: AppColors.sentryGrey),
                   ),
                 ],
               ),
             ),
             Icon(Icons.chevron_right_rounded,
-                size: 20, color: AppColors.sentryGrey),
+                size: 20.sp, color: AppColors.sentryGrey),
           ],
         ),
       ),
@@ -237,13 +256,31 @@ class _AdminBottomBar extends StatelessWidget {
     this.unreadSupport = 0,
   });
 
+  Widget _item(int idx, IconData outline, IconData filled) {
+    final active = selectedIndex == idx;
+    return GestureDetector(
+      onTap: () => onDestinationSelected(idx),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+        child: Icon(
+          active ? filled : outline,
+          color: active ? AppColors.sentryBlue : AppColors.sentryGrey,
+          size: 26.sp,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final active3 = selectedIndex == 3;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Container(
-      margin: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+      margin: EdgeInsets.fromLTRB(24.w, 0, 24.w, 12.h + bottomPadding),
+      height: 60.h,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(22.r),
         boxShadow: [
           BoxShadow(
             color: AppColors.sentryNavy.withValues(alpha: 0.10),
@@ -252,67 +289,29 @@ class _AdminBottomBar extends StatelessWidget {
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: NavigationBarTheme(
-          data: NavigationBarThemeData(
-            backgroundColor: Colors.white,
-            indicatorColor: AppColors.sentryCyan.withValues(alpha: 0.16),
-            labelTextStyle: WidgetStateProperty.resolveWith((states) {
-              final selected = states.contains(WidgetState.selected);
-              return TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? AppColors.sentryBlue : AppColors.sentryGrey,
-              );
-            }),
-            iconTheme: WidgetStateProperty.resolveWith((states) {
-              final selected = states.contains(WidgetState.selected);
-              return IconThemeData(
-                size: 23,
-                color: selected ? AppColors.sentryBlue : AppColors.sentryGrey,
-              );
-            }),
-          ),
-          child: NavigationBar(
-            height: 74,
-            selectedIndex: selectedIndex,
-            onDestinationSelected: onDestinationSelected,
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home_rounded),
-                label: 'Inicio',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.qr_code_scanner_outlined),
-                selectedIcon: Icon(Icons.qr_code_scanner_rounded),
-                label: 'QR',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long_rounded),
-                label: 'Pagos',
-              ),
-              NavigationDestination(
-                icon: Badge(
-                  isLabelVisible: unreadSupport > 0,
-                  label: Text('$unreadSupport'),
-                  backgroundColor: AppColors.error,
-                  child: const Icon(Icons.grid_view_rounded),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _item(0, Icons.home_outlined, Icons.home_rounded),
+          _item(1, Icons.people_outline_rounded, Icons.people_rounded),
+          _item(2, Icons.group_add_outlined, Icons.group_add_rounded),
+          GestureDetector(
+            onTap: () => onDestinationSelected(3),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 8.h),
+              child: Badge(
+                isLabelVisible: unreadSupport > 0,
+                label: Text('$unreadSupport'),
+                backgroundColor: AppColors.error,
+                child: Icon(
+                  Icons.grid_view_rounded,
+                  color: active3 ? AppColors.sentryBlue : AppColors.sentryGrey,
+                  size: 26.sp,
                 ),
-                selectedIcon: Badge(
-                  isLabelVisible: unreadSupport > 0,
-                  label: Text('$unreadSupport'),
-                  backgroundColor: AppColors.error,
-                  child: const Icon(Icons.grid_view_rounded),
-                ),
-                label: 'Más',
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

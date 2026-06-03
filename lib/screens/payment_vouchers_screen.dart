@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,16 +9,18 @@ import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 
 class PaymentVouchersScreen extends StatefulWidget {
-  const PaymentVouchersScreen({super.key});
+  const PaymentVouchersScreen({super.key, this.showAppBar = true});
+  final bool showAppBar;
   @override
   State<PaymentVouchersScreen> createState() => _PaymentVouchersScreenState();
 }
 
 class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
   List<PagoAdminModel> _pagos = [];
+  List<Map<String, dynamic>> _excelPendientes = [];
   bool _loading = true;
   String? _error;
-  String? _filterEstado;
+  String? _filterEstado = 'pendiente';
   final _searchCtrl = TextEditingController();
   String _query = '';
   int? _eventId;
@@ -25,19 +28,48 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
   final Set<int> _processing = {};
   RealtimeChannel? _channel;
   String _userName = '';
+  final _scrollCtrl = ScrollController();
+  bool _showScrollTop = false;
 
   // ── computed ──────────────────────────────────────────────────────────────
 
-  List<PagoAdminModel> get _filtered => _pagos.where((p) {
-        final ms = _filterEstado == null || p.estado == _filterEstado;
-        final mq = _query.isEmpty ||
-            p.nombreUsuario.toLowerCase().contains(_query.toLowerCase()) ||
-            p.emailUsuario.toLowerCase().contains(_query.toLowerCase());
-        return ms && mq;
-      }).toList();
+  List<PagoAdminModel> get _filteredPagos {
+    final list = _pagos.where((p) {
+      final ms = _filterEstado == null || p.estado == _filterEstado;
+      final mq = _query.isEmpty ||
+          p.nombreUsuario.toLowerCase().contains(_query.toLowerCase()) ||
+          p.emailUsuario.toLowerCase().contains(_query.toLowerCase());
+      return ms && mq;
+    }).toList();
+    if (_filterEstado == 'pendiente') {
+      list.sort((a, b) {
+        final aHas = a.comprobante != null ? 0 : 1;
+        final bHas = b.comprobante != null ? 0 : 1;
+        return aHas.compareTo(bHas);
+      });
+    }
+    return list;
+  }
 
-  int _count(String? e) =>
-      e == null ? _pagos.length : _pagos.where((p) => p.estado == e).length;
+  List<Map<String, dynamic>> get _filteredExcel {
+    if (_filterEstado != null && _filterEstado != 'pendiente') return [];
+    return _excelPendientes.where((s) {
+      return _query.isEmpty ||
+          (s['nombre'] ?? '').toLowerCase().contains(_query.toLowerCase()) ||
+          (s['correo_electronico'] ?? '')
+              .toLowerCase()
+              .contains(_query.toLowerCase());
+    }).toList();
+  }
+
+  int _count(String? e) {
+    if (e == null) return _pagos.length + _excelPendientes.length;
+    if (e == 'pendiente') {
+      return _pagos.where((p) => p.estado == 'pendiente').length +
+          _excelPendientes.length;
+    }
+    return _pagos.where((p) => p.estado == e).length;
+  }
 
   // ── lifecycle ─────────────────────────────────────────────────────────────
 
@@ -46,6 +78,10 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
     super.initState();
     _loadData();
     _loadUserName();
+    _scrollCtrl.addListener(() {
+      final show = _scrollCtrl.offset > 300;
+      if (show != _showScrollTop) setState(() => _showScrollTop = show);
+    });
   }
 
   Future<void> _loadUserName() async {
@@ -56,6 +92,7 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _scrollCtrl.dispose();
     _channel?.unsubscribe();
     super.dispose();
   }
@@ -81,9 +118,11 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
       _eventId = event.id;
       _eventName = event.nombre;
       final pagos = await PaymentService.getAllPagos(idEvento: event.id);
+      final excelPendientes = await _loadExcelPendientes(pagos);
       if (!mounted) return;
       setState(() {
         _pagos = pagos;
+        _excelPendientes = excelPendientes;
         _loading = false;
       });
       _subscribeRealtime(event.id);
@@ -113,11 +152,38 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
         .subscribe();
   }
 
+  Future<List<Map<String, dynamic>>> _loadExcelPendientes(
+      List<PagoAdminModel> pagos) async {
+    try {
+      final activatedEmails =
+          pagos.map((p) => p.emailUsuario.toLowerCase()).toSet();
+      final rows = await SupabaseService.client
+          .from('listado_estudiantes')
+          .select('nombre, correo_electronico, carrera')
+          .order('nombre') as List;
+      return rows
+          .where((r) {
+            final email = (r['correo_electronico'] ?? '').toLowerCase();
+            return email.isNotEmpty && !activatedEmails.contains(email);
+          })
+          .cast<Map<String, dynamic>>()
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<void> _refreshSilent() async {
     if (_eventId == null) return;
     try {
       final pagos = await PaymentService.getAllPagos(idEvento: _eventId!);
-      if (mounted) setState(() => _pagos = pagos);
+      final excelPendientes = await _loadExcelPendientes(pagos);
+      if (mounted) {
+        setState(() {
+          _pagos = pagos;
+          _excelPendientes = excelPendientes;
+        });
+      }
     } catch (_) {}
   }
 
@@ -219,6 +285,54 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
     }
   }
 
+  Future<void> _revertApproval(PagoAdminModel p) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('¿Revertir aprobación?', style: _ts(16, fw: FontWeight.w700)),
+        content: Text(
+          'El pago de ${p.nombreUsuario} volverá a estado Pendiente '
+          'y su QR de acceso quedará cancelado.',
+          style: _ts(13, c: AppColors.sentryGrey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancelar', style: _ts(13, c: AppColors.sentryGrey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE65100),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('Revertir', style: _ts(13, fw: FontWeight.w600, c: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _processing.add(p.id));
+    try {
+      await PaymentService.revertApproval(
+        idPago: p.id,
+        idUsuario: p.idUsuario,
+        idEvento: p.idEvento,
+      );
+      if (mounted) {
+        await _refreshSilent();
+        _showSnack('Aprobación de ${p.nombreUsuario} revertida a pendiente.');
+      }
+    } catch (e) {
+      if (mounted) _showSnack('Error: ${e.toString()}', isError: true);
+    } finally {
+      if (mounted) setState(() => _processing.remove(p.id));
+    }
+  }
+
   Future<void> _showExistingQr(PagoAdminModel p) async {
     final entry = await PaymentService.getMyEntry(
       idUsuario: p.idUsuario,
@@ -226,7 +340,18 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
     );
     if (!mounted) return;
     if (entry == null) {
-      _showSnack('No se encontró el QR.', isError: true);
+      setState(() => _processing.add(p.id));
+      try {
+        final qrCode = await PaymentService.generateEntryQr(
+          idUsuario: p.idUsuario,
+          idEvento: p.idEvento,
+        );
+        if (mounted) _showQrDialog(p.nombreUsuario, qrCode);
+      } catch (e) {
+        if (mounted) _showSnack('Error al generar QR: ${e.toString()}', isError: true);
+      } finally {
+        if (mounted) setState(() => _processing.remove(p.id));
+      }
       return;
     }
     _showQrDialog(p.nombreUsuario, entry['codigo_qr'] ?? '');
@@ -415,14 +540,32 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.sentryBg,
+      floatingActionButton: _showScrollTop
+          ? Padding(
+              padding: EdgeInsets.only(bottom: 72.h),
+              child: FloatingActionButton.small(
+                onPressed: () => _scrollCtrl.animateTo(
+                  0,
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOut,
+                ),
+                backgroundColor: AppColors.sentryBlue,
+                child: const Icon(
+                  Icons.keyboard_arrow_up_rounded,
+                  color: Colors.white,
+                ),
+              ),
+            )
+          : null,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _loadData,
           color: AppColors.sentryBlue,
           child: CustomScrollView(
+          controller: _scrollCtrl,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            _buildAppBar(),
+            if (widget.showAppBar) _buildAppBar(),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
               sliver: SliverList(
@@ -699,8 +842,9 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
       );
 
   List<Widget> _buildList() {
-    final list = _filtered;
-    if (list.isEmpty) {
+    final pagos = _filteredPagos;
+    final excel = _filteredExcel;
+    if (pagos.isEmpty && excel.isEmpty) {
       return [
         Center(
           child: Padding(
@@ -720,7 +864,10 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
         )
       ];
     }
-    return list.map(_buildPagoCard).toList();
+    return [
+      ...pagos.map(_buildPagoCard),
+      ...excel.map(_buildExcelCard),
+    ];
   }
 
   Widget _buildPagoCard(PagoAdminModel p) {
@@ -815,9 +962,20 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
                     child: _actionBtn('Rechazar', AppColors.error,
                         Icons.close_rounded, () => _reject(p)),
                   ),
-                ] else if (p.isApproved)
+                ] else if (p.isApproved) ...[
                   _iconBtn(Icons.qr_code_2_rounded, AppColors.sentryNavy,
-                      () => _showExistingQr(p), 'Ver QR')
+                      () => _showExistingQr(p), 'Ver QR'),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _actionBtn('Revertir', const Color(0xFFE65100),
+                        Icons.undo_rounded, () => _revertApproval(p)),
+                  ),
+                ]
+                else if (p.isRejected)
+                  Expanded(
+                    child: _actionBtn('Aprobar de todas formas', AppColors.success,
+                        Icons.check_rounded, () => _approve(p)),
+                  )
                 else
                   Text('Sin acciones',
                       style: _ts(11, c: AppColors.sentryGrey)),
@@ -828,12 +986,92 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
     );
   }
 
+  Widget _buildExcelCard(Map<String, dynamic> s) {
+    final nombre = (s['nombre'] ?? '') as String;
+    final email = (s['correo_electronico'] ?? '') as String;
+    final carrera = (s['carrera'] ?? '') as String;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFF8F00).withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+              color: AppColors.sentryNavy.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 3))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: const Color(0xFFFF8F00).withValues(alpha: 0.12),
+                child: Text(
+                  nombre.isNotEmpty ? nombre[0].toUpperCase() : '?',
+                  style: _ts(16, fw: FontWeight.w700, c: const Color(0xFFFF8F00)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(nombre,
+                        style: _ts(14, fw: FontWeight.w700),
+                        overflow: TextOverflow.ellipsis),
+                    Text(email,
+                        style: _ts(11, c: AppColors.sentryGrey),
+                        overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
+              _statusChip('por_activar'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(color: AppColors.cardBorder, height: 1),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.table_rows_rounded,
+                  size: 13, color: AppColors.sentryGrey),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text('Excel · $carrera',
+                    style: _ts(12, c: AppColors.sentryGrey),
+                    overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.info_outline_rounded,
+                  size: 13, color: AppColors.sentryGrey),
+              const SizedBox(width: 4),
+              Text(
+                'QR se genera al iniciar sesión por primera vez',
+                style: _ts(11, c: AppColors.sentryGrey),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── helpers ───────────────────────────────────────────────────────────────
 
   TextStyle _ts(double sz,
           {FontWeight fw = FontWeight.w400, Color? c}) =>
       GoogleFonts.outfit(
-          fontSize: sz,
+          fontSize: sz.sp,
           fontWeight: fw,
           color: c ?? AppColors.sentryNavy);
 
@@ -853,6 +1091,11 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
         label: 'Rechazado',
         bg: Color(0xFFFFEBEE),
         fg: Color(0xFFC62828)
+      ),
+      'por_activar': (
+        label: 'Por activar',
+        bg: Color(0xFFFFF8E1),
+        fg: Color(0xFFFF8F00)
       ),
     };
     final cfg = configs[estado];

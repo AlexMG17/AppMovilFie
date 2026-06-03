@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'qr_unique_service.dart';
 import 'supabase_service.dart';
@@ -42,27 +43,34 @@ class GuardService {
 
   // ── Rol del usuario actual ────────────────────────────────────
 
+  static const _kRoleKey = 'cached_user_role';
+
+  /// Returns the role cached from the last successful fetch (instant, no network).
+  static Future<String?> getCachedRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kRoleKey);
+  }
+
+  /// Fetches the role from Supabase (1 JOIN query) and updates the local cache.
   static Future<String?> getCurrentUserRole() async {
     final user = SupabaseService.currentUser;
     if (user == null) return null;
 
     try {
-      final userData = await _client
+      final data = await _client
           .from('usuarios')
-          .select('id_rol')
+          .select('roles(nombre)')
           .eq('email', user.email!)
           .single();
 
-      final idRol = userData['id_rol'];
-      if (idRol == null) return null;
+      final role =
+          (data['roles'] as Map?)?['nombre']?.toString().toLowerCase().trim();
 
-      final roleData = await _client
-          .from('roles')
-          .select('nombre')
-          .eq('id_rol', idRol)
-          .single();
-
-      return roleData['nombre']?.toString().toLowerCase().trim();
+      if (role != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_kRoleKey, role);
+      }
+      return role;
     } catch (_) {
       return null;
     }
@@ -173,6 +181,44 @@ class GuardService {
   }
 
   // ── Estadísticas en tiempo real ───────────────────────────────
+
+  /// Revierte un ingreso válido: resetea dentro_evento = false y elimina la última asistencia.
+  static Future<bool> undoEntry({required String codigoQR}) async {
+    try {
+      final row = await _client
+          .from('entradas')
+          .select('id_entrada')
+          .eq('codigo_qr', codigoQR)
+          .maybeSingle();
+
+      if (row == null) return false;
+      final idEntrada = row['id_entrada'] as int;
+
+      await _client
+          .from('entradas')
+          .update({'dentro_evento': false})
+          .eq('id_entrada', idEntrada);
+
+      final asist = await _client
+          .from('asistencias')
+          .select('id_asistencia')
+          .eq('id_entrada', idEntrada)
+          .order('fecha_ingreso', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (asist != null) {
+        await _client
+            .from('asistencias')
+            .delete()
+            .eq('id_asistencia', asist['id_asistencia'] as int);
+      }
+
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// 'valido' → ingresados | 'usado' → usados | todo lo demás → invalidos
   static Future<ScanStats> getStats({required int idGuardia}) async {

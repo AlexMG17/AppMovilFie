@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/support_service.dart';
@@ -49,15 +50,22 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
         backgroundColor: AppColors.sentryNavy,
         elevation: 0,
         automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: Row(
           children: [
-            const CircleAvatar(
-              radius: 18,
+            CircleAvatar(
+              radius: 18.r,
               backgroundColor: AppColors.sentryCyan,
               child: Icon(Icons.support_agent_rounded,
-                  color: Colors.white, size: 20),
+                  color: Colors.white, size: 20.sp),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10.w),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -66,14 +74,14 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                   style: GoogleFonts.outfit(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
-                      fontSize: 16),
+                      fontSize: 16.sp),
                 ),
                 Text(
                   _loading
                       ? 'Cargando...'
                       : '${_conversations.length} conversacion${_conversations.length == 1 ? '' : 'es'}',
                   style: GoogleFonts.outfit(
-                      color: AppColors.sentryCyan, fontSize: 11),
+                      color: AppColors.sentryCyan, fontSize: 11.sp),
                 ),
               ],
             ),
@@ -108,20 +116,20 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.forum_outlined, size: 64, color: AppColors.sentryGrey),
-            const SizedBox(height: 12),
+            Icon(Icons.forum_outlined, size: 64.sp, color: AppColors.sentryGrey),
+            SizedBox(height: 12.h),
             Text(
               'Sin conversaciones',
               style: GoogleFonts.outfit(
                   color: AppColors.sentryGrey,
-                  fontSize: 16,
+                  fontSize: 16.sp,
                   fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4.h),
             Text(
               'Aquí aparecerán los mensajes de los usuarios.',
               style: GoogleFonts.outfit(
-                  color: AppColors.sentryGrey, fontSize: 12),
+                  color: AppColors.sentryGrey, fontSize: 12.sp),
               textAlign: TextAlign.center,
             ),
           ],
@@ -135,33 +143,33 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
 
     return ListTile(
       contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
       leading: CircleAvatar(
-        radius: 24,
+        radius: 24.r,
         backgroundColor: AppColors.sentryCyan.withValues(alpha: 0.15),
         child: Text(
           initial,
           style: GoogleFonts.outfit(
               color: AppColors.sentryBlue,
               fontWeight: FontWeight.w700,
-              fontSize: 18),
+              fontSize: 18.sp),
         ),
       ),
       title: Text(
         conv.nombreUsuario,
         style: GoogleFonts.outfit(
             fontWeight: FontWeight.w600,
-            fontSize: 15,
+            fontSize: 15.sp,
             color: AppColors.sentryNavy),
       ),
       subtitle: Padding(
-        padding: const EdgeInsets.only(top: 3),
+        padding: EdgeInsets.only(top: 3.h),
         child: Text(
           conv.lastMessage,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.outfit(
-              fontSize: 13,
+              fontSize: 13.sp,
               color: conv.lastIsAdmin
                   ? AppColors.sentryGrey
                   : AppColors.sentryNavy.withValues(alpha: 0.75)),
@@ -174,13 +182,13 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
           Text(
             _formatTime(conv.lastAt),
             style: GoogleFonts.outfit(
-                fontSize: 11, color: AppColors.sentryGrey),
+                fontSize: 11.sp, color: AppColors.sentryGrey),
           ),
           if (!conv.lastIsAdmin) ...[
-            const SizedBox(height: 4),
+            SizedBox(height: 4.h),
             Container(
-              width: 8,
-              height: 8,
+              width: 8.w,
+              height: 8.w,
               decoration: const BoxDecoration(
                 color: AppColors.sentryCyan,
                 shape: BoxShape.circle,

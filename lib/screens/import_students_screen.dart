@@ -3,6 +3,7 @@ import 'package:excel/excel.dart' show Excel;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/event_service.dart';
 import '../services/student_service.dart';
@@ -25,6 +26,46 @@ const _kNavy   = AppColors.sentryNavy;
 
 const _kRequiredCols = ['nombre', 'correo_electronico', 'carrera'];
 
+const _kCarreras = [
+  // ── FIE (primordiales) ──────────────────────────────────────────────────
+  'Diseño Gráfico',
+  'Electrónica y Automatización',
+  'Electrónica, Telecomunicaciones y Redes',
+  'Software',
+  'Tecnologías de la Información',
+  'Telemática',
+  'Electricidad',
+  // ── Resto de facultades ─────────────────────────────────────────────────
+  'Administración de Empresas',
+  'Agroindustria',
+  'Agronomía',
+  'Bioquímica y Farmacia',
+  'Contabilidad y Auditoría',
+  'Estadística',
+  'Finanzas',
+  'Física',
+  'Gastronomía',
+  'Gestión del Transporte',
+  'Ingeniería Ambiental',
+  'Ingeniería Automotriz',
+  'Ingeniería en Recursos Naturales Renovables',
+  'Ingeniería Forestal',
+  'Ingeniería Industrial',
+  'Ingeniería Química',
+  'Mantenimiento Industrial',
+  'Matemática',
+  'Mecánica',
+  'Medicina',
+  'Mercadotecnia / Marketing',
+  'Nutrición y Dietética',
+  'Promoción de la Salud',
+  'Química',
+  'Telecomunicaciones',
+  'Turismo',
+  'Veterinaria',
+  'Zootecnia',
+];
+
 // ─── Modelo ───────────────────────────────────────────────────────────────────
 class ImportedStudent {
   final String nombre;
@@ -44,12 +85,20 @@ enum _ImportPhase { idle, loading, preview, importing, done }
 
 class _ImportResult {
   final int imported;
-  final int duplicates;
+  final int duplicates;     // duplicados dentro del archivo
+  final int existingInDb;   // ya existían en la base de datos
   final int errors;
+  final int accountsCreated;
+  final List<Map<String, String>> importedList;
+  final List<Map<String, String>> existingList;
   const _ImportResult({
     required this.imported,
     required this.duplicates,
+    required this.existingInDb,
     required this.errors,
+    required this.accountsCreated,
+    this.importedList = const [],
+    this.existingList = const [],
   });
 }
 
@@ -67,6 +116,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
   String? _errorMsg;
   List<ImportedStudent> _parsed = [];
   _ImportResult? _result;
+  bool _isManualEntry = false;
 
   // Estado para la descarga de plantilla
   bool _isDownloadingTemplate = false;
@@ -100,7 +150,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
 
   TextStyle _ts(double size, {FontWeight fw = FontWeight.w400, Color? color}) =>
       GoogleFonts.outfit(
-        fontSize: size,
+        fontSize: size.sp,
         fontWeight: fw,
         color: color ?? _kNavy,
       );
@@ -137,8 +187,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                 Expanded(
                   child: Text(
                     'Plantilla guardada correctamente',
-                    style: GoogleFonts.outfit(
-                        fontSize: 13, color: _kWhite),
+                    style: GoogleFonts.outfit(fontSize: 13, color: _kWhite),
                   ),
                 ),
               ],
@@ -164,8 +213,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
               Expanded(
                 child: Text(
                   'Error al descargar: ${e.toString().replaceFirst("Exception: ", "")}',
-                  style: GoogleFonts.outfit(
-                      fontSize: 13, color: _kWhite),
+                  style: GoogleFonts.outfit(fontSize: 13, color: _kWhite),
                 ),
               ),
             ],
@@ -365,10 +413,23 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     }
 
     int imported = 0;
+    int existingInDb = 0;
     int errors = 0;
+    int accountsCreated = 0;
+    List<Map<String, String>> importedList = [];
+    List<Map<String, String>> existingList = [];
 
     try {
-      imported = await StudentService.batchUpsert(unique);
+      final result = await StudentService.batchUpsert(unique);
+      imported = result['inserted'] ?? 0;
+      existingInDb = result['skipped'] ?? 0;
+      accountsCreated = result['accounts_created'] ?? 0;
+      importedList = List<Map<String, String>>.from(
+        (result['inserted_list'] as List? ?? []).map((e) => Map<String, String>.from(e as Map)),
+      );
+      existingList = List<Map<String, String>>.from(
+        (result['skipped_list'] as List? ?? []).map((e) => Map<String, String>.from(e as Map)),
+      );
     } catch (e) {
       debugPrint('ERROR IMPORT: $e');
       errors = unique.length;
@@ -378,7 +439,11 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       _result = _ImportResult(
         imported: imported,
         duplicates: duplicates,
+        existingInDb: existingInDb,
         errors: errors,
+        accountsCreated: accountsCreated,
+        importedList: importedList,
+        existingList: existingList,
       );
       _phase = _ImportPhase.done;
     });
@@ -391,7 +456,232 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       _errorMsg = null;
       _parsed = [];
       _result = null;
+      _isManualEntry = false;
     });
+  }
+
+  // ── Agregar estudiante manualmente ────────────────────────────────────────
+  Future<void> _showAddStudentDialog() async {
+    final formKey = GlobalKey<FormState>();
+    final nombreCtrl = TextEditingController();
+    final emailCtrl = TextEditingController();
+    final cedulaCtrl = TextEditingController();
+    String? selectedCarrera;
+
+    final student = await showModalBottomSheet<ImportedStudent>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: _kCard,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text('Agregar estudiante',
+                            style: _ts(17, fw: FontWeight.w800)),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(ctx),
+                        child: const Icon(Icons.close_rounded,
+                            color: _kGrey, size: 22),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  _buildFormField(nombreCtrl, 'Nombre completo *',
+                      'Ej: Juan Pérez', TextInputType.name, true),
+                  const SizedBox(height: 12),
+                  _buildFormField(emailCtrl, 'Correo electrónico *',
+                      'Ej: j.perez@espoch.edu.ec',
+                      TextInputType.emailAddress, true),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedCarrera,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Carrera *',
+                      labelStyle: _ts(12, color: _kGrey),
+                      filled: true,
+                      fillColor: _kBg,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: _kBorder),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: _kBorder),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            const BorderSide(color: _kPurple, width: 1.5),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: _kRed),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            const BorderSide(color: _kRed, width: 1.5),
+                      ),
+                    ),
+                    style: _ts(13),
+                    hint: Text('Selecciona una carrera',
+                        style: _ts(12,
+                            color: _kGrey.withValues(alpha: 0.6))),
+                    items: [
+                      const DropdownMenuItem(
+                        enabled: false,
+                        value: '__divider_fie__',
+                        child: Text('── Facultad FIE ──',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF94A3B8),
+                                fontStyle: FontStyle.italic)),
+                      ),
+                      ..._kCarreras
+                          .take(7)
+                          .map((c) => DropdownMenuItem(
+                              value: c,
+                              child: Text(c,
+                                  style: _ts(13,
+                                      fw: FontWeight.w600,
+                                      color: _kNavy)))),
+                      const DropdownMenuItem(
+                        enabled: false,
+                        value: '__divider_other__',
+                        child: Text('── Otras facultades ──',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF94A3B8),
+                                fontStyle: FontStyle.italic)),
+                      ),
+                      ..._kCarreras
+                          .skip(7)
+                          .map((c) => DropdownMenuItem(
+                              value: c,
+                              child: Text(c, style: _ts(13)))),
+                    ],
+                    onChanged: (v) =>
+                        setModalState(() => selectedCarrera = v),
+                    validator: (v) =>
+                        (v == null || v.isEmpty) ? 'Campo requerido' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildFormField(cedulaCtrl, 'Cédula (opcional)',
+                      'Ej: 0601234567', TextInputType.number, false),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (formKey.currentState!.validate()) {
+                          Navigator.pop(
+                            ctx,
+                            ImportedStudent(
+                              nombre: nombreCtrl.text.trim(),
+                              correoElectronico: emailCtrl.text.trim(),
+                              carrera: selectedCarrera!,
+                              cedula: cedulaCtrl.text.trim(),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.person_add_rounded,
+                          color: _kWhite, size: 18),
+                      label: Text('Agregar estudiante',
+                          style:
+                              _ts(14, fw: FontWeight.w700, color: _kWhite)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _kPurple,
+                        foregroundColor: _kWhite,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (student != null && mounted) {
+      setState(() {
+        _parsed.add(student);
+        _isManualEntry = true;
+        _phase = _ImportPhase.preview;
+        _fileName = 'Entrada manual';
+      });
+    }
+  }
+
+  Widget _buildFormField(
+    TextEditingController ctrl,
+    String label,
+    String hint,
+    TextInputType type,
+    bool required,
+  ) {
+    return TextFormField(
+      controller: ctrl,
+      keyboardType: type,
+      style: _ts(13),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: _ts(12, color: _kGrey),
+        hintText: hint,
+        hintStyle: _ts(12, color: _kGrey.withValues(alpha: 0.6)),
+        filled: true,
+        fillColor: _kBg,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kPurple, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kRed),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kRed, width: 1.5),
+        ),
+      ),
+      validator: required
+          ? (v) => (v == null || v.trim().isEmpty) ? 'Campo requerido' : null
+          : null,
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -419,7 +709,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                     _buildTemplateCard(),
                     const SizedBox(height: 16),
                     _buildContent(),
-                    const SizedBox(height: 32),
+                    SizedBox(height: 120.h),
                   ]),
                 ),
               ),
@@ -817,13 +1107,43 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
           const SizedBox(height: 12),
           _ErrorBanner(message: _errorMsg!),
         ],
+        if (!isLoading) ...[
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Expanded(child: Divider(color: _kBorder)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text('o', style: _ts(12, color: _kGrey)),
+              ),
+              const Expanded(child: Divider(color: _kBorder)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _showAddStudentDialog,
+              icon: const Icon(Icons.person_add_rounded,
+                  color: _kPurple, size: 18),
+              label: Text('Agregar Estudiante',
+                  style: _ts(14, fw: FontWeight.w600, color: _kPurple)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: _kPurple),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
 
   // ── Vista previa ──────────────────────────────────────────────────────────
   Widget _buildPreview() {
-    final preview = _parsed.take(5).toList();
+    final preview = _isManualEntry ? _parsed : _parsed.take(5).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -843,12 +1163,16 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_fileName ?? '',
-                        style:
-                            _ts(13, fw: FontWeight.w600, color: _kGreen)),
                     Text(
-                        '${_parsed.length} registros encontrados · columnas validadas',
-                        style: _ts(11, color: _kGrey)),
+                      _isManualEntry
+                          ? 'Entrada manual'
+                          : (_fileName ?? ''),
+                      style: _ts(13, fw: FontWeight.w600, color: _kGreen),
+                    ),
+                    Text(
+                      '${_parsed.length} ${_isManualEntry ? 'estudiante(s) agregado(s)' : 'registros encontrados · columnas validadas'}',
+                      style: _ts(11, color: _kGrey),
+                    ),
                   ],
                 ),
               ),
@@ -861,7 +1185,29 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
           ),
         ),
         const SizedBox(height: 16),
-        Text('Vista previa', style: _ts(13, fw: FontWeight.w700)),
+        Row(
+          children: [
+            Text(
+              _isManualEntry ? 'Estudiantes agregados' : 'Vista previa',
+              style: _ts(13, fw: FontWeight.w700),
+            ),
+            const Spacer(),
+            if (_isManualEntry)
+              GestureDetector(
+                onTap: _showAddStudentDialog,
+                child: Row(
+                  children: [
+                    const Icon(Icons.add_circle_outline_rounded,
+                        color: _kPurple, size: 16),
+                    const SizedBox(width: 4),
+                    Text('Agregar otro',
+                        style: _ts(12,
+                            fw: FontWeight.w600, color: _kPurple)),
+                  ],
+                ),
+              ),
+          ],
+        ),
         const SizedBox(height: 10),
         Container(
           decoration: BoxDecoration(
@@ -895,6 +1241,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                           child: Text('Cédula',
                               style: _ts(11,
                                   fw: FontWeight.w700, color: _kWhite))),
+                      if (_isManualEntry) const SizedBox(width: 28),
                     ],
                   ),
                 ),
@@ -930,13 +1277,24 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                                         : e.value.cedula,
                                     style: _ts(11, color: _kGrey),
                                     overflow: TextOverflow.ellipsis)),
+                            if (_isManualEntry)
+                              GestureDetector(
+                                onTap: () => setState(() {
+                                  _parsed.removeAt(e.key);
+                                  if (_parsed.isEmpty) _reset();
+                                }),
+                                child: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: _kRed,
+                                    size: 18),
+                              ),
                           ],
                         ),
                       ),
                     ],
                   ),
                 ),
-                if (_parsed.length > 5) ...[
+                if (!_isManualEntry && _parsed.length > 5) ...[
                   Divider(height: 1, color: _kBorder, thickness: 0.5),
                   Padding(
                     padding: const EdgeInsets.all(10),
@@ -958,7 +1316,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
             onPressed: _doImport,
             icon: const Icon(Icons.upload_rounded, color: _kWhite),
             label: Text(
-              'Importar ${_parsed.length} estudiantes',
+              'Importar ${_parsed.length} estudiante${_parsed.length == 1 ? '' : 's'}',
               style: _ts(14, fw: FontWeight.w700),
             ),
             style: ElevatedButton.styleFrom(
@@ -1048,17 +1406,79 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                   const SizedBox(width: 8),
                   Expanded(
                       child: _StatChip(
-                          value: '${r.duplicates}',
-                          label: 'Duplicados omitidos',
-                          color: _kYellow)),
+                          value: '${r.accountsCreated}',
+                          label: 'Cuentas creadas',
+                          color: _kPurple)),
                   const SizedBox(width: 8),
                   Expanded(
                       child: _StatChip(
-                          value: '${r.errors}',
-                          label: 'Errores',
-                          color: _kRed)),
+                          value: '${r.existingInDb}',
+                          label: 'Ya existían',
+                          color: _kYellow)),
                 ],
               ),
+              if (r.duplicates > 0) ...[
+                const SizedBox(height: 8),
+                _StatChip(
+                    value: '${r.duplicates}',
+                    label: 'Duplicados en archivo',
+                    color: _kYellow),
+              ],
+              if (r.errors > 0) ...[
+                const SizedBox(height: 8),
+                _StatChip(
+                    value: '${r.errors}',
+                    label: 'Errores',
+                    color: _kRed),
+              ],
+              if (r.accountsCreated > 0) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _kPurple.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _kPurple.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.mark_email_read_rounded,
+                          color: _kPurple, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Se enviaron ${r.accountsCreated} correos con credenciales temporales al Outlook de cada estudiante.',
+                          style: _ts(11, color: _kPurple),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (r.importedList.isNotEmpty || r.existingList.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                GestureDetector(
+                  onTap: () => _showImportDetail(r),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _kNavy.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _kNavy.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.list_alt_rounded, color: _kNavy, size: 16),
+                        const SizedBox(width: 8),
+                        Text('Ver detalle completo',
+                            style: _ts(12, fw: FontWeight.w600, color: _kNavy)),
+                        const Spacer(),
+                        const Icon(Icons.chevron_right_rounded, color: _kNavy, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1081,6 +1501,126 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       ],
     );
   }
+
+  // ── Modal de detalle de importación ──────────────────────────────────────
+  void _showImportDetail(_ImportResult r) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.92,
+        builder: (_, scrollCtrl) => Container(
+          decoration: const BoxDecoration(
+            color: _kCard,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(color: _kBorder, borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Text('Detalle de importación', style: _ts(17, fw: FontWeight.w800)),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Icon(Icons.close_rounded, color: _kGrey, size: 22),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  '${r.imported} importados · ${r.existingInDb} ya existían · ${r.duplicates} duplicados en archivo',
+                  style: _ts(11, color: _kGrey),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  children: [
+                    if (r.importedList.isNotEmpty) ...[
+                      _detailSectionHeader(
+                        '✅ Importados (${r.importedList.length})', _kGreen),
+                      const SizedBox(height: 8),
+                      ...r.importedList.map((s) => _detailRow(
+                        s['nombre'] ?? '',
+                        s['correo_electronico'] ?? '',
+                        _kGreen,
+                      )),
+                      const SizedBox(height: 16),
+                    ],
+                    if (r.existingList.isNotEmpty) ...[
+                      _detailSectionHeader(
+                        '⚠️ Ya existían (${r.existingList.length})', _kYellow),
+                      const SizedBox(height: 8),
+                      ...r.existingList.map((s) => _detailRow(
+                        s['nombre'] ?? '',
+                        s['correo_electronico'] ?? '',
+                        _kYellow,
+                      )),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailSectionHeader(String title, Color color) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Text(title, style: _ts(13, fw: FontWeight.w700, color: color)),
+  );
+
+  Widget _detailRow(String nombre, String email, Color accent) => Container(
+    margin: const EdgeInsets.only(bottom: 6),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: accent.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: accent.withValues(alpha: 0.2)),
+    ),
+    child: Row(
+      children: [
+        CircleAvatar(
+          radius: 14,
+          backgroundColor: accent.withValues(alpha: 0.15),
+          child: Text(
+            nombre.isNotEmpty ? nombre[0].toUpperCase() : '?',
+            style: _ts(11, fw: FontWeight.w700, color: accent),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(nombre, style: _ts(12, fw: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis),
+              Text(email, style: _ts(10, color: _kGrey),
+                  overflow: TextOverflow.ellipsis),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

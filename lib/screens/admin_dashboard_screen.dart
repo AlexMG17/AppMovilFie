@@ -1,8 +1,12 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:fl_chart/fl_chart.dart';
+import 'package:printing/printing.dart';
 import '../services/event_service.dart';
 import '../services/payment_service.dart' show PaymentService;
 import '../services/supabase_service.dart';
@@ -39,7 +43,7 @@ class _Activity {
   });
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ══════════════════════════════════════════════════════════════════════════
 class AdminDashboardScreen extends StatefulWidget {
   final ValueChanged<int>? onSelectTab;
 
@@ -56,8 +60,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   late Timer _realtimeTimer;
   int _secondsAgo = 0;
 
-  // â”€â”€ Métricas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Métricas reales desde Supabase
+  // ── Métricas ──────────────────────────────────────────────────────────
   int totalRegistrados = 0;
   int totalCapacidad = 350;
   int aprobados = 0;
@@ -70,43 +73,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   EventModel? _activeEvent;
   RealtimeChannel? _realtimeChannel;
 
-  // â”€â”€ Actividad reciente â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Actividad reciente ────────────────────────────────────────
   List<_Activity> _activities = [];
 
   // â”€â”€ Datos gráfico línea (ingresos por hora) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  final List<FlSpot> _lineSpots = const [
-    FlSpot(0, 2),
-    FlSpot(1, 8),
-    FlSpot(2, 18),
-    FlSpot(3, 35),
-    FlSpot(4, 55),
-    FlSpot(5, 90),
-    FlSpot(6, 70),
-    FlSpot(7, 25),
-  ];
-  final List<String> _lineLabels = const [
-    '14h',
-    '15h',
-    '16h',
-    '17h',
-    '18h',
-    '19h',
-    '20h',
-    '21h',
-  ];
-
-  // â”€â”€ Datos gráfico barras (pagos semanales) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  final List<double> _barAprobados = [15, 20, 25, 30, 60, 35, 5];
-  final List<double> _barRechazados = [5, 8, 10, 12, 18, 10, 2];
-  final List<String> _barDays = [
-    'Lun',
-    'Mar',
-    'Mié',
-    'Jue',
-    'Vie',
-    'Sáb',
-    'Dom',
-  ];
+  bool _generatingPdf = false;
+  List<FlSpot> _lineSpots = [];
+  List<String> _lineLabels = [];
+  List<double> _barAprobados = List.filled(7, 0);
+  List<double> _barRechazados = List.filled(7, 0);
+  List<String> _barDays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
   @override
   void initState() {
@@ -128,10 +104,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   Future<void> _loadUserName() async {
     final name = await EventService.getCurrentUserName();
-    if (mounted)
+    if (mounted) {
       setState(
         () => _userName = name ?? SupabaseService.currentUser?.email ?? '',
       );
+    }
   }
 
   @override
@@ -156,12 +133,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             .select('nombre_asistente, resultado, escaneado_en')
             .order('escaneado_en', ascending: false)
             .limit(3),
+        SupabaseService.client
+            .from('scan_logs')
+            .select('escaneado_en')
+            .eq('id_evento', event.id)
+            .eq('resultado', 'valido'),
+        SupabaseService.client
+            .from('pagos')
+            .select('fecha_pago, estado')
+            .eq('id_evento', event.id),
       ]);
 
       if (!mounted) return;
       final stats = results[0] as Map<String, int>;
       final cap = results[1] as int;
       final logs = results[2] as List;
+      final scansForChart = results[3] as List;
+      final paymentsForChart = results[4] as List;
 
       final activities = logs.map<_Activity>((row) {
         final resultado = row['resultado'] as String? ?? 'invalido';
@@ -171,44 +159,193 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         final timeLabel = diff.inMinutes < 1
             ? 'Ahora'
             : diff.inHours < 1
-            ? 'Hace ${diff.inMinutes} min'
-            : 'Hace ${diff.inHours} h';
+                ? 'Hace ${diff.inMinutes} min'
+                : 'Hace ${diff.inHours} h';
         return switch (resultado) {
           'valido' => _Activity(
-            icon: Icons.login_rounded,
-            iconColor: _green,
-            title: '$nombre ingresó',
-            time: timeLabel,
-          ),
+              icon: Icons.login_rounded,
+              iconColor: _green,
+              title: '$nombre ingresó',
+              time: timeLabel,
+            ),
           'usado' => _Activity(
-            icon: Icons.warning_rounded,
-            iconColor: _yellow,
-            title: '$nombre (QR ya usado)',
-            time: timeLabel,
-          ),
+              icon: Icons.warning_rounded,
+              iconColor: _yellow,
+              title: '$nombre (QR ya usado)',
+              time: timeLabel,
+            ),
           _ => _Activity(
-            icon: Icons.cancel_outlined,
-            iconColor: _red,
-            title: 'QR inválido – $nombre',
-            time: timeLabel,
-          ),
+              icon: Icons.cancel_outlined,
+              iconColor: _red,
+              title: 'QR inválido – $nombre',
+              time: timeLabel,
+            ),
         };
       }).toList();
+
+      // Procesar gráfico de ingresos por hora
+      int startHour = 14;
+      if (scansForChart.isNotEmpty) {
+        int minHour = 24;
+        for (final s in scansForChart) {
+          final tsStr = s['escaneado_en'];
+          if (tsStr != null) {
+            final dt = DateTime.tryParse(tsStr);
+            if (dt != null) {
+              final localHour = dt.toLocal().hour;
+              if (localHour < minHour) minHour = localHour;
+            }
+          }
+        }
+        if (minHour != 24) startHour = minHour;
+      }
+
+      final lineLabelsTemp = <String>[];
+      final hourlyCounts = List<int>.filled(8, 0);
+      for (int i = 0; i < 8; i++) {
+        final h = (startHour + i) % 24;
+        lineLabelsTemp.add('${h}h');
+      }
+
+      for (final s in scansForChart) {
+        final tsStr = s['escaneado_en'];
+        if (tsStr != null) {
+          final dt = DateTime.tryParse(tsStr);
+          if (dt != null) {
+            final localHour = dt.toLocal().hour;
+            final diff = localHour - startHour;
+            if (diff >= 0 && diff < 8) {
+              hourlyCounts[diff]++;
+            } else if (diff < 0 && diff + 24 < 8) {
+              hourlyCounts[diff + 24]++;
+            }
+          }
+        }
+      }
+
+      // Procesar gráfico de pagos semanales (aprobados vs rechazados)
+      final barAprobadosTemp = List<double>.filled(7, 0.0);
+      final barRechazadosTemp = List<double>.filled(7, 0.0);
+      for (final p in paymentsForChart) {
+        final tsStr = p['fecha_pago'];
+        final estado = p['estado'] as String?;
+        if (tsStr != null) {
+          final dt = DateTime.tryParse(tsStr);
+          if (dt != null) {
+            final weekday = dt.toLocal().weekday; // 1 (Lun) a 7 (Dom)
+            final idx = weekday - 1;
+            if (estado == 'aprobado') {
+              barAprobadosTemp[idx]++;
+            } else if (estado == 'rechazado') {
+              barRechazadosTemp[idx]++;
+            }
+          }
+        }
+      }
 
       setState(() {
         _activeEvent = event;
         _eventName = event.nombre;
         totalCapacidad = cap > 0 ? cap : 350;
-        totalRegistrados = totalCapacidad;
+        totalRegistrados = stats['total_usuarios'] ?? 0;
         pendientes = stats['pendientes'] ?? 0;
         aprobados = stats['aprobados'] ?? 0;
         rechazados = stats['rechazados'] ?? 0;
         ingresaron = stats['ingresaron'] ?? 0;
-        qrGenerados = stats['aprobados'] ?? 0;
+        qrGenerados = stats['qr_generados'] ?? 0;
         _activities = activities;
+
+        _lineLabels = lineLabelsTemp;
+
+        _barAprobados = barAprobadosTemp;
+        _barRechazados = barRechazadosTemp;
       });
 
       _subscribeRealtime(event.id);
+      _loadChartData(event.id);
+    } catch (_) {}
+  }
+
+  Future<void> _loadChartData(int idEvento) async {
+    try {
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final weekAgo = now.subtract(const Duration(days: 6));
+      final weekAgoStart = DateTime(weekAgo.year, weekAgo.month, weekAgo.day);
+
+      final results = await Future.wait([
+        SupabaseService.client
+            .from('scan_logs')
+            .select('escaneado_en')
+            .eq('resultado', 'valido')
+            .gte('escaneado_en', todayStart.toIso8601String()),
+        SupabaseService.client
+            .from('pagos')
+            .select('fecha_pago, estado')
+            .eq('id_evento', idEvento)
+            .gte('fecha_pago', weekAgoStart.toIso8601String()),
+      ]);
+
+      if (!mounted) return;
+
+      // Gráfico de línea: ingresos por hora hoy
+      final scanList = results[0] as List;
+      final hourCounts = <int, double>{};
+      for (final row in scanList) {
+        final ts = DateTime.tryParse(row['escaneado_en'] ?? '');
+        if (ts != null) hourCounts[ts.hour] = (hourCounts[ts.hour] ?? 0) + 1;
+      }
+
+      List<FlSpot> newSpots;
+      List<String> newLabels;
+
+      if (hourCounts.isEmpty) {
+        // Sin datos hoy: mostrar las últimas 6 horas con ceros
+        newSpots = List.generate(6, (i) => FlSpot(i.toDouble(), 0));
+        newLabels = List.generate(6, (i) {
+          final h = ((now.hour - 5 + i) % 24).clamp(0, 23);
+          return '${h}h';
+        });
+      } else {
+        final sortedHours = hourCounts.keys.toList()..sort();
+        final minH = sortedHours.first;
+        final maxH = sortedHours.last;
+        newSpots = [];
+        newLabels = [];
+        for (int h = minH; h <= maxH; h++) {
+          newSpots.add(FlSpot((h - minH).toDouble(), hourCounts[h] ?? 0));
+          newLabels.add('${h}h');
+        }
+      }
+
+      // Gráfico de barras: pagos aprobados/rechazados por día (últimos 7 días)
+      final pagosList = results[1] as List;
+      final newBarAprobados = List<double>.filled(7, 0);
+      final newBarRechazados = List<double>.filled(7, 0);
+      final newBarDays = List<String>.generate(7, (i) {
+        final d = weekAgoStart.add(Duration(days: i));
+        const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+        return days[d.weekday - 1];
+      });
+
+      for (final pago in pagosList) {
+        final ts = DateTime.tryParse(pago['fecha_pago'] ?? '');
+        if (ts == null) continue;
+        final tsDay = DateTime(ts.year, ts.month, ts.day);
+        final dayIdx = tsDay.difference(weekAgoStart).inDays;
+        if (dayIdx < 0 || dayIdx >= 7) continue;
+        final estado = pago['estado'] as String? ?? '';
+        if (estado == 'aprobado') newBarAprobados[dayIdx] += 1;
+        if (estado == 'rechazado') newBarRechazados[dayIdx] += 1;
+      }
+
+      setState(() {
+        _lineSpots = newSpots;
+        _lineLabels = newLabels;
+        _barAprobados = newBarAprobados;
+        _barRechazados = newBarRechazados;
+        _barDays = newBarDays;
+      });
     } catch (_) {}
   }
 
@@ -233,12 +370,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             if (mounted) _loadStats();
           },
         )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'scan_logs',
+          callback: (_) {
+            if (mounted) _loadStats();
+          },
+        )
         .subscribe();
   }
 
   // â”€â”€ Helpers de texto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   TextStyle _ts(double size, {FontWeight fw = FontWeight.w400, Color? color}) =>
-      GoogleFonts.outfit(fontSize: size, fontWeight: fw, color: color ?? _navy);
+      GoogleFonts.outfit(fontSize: size.sp, fontWeight: fw, color: color ?? _navy);
 
   Future<void> _showEventForm() async {
     final saved = await showModalBottomSheet<bool>(
@@ -259,6 +404,276 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+  String _formatDate(DateTime dt) =>
+      '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}  '
+      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+  double get _lineMaxX =>
+      _lineSpots.isEmpty ? 5 : (_lineSpots.length - 1).toDouble();
+
+  double get _lineMaxY {
+    if (_lineSpots.isEmpty) return 10;
+    double max = 5;
+    for (final s in _lineSpots) {
+      if (s.y > max) max = s.y;
+    }
+    return (max * 1.3).ceilToDouble();
+  }
+
+  double get _barMaxY {
+    double max = 5;
+    for (final v in [..._barAprobados, ..._barRechazados]) {
+      if (v > max) max = v;
+    }
+    return (max * 1.3).ceilToDouble();
+  }
+
+  Future<void> _generatePdfReport() async {
+    if (_generatingPdf) return;
+    setState(() => _generatingPdf = true);
+    try {
+      final doc = pw.Document();
+      final now = DateTime.now();
+
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(36),
+          header: (_) => pw.Column(children: [
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('SENTRY',
+                        style: pw.TextStyle(
+                          fontSize: 22,
+                          fontWeight: pw.FontWeight.bold,
+                          color: const PdfColor.fromInt(0xFF0D2B6B),
+                        )),
+                    pw.Text('Control de Acceso \u2014 FIE ESPOCH',
+                        style: const pw.TextStyle(
+                            fontSize: 9, color: PdfColors.grey700)),
+                  ],
+                ),
+                pw.Text('REPORTE DE EVENTO',
+                    style: pw.TextStyle(
+                        fontSize: 13, fontWeight: pw.FontWeight.bold)),
+              ],
+            ),
+            pw.SizedBox(height: 6),
+            pw.Divider(
+                color: const PdfColor.fromInt(0xFF0D2B6B), thickness: 1.5),
+            pw.SizedBox(height: 4),
+          ]),
+          footer: (ctx) => pw.Column(children: [
+            pw.Divider(color: PdfColors.grey300),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('Generado: ${_formatDate(now)}',
+                    style: const pw.TextStyle(
+                        fontSize: 8, color: PdfColors.grey)),
+                pw.Text('P\u00e1gina ${ctx.pageNumber} de ${ctx.pagesCount}',
+                    style: const pw.TextStyle(
+                        fontSize: 8, color: PdfColors.grey)),
+              ],
+            ),
+          ]),
+          build: (_) => [
+            pw.Container(
+              padding: const pw.EdgeInsets.all(14),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.blueGrey200),
+                borderRadius:
+                    const pw.BorderRadius.all(pw.Radius.circular(8)),
+                color: PdfColors.blueGrey50,
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('Informaci\u00f3n del Evento',
+                      style: pw.TextStyle(
+                          fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 8),
+                  _pdfLabelRow('Nombre del evento', _eventName),
+                  if (_activeEvent != null) ...[
+                    _pdfLabelRow('Fecha', _formatDate(_activeEvent!.fecha)),
+                    _pdfLabelRow('Lugar', _activeEvent!.lugar),
+                  ],
+                  _pdfLabelRow('Reporte generado', _formatDate(now)),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 20),
+            pw.Text('Estad\u00edsticas de Asistencia',
+                style: pw.TextStyle(
+                    fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 8),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300),
+              columnWidths: {
+                0: const pw.FlexColumnWidth(2),
+                1: const pw.FlexColumnWidth(1),
+                2: const pw.FlexColumnWidth(2),
+              },
+              children: [
+                _pdfHeaderRow(['M\u00e9trica', 'Valor', 'Descripci\u00f3n']),
+                _pdfDataRow(
+                    ['Registrados', '$totalRegistrados', 'Total en sistema']),
+                _pdfDataRow(
+                    ['Aprobados', '$aprobados', 'Pagos verificados']),
+                _pdfDataRow(['Pendientes', '$pendientes', 'En revisi\u00f3n']),
+                _pdfDataRow(
+                    ['Rechazados', '$rechazados', 'Pagos inv\u00e1lidos']),
+                _pdfDataRow(
+                    ['Ingresaron', '$ingresaron', 'Entradas al evento']),
+                _pdfDataRow(
+                    ['QR Generados', '$qrGenerados', 'C\u00f3digos activos']),
+              ],
+            ),
+            pw.SizedBox(height: 20),
+            if (aprobados + pendientes + rechazados > 0) ...[
+              pw.Text('Distribuci\u00f3n de Pagos',
+                  style: pw.TextStyle(
+                      fontSize: 13, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              _pdfProgressBar('Aprobados', aprobados,
+                  aprobados + pendientes + rechazados,
+                  const PdfColor.fromInt(0xFF22C55E)),
+              pw.SizedBox(height: 6),
+              _pdfProgressBar('Pendientes', pendientes,
+                  aprobados + pendientes + rechazados,
+                  const PdfColor.fromInt(0xFFF59E0B)),
+              pw.SizedBox(height: 6),
+              _pdfProgressBar('Rechazados', rechazados,
+                  aprobados + pendientes + rechazados,
+                  const PdfColor.fromInt(0xFFEF4444)),
+              pw.SizedBox(height: 20),
+            ],
+            pw.Text('Pagos por D\u00eda \u2014 \u00daltimos 7 d\u00edas',
+                style: pw.TextStyle(
+                    fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 8),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300),
+              children: [
+                _pdfHeaderRow(['D\u00eda', 'Aprobados', 'Rechazados', 'Total']),
+                for (int i = 0; i < 7; i++)
+                  _pdfDataRow([
+                    _barDays[i],
+                    '${_barAprobados[i].toInt()}',
+                    '${_barRechazados[i].toInt()}',
+                    '${(_barAprobados[i] + _barRechazados[i]).toInt()}',
+                  ]),
+              ],
+            ),
+            pw.SizedBox(height: 20),
+            if (_activities.isNotEmpty) ...[
+              pw.Text('Actividad Reciente',
+                  style: pw.TextStyle(
+                      fontSize: 13, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 8),
+              pw.Table(
+                border: pw.TableBorder.all(color: PdfColors.grey300),
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(3),
+                  1: const pw.FlexColumnWidth(1),
+                },
+                children: [
+                  _pdfHeaderRow(['Actividad', 'Tiempo']),
+                  for (final a in _activities)
+                    _pdfDataRow([a.title, a.time]),
+                ],
+              ),
+            ],
+          ],
+        ),
+      );
+
+      await Printing.layoutPdf(
+        onLayout: (_) async => doc.save(),
+        name:
+            'Reporte_${_eventName.replaceAll(' ', '_')}_${now.day}-${now.month}-${now.year}.pdf',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al generar PDF: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _generatingPdf = false);
+    }
+  }
+
+  pw.Widget _pdfLabelRow(String label, String value) => pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+        child: pw.Row(children: [
+          pw.Text('$label: ',
+              style: pw.TextStyle(
+                  fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          pw.Text(value, style: const pw.TextStyle(fontSize: 10)),
+        ]),
+      );
+
+  pw.TableRow _pdfHeaderRow(List<String> cells) => pw.TableRow(
+        decoration: const pw.BoxDecoration(
+            color: PdfColor.fromInt(0xFF0D2B6B)),
+        children: cells
+            .map((c) => pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 6),
+                  child: pw.Text(c,
+                      style: pw.TextStyle(
+                          color: PdfColors.white,
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 10)),
+                ))
+            .toList(),
+      );
+
+  pw.TableRow _pdfDataRow(List<String> cells) => pw.TableRow(
+        children: cells
+            .map((c) => pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 5),
+                  child: pw.Text(c, style: const pw.TextStyle(fontSize: 10)),
+                ))
+            .toList(),
+      );
+
+  pw.Widget _pdfProgressBar(
+      String label, int value, int total, PdfColor color) {
+    final pct = total > 0 ? value / total : 0.0;
+    final pctStr = '${(pct * 100).toStringAsFixed(1)}%';
+    const barMaxWidth = 290.0;
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+        pw.SizedBox(
+            width: 80,
+            child: pw.Text(label,
+                style: const pw.TextStyle(fontSize: 10))),
+        pw.Stack(children: [
+          pw.Container(
+              width: barMaxWidth, height: 11, color: PdfColors.grey200),
+          pw.Container(
+              width: barMaxWidth * pct.clamp(0.0, 1.0),
+              height: 11,
+              color: color),
+        ]),
+        pw.SizedBox(width: 8),
+        pw.Text('$value  ($pctStr)',
+            style: const pw.TextStyle(fontSize: 10)),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -271,24 +686,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             slivers: [
               _buildAppBar(),
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: EdgeInsets.symmetric(horizontal: 16.w),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8.h),
                     _buildDashboardHeader(),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20.h),
                     _buildMetricGrid(),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20.h),
                     _buildLineChartCard(),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
                     _buildBarChartCard(),
-                    const SizedBox(height: 16),
-                    _buildDonutCard(),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
                     _buildActivityCard(),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16.h),
                     _buildQuickAccess(),
-                    const SizedBox(height: 32),
+                    SizedBox(height: 90.h),
                   ]),
                 ),
               ),
@@ -326,32 +739,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ],
       ),
       actions: [
-        // Indicador online
-        Container(
-          margin: const EdgeInsets.only(right: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: _green.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _green.withValues(alpha: 0.4)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: _green,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'En línea',
-                style: _ts(10, color: _green, fw: FontWeight.w600),
-              ),
-            ],
-          ),
+        IconButton(
+          onPressed: _generatingPdf ? null : _generatePdfReport,
+          tooltip: 'Generar reporte PDF',
+          icon: _generatingPdf
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.picture_as_pdf_rounded),
         ),
         PopupMenuButton<String>(
           offset: const Offset(0, 44),
@@ -362,9 +759,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             }
           },
           child: CircleAvatar(
-            radius: 16,
+            radius: 16.r,
             backgroundColor: _blue.withValues(alpha: 0.15),
-            child: Icon(Icons.person_rounded, size: 18, color: _blue),
+            child: Icon(Icons.person_rounded, size: 18.sp, color: _blue),
           ),
           itemBuilder: (_) => [
             PopupMenuItem(
@@ -374,15 +771,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 children: [
                   Text(
                     _userName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      fontSize: 14,
+                      fontSize: 14.sp,
                       color: Colors.black87,
                     ),
                   ),
                   Text(
                     SupabaseService.currentUser?.email ?? '',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    style: TextStyle(fontSize: 11.sp, color: Colors.grey),
                   ),
                 ],
               ),
@@ -421,17 +818,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 'Estadísticas generales — $_eventName',
                 style: _ts(11, color: _grey),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8.h),
               GestureDetector(
                 onTap: _showEventForm,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 10.w,
+                    vertical: 5.h,
                   ),
                   decoration: BoxDecoration(
                     color: _blue.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(20.r),
                     border: Border.all(color: _blue.withValues(alpha: 0.25)),
                   ),
                   child: Row(
@@ -441,10 +838,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                         _activeEvent != null
                             ? Icons.edit_rounded
                             : Icons.add_rounded,
-                        size: 13,
+                        size: 13.sp,
                         color: _blue,
                       ),
-                      const SizedBox(width: 5),
+                      SizedBox(width: 5.w),
                       Text(
                         _activeEvent != null ? 'Editar evento' : 'Crear evento',
                         style: _ts(11, fw: FontWeight.w600, color: _blue),
@@ -458,19 +855,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ),
         // Chip ingresados
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
           decoration: BoxDecoration(
             gradient: LinearGradient(colors: [_navy, _blue]),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(12.r),
           ),
           child: Row(
             children: [
               Container(
-                width: 8,
-                height: 8,
+                width: 8.w,
+                height: 8.w,
                 decoration: BoxDecoration(color: _cyan, shape: BoxShape.circle),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: 6.w),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -488,7 +885,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
-  // â”€â”€ Metric Grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ──────────────────────────────────────────────────────────────────────────
   Widget _buildMetricGrid() {
     final metrics = [
       _MetricData(
@@ -538,9 +935,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 1.35,
+        mainAxisExtent: 140.h,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
       ),
@@ -549,7 +946,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
-  // â”€â”€ Gráfico de línea â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Gráfico de línea ──────────────────────────────────────────────────────
   Widget _buildLineChartCard() {
     return _CardWrapper(
       child: Column(
@@ -573,13 +970,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
+                padding: EdgeInsets.symmetric(
+                  horizontal: 10.w,
+                  vertical: 4.h,
                 ),
                 decoration: BoxDecoration(
                   color: _green.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(8.r),
                   border: Border.all(color: _green.withValues(alpha: 0.4)),
                 ),
                 child: Text(
@@ -589,9 +986,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 16.h),
           SizedBox(
-            height: 160,
+            height: 160.h,
             child: LineChart(
               LineChartData(
                 gridData: FlGridData(
@@ -635,9 +1032,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
                 borderData: FlBorderData(show: false),
                 minX: 0,
-                maxX: 7,
+                maxX: _lineMaxX,
                 minY: 0,
-                maxY: 100,
+                maxY: _lineMaxY,
                 lineBarsData: [
                   LineChartBarData(
                     spots: _lineSpots,
@@ -674,7 +1071,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
-  // â”€â”€ Gráfico de barras â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Gráfico de barras ──────────────────────────────────────────────────────
   Widget _buildBarChartCard() {
     return _CardWrapper(
       child: Column(
@@ -697,18 +1094,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   ],
                 ),
               ),
-              _Legend(color: _green, label: 'Aprobados'),
-              const SizedBox(width: 12),
+              _Legend(color: _blue, label: 'Aprobados'),
+              SizedBox(width: 12.w),
               _Legend(color: _red, label: 'Rechazados'),
             ],
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 16.h),
           SizedBox(
-            height: 170,
+            height: 170.h,
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: 70,
+                maxY: _barMaxY,
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
@@ -773,92 +1170,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
-  // â”€â”€ Donut chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  Widget _buildDonutCard() {
-    return _CardWrapper(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Distribución de asistentes',
-            style: _ts(15, fw: FontWeight.w700),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              SizedBox(
-                width: 130,
-                height: 130,
-                child: PieChart(
-                  PieChartData(
-                    sectionsSpace: 3,
-                    centerSpaceRadius: 38,
-                    sections: [
-                      if (ingresaron > 0)
-                        PieChartSectionData(
-                          value: ingresaron.toDouble(),
-                          color: _green,
-                          radius: 24,
-                          title: '',
-                          showTitle: false,
-                        ),
-                      if (aprobados > 0)
-                        PieChartSectionData(
-                          value: aprobados.toDouble(),
-                          color: _blue,
-                          radius: 24,
-                          title: '',
-                          showTitle: false,
-                        ),
-                      if (pendientes > 0)
-                        PieChartSectionData(
-                          value: pendientes.toDouble(),
-                          color: _cyan,
-                          radius: 24,
-                          title: '',
-                          showTitle: false,
-                        ),
-                      if (ingresaron == 0 && aprobados == 0 && pendientes == 0)
-                        PieChartSectionData(
-                          value: 1,
-                          color: _border,
-                          radius: 24,
-                          title: '',
-                          showTitle: false,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 24),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _DonutLegend(
-                    color: _green,
-                    value: '$ingresaron',
-                    label: 'Ingresaron',
-                  ),
-                  const SizedBox(height: 14),
-                  _DonutLegend(
-                    color: _blue,
-                    value: '$aprobados',
-                    label: 'Aprobados',
-                  ),
-                  const SizedBox(height: 14),
-                  _DonutLegend(
-                    color: _cyan,
-                    value: '$pendientes',
-                    label: 'Pendientes',
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   // â”€â”€ Acceso rápido â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildQuickAccess() {
@@ -866,7 +1177,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Acceso rápido', style: _ts(15, fw: FontWeight.w700)),
-        const SizedBox(height: 12),
+        SizedBox(height: 12.h),
         Row(
           children: [
             Expanded(
@@ -875,22 +1186,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 color: _blue,
                 title: 'Asistentes',
                 subtitle: 'Lista en tiempo real',
-                onTap: () => _openAdminTab(1, const AttendeesScreen()),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AttendeesScreen()),
+                ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12.w),
             Expanded(
               child: _QuickCard(
                 icon: Icons.receipt_long_rounded,
                 color: _cyan,
                 title: 'Comprobantes',
                 subtitle: 'Gestión de pagos',
-                onTap: () => _openAdminTab(2, const PaymentVouchersScreen()),
+                onTap: () => _openAdminTab(1, const PaymentVouchersScreen()),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12.h),
         Row(
           children: [
             Expanded(
@@ -905,7 +1219,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12.w),
             Expanded(
               child: _QuickCard(
                 icon: Icons.upload_file_rounded,
@@ -937,22 +1251,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               Text('Actividad reciente', style: _ts(15, fw: FontWeight.w700)),
               const Spacer(),
               Container(
-                width: 7,
-                height: 7,
+                width: 7.w,
+                height: 7.w,
                 decoration: BoxDecoration(
                   color: _green,
                   shape: BoxShape.circle,
                 ),
               ),
-              const SizedBox(width: 5),
+              SizedBox(width: 5.w),
               Text('Tiempo real', style: _ts(11, color: _green)),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16.h),
           if (_activities.isEmpty)
             Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: EdgeInsets.symmetric(vertical: 16.h),
                 child: Text(
                   'Sin actividad reciente',
                   style: _ts(13, color: _grey),
@@ -967,15 +1281,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   Row(
                     children: [
                       Container(
-                        width: 36,
-                        height: 36,
+                        width: 36.w,
+                        height: 36.w,
                         decoration: BoxDecoration(
                           color: a.iconColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(10.r),
                         ),
-                        child: Icon(a.icon, color: a.iconColor, size: 18),
+                        child: Icon(a.icon, color: a.iconColor, size: 18.sp),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12.w),
                       Expanded(
                         child: Text(
                           a.title,
@@ -1025,7 +1339,7 @@ class _MetricCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(14.r),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
           BoxShadow(
@@ -1035,25 +1349,25 @@ class _MetricCard extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14.r),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 36.w,
+                height: 36.w,
                 decoration: BoxDecoration(
                   color: data.color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(10.r),
                 ),
-                child: Icon(data.icon, color: data.color, size: 18),
+                child: Icon(data.icon, color: data.color, size: 18.sp),
               ),
               const Spacer(),
               Icon(
                 Icons.trending_up_rounded,
-                size: 14,
+                size: 14.sp,
                 color: AppColors.sentryGrey,
               ),
             ],
@@ -1062,7 +1376,7 @@ class _MetricCard extends StatelessWidget {
           Text(
             data.value,
             style: GoogleFonts.outfit(
-              fontSize: 26,
+              fontSize: 26.sp,
               fontWeight: FontWeight.w800,
               color: AppColors.sentryNavy,
             ),
@@ -1070,7 +1384,7 @@ class _MetricCard extends StatelessWidget {
           Text(
             data.label,
             style: GoogleFonts.outfit(
-              fontSize: 12,
+              fontSize: 12.sp,
               fontWeight: FontWeight.w600,
               color: AppColors.sentryNavy,
             ),
@@ -1078,7 +1392,7 @@ class _MetricCard extends StatelessWidget {
           Text(
             data.sublabel,
             style: GoogleFonts.outfit(
-              fontSize: 10,
+              fontSize: 10.sp,
               color: AppColors.sentryGrey,
             ),
           ),
@@ -1096,10 +1410,10 @@ class _CardWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16.r),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16.r),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
           BoxShadow(
@@ -1124,59 +1438,14 @@ class _Legend extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 8,
-          height: 8,
+          width: 8.w,
+          height: 8.w,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 4),
+        SizedBox(width: 4.w),
         Text(
           label,
-          style: GoogleFonts.outfit(fontSize: 10, color: AppColors.sentryGrey),
-        ),
-      ],
-    );
-  }
-}
-
-class _DonutLegend extends StatelessWidget {
-  final Color color;
-  final String value;
-  final String label;
-  const _DonutLegend({
-    required this.color,
-    required this.value,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: GoogleFonts.outfit(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.sentryNavy,
-              ),
-            ),
-            Text(
-              label,
-              style: GoogleFonts.outfit(
-                fontSize: 11,
-                color: AppColors.sentryGrey,
-              ),
-            ),
-          ],
+          style: GoogleFonts.outfit(fontSize: 10.sp, color: AppColors.sentryGrey),
         ),
       ],
     );
@@ -1204,10 +1473,10 @@ class _QuickCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16.r),
         decoration: BoxDecoration(
           color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(14.r),
           border: Border.all(color: AppColors.cardBorder),
           boxShadow: [
             BoxShadow(
@@ -1217,44 +1486,47 @@ class _QuickCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.sentryNavy,
-                    ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 40.w,
+                  height: 40.w,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10.r),
                   ),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.outfit(
-                      fontSize: 10,
-                      color: AppColors.sentryGrey,
-                    ),
-                  ),
-                ],
-              ),
+                  child: Icon(icon, color: color, size: 20.sp),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18.sp,
+                  color: AppColors.sentryGrey,
+                ),
+              ],
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 18,
-              color: AppColors.sentryGrey,
+            SizedBox(height: 12.h),
+            Text(
+              title,
+              style: GoogleFonts.outfit(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w700,
+                color: AppColors.sentryNavy,
+              ),
+              maxLines: 2,
+            ),
+            SizedBox(height: 2.h),
+            Text(
+              subtitle,
+              style: GoogleFonts.outfit(
+                fontSize: 10.sp,
+                color: AppColors.sentryGrey,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -1383,7 +1655,7 @@ class _EventFormSheetState extends State<_EventFormSheet> {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: EdgeInsets.fromLTRB(24, 16, 24, 24 + bottom),
+      padding: EdgeInsets.fromLTRB(24.w, 16.h, 24.w, 24.h + bottom),
       child: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -1393,35 +1665,35 @@ class _EventFormSheetState extends State<_EventFormSheet> {
             children: [
               Center(
                 child: Container(
-                  width: 40,
-                  height: 4,
+                  width: 40.w,
+                  height: 4.h,
                   decoration: BoxDecoration(
                     color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(2.r),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16.h),
               Text(
                 isEdit ? 'Editar evento' : 'Crear evento',
                 style: GoogleFonts.outfit(
-                  fontSize: 20,
+                  fontSize: 20.sp,
                   fontWeight: FontWeight.w700,
                   color: const Color(0xFF0D1B4B),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20.h),
               _field(_nombre, 'Nombre del evento', Icons.event_rounded),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               _field(
                 _descripcion,
                 'Descripción',
                 Icons.notes_rounded,
                 maxLines: 3,
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               _field(_lugar, 'Lugar / Ubicación', Icons.location_on_rounded),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               Row(
                 children: [
                   Expanded(
@@ -1435,7 +1707,7 @@ class _EventFormSheetState extends State<_EventFormSheet> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12.w),
                   Expanded(
                     child: _field(
                       _lng,
@@ -1449,16 +1721,16 @@ class _EventFormSheetState extends State<_EventFormSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               InkWell(
                 onTap: _pickDate,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(12.r),
                 child: InputDecorator(
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.calendar_today_rounded),
                     labelText: 'Fecha y hora del evento',
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(12.r),
                     ),
                     filled: true,
                     fillColor: const Color(0xFFF5F6FA),
@@ -1479,21 +1751,21 @@ class _EventFormSheetState extends State<_EventFormSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 24.h),
               FilledButton(
                 onPressed: _saving ? null : _save,
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF0D1B4B),
-                  minimumSize: const Size(double.infinity, 52),
+                  minimumSize: Size(double.infinity, 52.h),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(14.r),
                   ),
                 ),
                 child: _saving
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
+                    ? SizedBox(
+                        width: 22.w,
+                        height: 22.w,
+                        child: const CircularProgressIndicator(
                           color: Colors.white,
                           strokeWidth: 2.5,
                         ),
@@ -1501,7 +1773,7 @@ class _EventFormSheetState extends State<_EventFormSheet> {
                     : Text(
                         isEdit ? 'Guardar cambios' : 'Crear evento',
                         style: GoogleFonts.outfit(
-                          fontSize: 16,
+                          fontSize: 16.sp,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1526,7 +1798,7 @@ class _EventFormSheetState extends State<_EventFormSheet> {
     decoration: InputDecoration(
       prefixIcon: Icon(icon),
       labelText: label,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r)),
       filled: true,
       fillColor: const Color(0xFFF5F6FA),
     ),

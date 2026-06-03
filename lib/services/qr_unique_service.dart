@@ -6,7 +6,7 @@ const _kExpirationDays = 90;
 
 /// Resultado completo de una validación de QR.
 class QrValidationResult {
-  final String resultado; // 'valido' | 'invalido' | 'usado' | 'expirado' | 'evento_incorrecto'
+  final String resultado; // 'valido' | 'invalido' | 'ya_adentro' | 'expirado' | 'evento_incorrecto'
   final String nombreAsistente;
   final String? codigoQR;
   final String? razon;
@@ -63,6 +63,7 @@ class QrUniqueService {
       await _client.from('entradas').update({
         'codigo_qr': codigoQR,
         'estado': 'activo',
+        'dentro_evento': false,
         'fecha_generacion': now.toIso8601String(),
         'fecha_expiracion': expiresAt.toIso8601String(),
         'version_qr': nextVersion,
@@ -73,6 +74,7 @@ class QrUniqueService {
         'id_evento': idEvento,
         'codigo_qr': codigoQR,
         'estado': 'activo',
+        'dentro_evento': false,
         'fecha_generacion': now.toIso8601String(),
         'fecha_expiracion': expiresAt.toIso8601String(),
         'version_qr': 1,
@@ -82,13 +84,23 @@ class QrUniqueService {
     return codigoQR;
   }
 
+  /// Registra la salida del usuario del evento: resetea dentro_evento a false.
+  /// Llamado por el geofencing cuando el timer de salida expira.
+  static Future<void> registrarSalida(int idEntrada) async {
+    await _client
+        .from('entradas')
+        .update({'dentro_evento': false})
+        .eq('id_entrada', idEntrada);
+  }
+
   /// Valida un código QR con todas las verificaciones:
   ///   1. Existe en la tabla entradas
   ///   2. Pertenece al evento esperado (si idEventoEsperado != null)
   ///   3. No está expirado
-  ///   4. Estado es 'activo'
+  ///   4. Estado es 'activo' (no cancelado)
+  ///   5. dentro_evento == false (no está ya adentro)
   ///
-  /// Si es válido → marca como 'usado' e inserta en asistencias.
+  /// Si es válido → marca dentro_evento = true e inserta en asistencias.
   static Future<QrValidationResult> validateQR({
     required String codigoQR,
     int? idEventoEsperado,
@@ -98,7 +110,7 @@ class QrUniqueService {
       final List<dynamic> rows = await _client
           .from('entradas')
           .select(
-              'id_entrada, id_usuario, id_evento, estado, '
+              'id_entrada, id_usuario, id_evento, estado, dentro_evento, '
               'fecha_expiracion, version_qr, usuarios(nombre)')
           .eq('codigo_qr', codigoQR);
 
@@ -113,6 +125,7 @@ class QrUniqueService {
 
       final entrada = rows.first as Map<String, dynamic>;
       final estado = entrada['estado'] as String? ?? '';
+      final dentroEvento = entrada['dentro_evento'] as bool? ?? false;
       final idEventoEntrada = entrada['id_evento'] as int?;
       final idEntrada = entrada['id_entrada'] as int;
       final usuarioData = entrada['usuarios'];
@@ -157,20 +170,7 @@ class QrUniqueService {
         );
       }
 
-      // 3. Verificar estado
-      if (estado == 'usado') {
-        return QrValidationResult(
-          resultado: 'usado',
-          nombreAsistente: nombre,
-          codigoQR: codigoQR,
-          razon: 'Este QR ya fue utilizado para ingresar.',
-          idEntrada: idEntrada,
-          idEvento: idEventoEntrada,
-          fechaExpiracion: fechaExpiracion,
-          versionQr: versionQr,
-        );
-      }
-
+      // 3. Verificar cancelado
       if (estado == 'cancelado') {
         return QrValidationResult(
           resultado: 'invalido',
@@ -184,13 +184,27 @@ class QrUniqueService {
         );
       }
 
-      // 4. QR válido → marcar como usado
+      // 4. Verificar que no esté ya adentro
+      if (dentroEvento) {
+        return QrValidationResult(
+          resultado: 'ya_adentro',
+          nombreAsistente: nombre,
+          codigoQR: codigoQR,
+          razon: 'Este asistente ya se encuentra dentro del evento.',
+          idEntrada: idEntrada,
+          idEvento: idEventoEntrada,
+          fechaExpiracion: fechaExpiracion,
+          versionQr: versionQr,
+        );
+      }
+
+      // 5. QR válido → marcar dentro_evento = true
       await _client
           .from('entradas')
-          .update({'estado': 'usado'})
+          .update({'dentro_evento': true})
           .eq('id_entrada', idEntrada);
 
-      // 5. Registrar asistencia (falla silenciosamente si la tabla no existe)
+      // 6. Registrar asistencia
       try {
         await _client.from('asistencias').insert({
           'id_entrada': idEntrada,
