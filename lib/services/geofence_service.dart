@@ -9,37 +9,21 @@ class GeofenceService {
   // ==========================================
   // 1. DIBUJAR EL POLÍGONO DEL EVENTO (MACAJÍ)
   // ==========================================
-  // Coordenadas exactas obtenidas manualmente
   final List<LatLng> eventPolygon = [
-    const LatLng(-1.6673813488288851, -78.66819099947568),
-    const LatLng(-1.6676504776044883, -78.6680591826948),
-    const LatLng(-1.6678018625245785, -78.6679554120375),
-    const LatLng(-1.6679854868101855, -78.6677646983971),
-    const LatLng(-1.6683269146604747, -78.66738210801138),
-    const LatLng(-1.669393070810027, -78.66617168417751),
-    const LatLng(-1.6699063889411598, -78.66552893569786),
-    const LatLng(-1.670914258346672, -78.6663406541204),
-    const LatLng(-1.6710158180022696, -78.6664753883537),
-    const LatLng(-1.671057766550577, -78.66665319333924),
-    const LatLng(-1.671069909550831, -78.66695137563836),
-    const LatLng(-1.6710986111884545, -78.66701763836589),
-    const LatLng(-1.6711350401894456, -78.66709384050255),
-    const LatLng(-1.671202593580768, -78.6672874728221),
-    const LatLng(-1.6712662563038196, -78.66771014158061),
-    const LatLng(-1.6706623948160764, -78.66818112220292),
-    const LatLng(-1.6701123612474726, -78.66849537488189),
-    const LatLng(-1.6699398104672376, -78.66948867582258),
-    const LatLng(-1.6691393485157962, -78.66918079915217),
-    const LatLng(-1.6683343958391905, -78.66908995804063),
-    const LatLng(-1.668115978730337, -78.66877569688279),
-    const LatLng(-1.6673797411533886, -78.6681938227346),
+    const LatLng(-1.6560055260174005, -78.6749951089342),
+    const LatLng(-1.6557045596366962, -78.6747027427223),
+    const LatLng(-1.6558334608747622, -78.67455431005503),
+    const LatLng(-1.656097063174974, -78.67480476663376),
+    const LatLng(-1.656020981465435, -78.67488988280404),
+    const LatLng(-1.6560586132791175, -78.67493325931392),
+    const LatLng(-1.6560103463875289, -78.67499382274276),
   ];
 
-  // Centro aproximado de Macají calculado matemáticamente (para centrar el mapa)
-  final LatLng eventCenter = const LatLng(-1.669322, -78.667508);
-
-  // Radio de advertencia (300 metros desde el centro)
-  final double radioCerca = 300.0;
+  final LatLng eventCenter = const LatLng(
+    -1.6558909094711447,
+    -78.67475706289616,
+  );
+  final double radioCerca = 50.0;
 
   StreamSubscription<Position>? _positionStreamSubscription;
   Timer? _exitTimer;
@@ -71,10 +55,35 @@ class GeofenceService {
       if (permission == LocationPermission.denied) return;
     }
 
-    final LocationSettings locationSettings = const LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 2,
-    );
+    // =========================================================
+    // CONFIGURACIÓN DE GPS EXTREMA (Para pruebas instantáneas)
+    // =========================================================
+    late LocationSettings locationSettings;
+
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      locationSettings = AndroidSettings(
+        accuracy: LocationAccuracy.bestForNavigation, // Máxima precisión
+        distanceFilter: 1, // Actualiza cada 1 metro de movimiento
+        forceLocationManager: true, // Fuerza a usar el GPS del chip
+        intervalDuration: const Duration(
+          seconds: 1,
+        ), // Fuerza lectura cada 1 segundo
+      );
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      locationSettings = AppleSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        activityType:
+            ActivityType.fitness, // Evita que iOS duerma el GPS al caminar
+        distanceFilter: 1,
+        pauseLocationUpdatesAutomatically:
+            false, // ¡Clave para que no se pause!
+      );
+    } else {
+      locationSettings = const LocationSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 1,
+      );
+    }
 
     _positionStreamSubscription =
         Geolocator.getPositionStream(locationSettings: locationSettings).listen(
@@ -84,13 +93,10 @@ class GeofenceService {
         );
   }
 
-  // BOTÓN MANUAL: Permite forzar la lectura del GPS de inmediato
   Future<void> forceUpdate() async {
     try {
       Position position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
+        desiredAccuracy: LocationAccuracy.bestForNavigation,
       );
       _procesarUbicacion(position);
     } catch (e) {
@@ -101,7 +107,6 @@ class GeofenceService {
   void _procesarUbicacion(Position position) {
     LatLng userLoc = LatLng(position.latitude, position.longitude);
 
-    // Distancia al centro (solo para saber si está "Cerca")
     double distanceInMeters = Geolocator.distanceBetween(
       position.latitude,
       position.longitude,
@@ -109,7 +114,6 @@ class GeofenceService {
       eventCenter.longitude,
     );
 
-    // Evaluamos con el algoritmo de Ray-Casting si está dentro de tu polígono de Macají
     bool isInsidePolygon = _isPointInPolygon(userLoc, eventPolygon);
 
     if (isInsidePolygon) {
@@ -124,9 +128,6 @@ class GeofenceService {
     }
   }
 
-  // ==========================================
-  // ALGORITMO RAY-CASTING (¿Punto en Polígono?)
-  // ==========================================
   bool _isPointInPolygon(LatLng point, List<LatLng> polygon) {
     bool isInside = false;
     int j = polygon.length - 1;

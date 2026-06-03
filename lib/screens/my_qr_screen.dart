@@ -13,11 +13,6 @@ import '../services/qr_unique_service.dart';
 import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 
-// Centro del polígono de Macají (copia de GeofenceService)
-const _eventCenterLat = -1.669322;
-const _eventCenterLng = -78.667508;
-const _radioAfueraMetros = 350.0;
-
 class MyQrScreen extends StatefulWidget {
   const MyQrScreen({super.key});
 
@@ -42,6 +37,11 @@ class _MyQrScreenState extends State<MyQrScreen> {
   DateTime? _cachedAt;
 
   RealtimeChannel? _realtimeChannel;
+
+  // Variables dinámicas para las coordenadas del evento
+  double? _eventCenterLat;
+  double? _eventCenterLng;
+  final double _radioAfueraMetros = 350.0;
 
   bool get _isExpired =>
       _expiresAt != null && DateTime.now().isAfter(_expiresAt!);
@@ -73,6 +73,8 @@ class _MyQrScreenState extends State<MyQrScreen> {
       setState(() {
         _codigoQr = cached.codigoQr;
         _entradaEstado = cached.estado;
+        // Determinamos si está adentro basándonos en el estado
+        _dentroEvento = cached.estado.toLowerCase() == 'usado';
         _userName = cached.userName;
         _userEmail = cached.userEmail;
         _cachedAt = cached.cachedAt;
@@ -88,8 +90,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
     try {
       final user = SupabaseService.currentUser;
       final freshEmail = user?.email ?? '';
-      final freshName =
-          await EventService.getCurrentUserName() ?? freshEmail;
+      final freshName = await EventService.getCurrentUserName() ?? freshEmail;
       final uid = await EventService.getCurrentUserId();
       final event = await EventService.getActiveEvent();
 
@@ -118,12 +119,16 @@ class _MyQrScreenState extends State<MyQrScreen> {
         return;
       }
 
+      // Guardamos las coordenadas reales del evento activo (Ej: La Poli)
+      _eventCenterLat = event.lat;
+      _eventCenterLng = event.lng;
+
       Map<String, dynamic>? entry = await PaymentService.getMyEntry(
         idUsuario: uid,
         idEvento: event.id,
       );
 
-      // Si no hay entrada, intentar activación automática desde listado_estudiantes
+      // Si no hay entrada, intentar activación automática
       if (entry == null && freshEmail.isNotEmpty) {
         try {
           await StudentService.checkAndActivateIfPreApproved(
@@ -166,7 +171,9 @@ class _MyQrScreenState extends State<MyQrScreen> {
           : null;
       final newVersion = entry['version_qr'] as int? ?? 1;
       final newIdEntrada = entry['id_entrada'] as int?;
-      final newDentroEvento = entry['dentro_evento'] as bool? ?? false;
+
+      // LA CORRECCIÓN MÁS IMPORTANTE: Leemos 'usado' en la columna 'estado'
+      final newDentroEvento = newEstado.toLowerCase() == 'usado';
       final now = DateTime.now();
 
       await QrCacheService.save(
@@ -204,8 +211,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
         _subscribeToEntrada(_idEntrada!);
       }
 
-      // Edge case: app se cerró mientras el usuario salió pero dentro_evento
-      // quedó en true → reset automático si el GPS confirma que está afuera.
+      // Validar con coordenadas dinámicas si salió del recinto
       if (_dentroEvento && _idEntrada != null) {
         _autoResetSiAfuera(_idEntrada!);
       }
@@ -222,8 +228,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
     }
   }
 
-  /// Suscripción Realtime: detecta cuando el guardia escanea
-  /// (dentro_evento → true) o cuando el geofencing registra salida (→ false).
+  /// Suscripción Realtime: detecta cuando el guardia escanea (estado pasa a 'usado')
   void _subscribeToEntrada(int idEntrada) {
     _realtimeChannel?.unsubscribe();
     _realtimeChannel = SupabaseService.client
@@ -240,17 +245,23 @@ class _MyQrScreenState extends State<MyQrScreen> {
           callback: (payload) {
             if (!mounted) return;
             final newRecord = payload.newRecord;
-            final dentroEvento =
-                newRecord['dentro_evento'] as bool? ?? _dentroEvento;
-            setState(() => _dentroEvento = dentroEvento);
+            final estadoActualizado = newRecord['estado'] as String?;
+
+            if (estadoActualizado != null) {
+              setState(() {
+                _entradaEstado = estadoActualizado;
+                _dentroEvento = estadoActualizado.toLowerCase() == 'usado';
+              });
+            }
           },
         )
         .subscribe();
   }
 
-  /// Si dentro_evento = true pero el GPS dice que está a más de
-  /// _radioAfueraMetros del recinto, registra la salida automáticamente.
+  /// Si está marcado como adentro pero el GPS dice que está lejos (coordenadas dinámicas)
   Future<void> _autoResetSiAfuera(int idEntrada) async {
+    if (_eventCenterLat == null || _eventCenterLng == null) return;
+
     try {
       final permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied ||
@@ -259,20 +270,28 @@ class _MyQrScreenState extends State<MyQrScreen> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings:
-            const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       final distancia = Geolocator.distanceBetween(
         position.latitude,
         position.longitude,
-        _eventCenterLat,
-        _eventCenterLng,
+        _eventCenterLat!, // Coordenada dinámica del evento
+        _eventCenterLng!, // Coordenada dinámica del evento
       );
 
       if (distancia > _radioAfueraMetros) {
-        await QrUniqueService.registrarSalida(idEntrada);
-        if (mounted) setState(() => _dentroEvento = false);
+        await QrUniqueService.registrarSalida(
+          idEntrada,
+        ); // Asegúrate de que esto regrese el estado a "activo" en tu BD
+        if (mounted) {
+          setState(() {
+            _dentroEvento = false;
+            _entradaEstado = 'activo';
+          });
+        }
       }
     } catch (_) {
       // Sin permiso o GPS no disponible → no hacer nada
@@ -354,7 +373,8 @@ class _MyQrScreenState extends State<MyQrScreen> {
                   child: Padding(
                     padding: EdgeInsets.only(top: 60.h),
                     child: const CircularProgressIndicator(
-                        color: AppColors.sentryBlue),
+                      color: AppColors.sentryBlue,
+                    ),
                   ),
                 )
               else if (_message != null)
@@ -376,9 +396,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
                     Expanded(
                       child: _actionButton(
                         _syncing ? 'Sincronizando…' : 'Actualizar',
-                        _syncing
-                            ? Icons.sync_rounded
-                            : Icons.refresh_rounded,
+                        _syncing ? Icons.sync_rounded : Icons.refresh_rounded,
                         AppColors.sentryGrey,
                         _syncing ? () {} : _loadWithCache,
                       ),
@@ -413,53 +431,51 @@ class _MyQrScreenState extends State<MyQrScreen> {
   // ── Banner de modo offline ──────────────────────────────────────────────
 
   Widget _offlineBanner() => Container(
-        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-        decoration: BoxDecoration(
-          color: AppColors.warning.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(12.r),
-          border: Border.all(
-              color: AppColors.warning.withValues(alpha: 0.35)),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.wifi_off_rounded,
-                color: AppColors.warning, size: 18.sp),
-            SizedBox(width: 10.w),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Modo sin conexión',
-                    style: GoogleFonts.outfit(
-                      color: AppColors.warning,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13.sp,
-                    ),
-                  ),
-                  if (_cachedAt != null)
-                    Text(
-                      'Guardado ${_timeAgo(_cachedAt!)} · desliza para intentar actualizar',
-                      style: GoogleFonts.outfit(
-                        color: AppColors.warning.withValues(alpha: 0.8),
-                        fontSize: 11.sp,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (_syncing)
-              SizedBox(
-                width: 16.w,
-                height: 16.w,
-                child: const CircularProgressIndicator(
-                  strokeWidth: 2,
+    padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+    decoration: BoxDecoration(
+      color: AppColors.warning.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(12.r),
+      border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+    ),
+    child: Row(
+      children: [
+        Icon(Icons.wifi_off_rounded, color: AppColors.warning, size: 18.sp),
+        SizedBox(width: 10.w),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Modo sin conexión',
+                style: GoogleFonts.outfit(
                   color: AppColors.warning,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.sp,
                 ),
               ),
-          ],
+              if (_cachedAt != null)
+                Text(
+                  'Guardado ${_timeAgo(_cachedAt!)} · desliza para intentar actualizar',
+                  style: GoogleFonts.outfit(
+                    color: AppColors.warning.withValues(alpha: 0.8),
+                    fontSize: 11.sp,
+                  ),
+                ),
+            ],
+          ),
         ),
-      );
+        if (_syncing)
+          SizedBox(
+            width: 16.w,
+            height: 16.w,
+            child: const CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.warning,
+            ),
+          ),
+      ],
+    ),
+  );
 
   // ── Badge de estado superior ────────────────────────────────────────────
 
@@ -475,20 +491,20 @@ class _MyQrScreenState extends State<MyQrScreen> {
   }
 
   Widget _badge(String label, Color color) => Container(
-        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8.r),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.outfit(
-            color: color,
-            fontSize: 11.sp,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
+    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(8.r),
+    ),
+    child: Text(
+      label,
+      style: GoogleFonts.outfit(
+        color: color,
+        fontSize: 11.sp,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
 
   // ── Tarjeta principal del QR ────────────────────────────────────────────
 
@@ -563,7 +579,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
           // QR, dentro del evento, expirado, o activo
           if (_dentroEvento)
             _buildStatusCard(
-              icon: Icons.location_on_rounded,
+              icon: Icons.verified_user_rounded,
               color: AppColors.sentryBlue,
               title: 'Estás dentro del evento',
               subtitle:
@@ -618,7 +634,10 @@ class _MyQrScreenState extends State<MyQrScreen> {
                 ? '${_codigoQr!.substring(0, _codigoQr!.length.clamp(0, 16))}…'
                 : '—',
           ),
-          _qrDataRow('Estado', _dentroEvento ? 'Dentro del evento' : (_entradaEstado ?? '—')),
+          _qrDataRow(
+            'Estado',
+            _dentroEvento ? 'Adentro' : (_entradaEstado ?? '—'),
+          ),
           _qrDataRow('Versión', 'v$_versionQr'),
           if (_expiresAt != null)
             _qrDataRow('Expira', _formatDate(_expiresAt!)),
@@ -634,42 +653,41 @@ class _MyQrScreenState extends State<MyQrScreen> {
     required Color color,
     required String title,
     required String subtitle,
-  }) =>
-      Container(
-        padding: EdgeInsets.all(20.r),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(16.r),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
+  }) => Container(
+    padding: EdgeInsets.all(20.r),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(16.r),
+      border: Border.all(color: color.withValues(alpha: 0.25)),
+    ),
+    child: Column(
+      children: [
+        Icon(icon, size: 64.sp, color: color),
+        SizedBox(height: 8.h),
+        Text(
+          title,
+          style: GoogleFonts.outfit(
+            color: AppColors.sentryNavy,
+            fontWeight: FontWeight.w700,
+            fontSize: 16.sp,
+          ),
         ),
-        child: Column(
-          children: [
-            Icon(icon, size: 64.sp, color: color),
-            SizedBox(height: 8.h),
-            Text(
-              title,
-              style: GoogleFonts.outfit(
-                color: AppColors.sentryNavy,
-                fontWeight: FontWeight.w700,
-                fontSize: 16.sp,
-              ),
-            ),
-            SizedBox(height: 4.h),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.outfit(
-                color: AppColors.sentryGrey,
-                fontSize: 12.sp,
-              ),
-            ),
-          ],
+        SizedBox(height: 4.h),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.outfit(
+            color: AppColors.sentryGrey,
+            fontSize: 12.sp,
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   Widget _entradaStatusChip() {
     if (_dentroEvento) {
-      return _chipBadge('Adentro', AppColors.sentryBlue);
+      return _chipBadge('Usado', AppColors.sentryBlue);
     }
     if (_isExpired) {
       return _chipBadge('Expirado', AppColors.warning);
@@ -678,167 +696,169 @@ class _MyQrScreenState extends State<MyQrScreen> {
   }
 
   Widget _chipBadge(String label, Color color) => Container(
-        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8.r),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.outfit(
-            color: color,
-            fontSize: 11.sp,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      );
+    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(8.r),
+    ),
+    child: Text(
+      label,
+      style: GoogleFonts.outfit(
+        color: color,
+        fontSize: 11.sp,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
 
   // ── Tarjeta de mensaje (sin QR) ─────────────────────────────────────────
 
   Widget _buildMessageCard(String msg) => Container(
-        padding: EdgeInsets.all(28.r),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20.r),
+    padding: EdgeInsets.all(28.r),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20.r),
+    ),
+    child: Column(
+      children: [
+        Icon(Icons.qr_code_2_rounded, size: 56.sp, color: AppColors.sentryGrey),
+        SizedBox(height: 16.h),
+        Text(
+          'QR no disponible',
+          style: GoogleFonts.outfit(
+            color: AppColors.sentryNavy,
+            fontWeight: FontWeight.w700,
+            fontSize: 16.sp,
+          ),
         ),
-        child: Column(
-          children: [
-            Icon(Icons.qr_code_2_rounded,
-                size: 56.sp, color: AppColors.sentryGrey),
-            SizedBox(height: 16.h),
-            Text(
-              'QR no disponible',
-              style: GoogleFonts.outfit(
-                color: AppColors.sentryNavy,
-                fontWeight: FontWeight.w700,
-                fontSize: 16.sp,
-              ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              msg,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.outfit(
-                color: AppColors.sentryGrey,
-                fontSize: 13.sp,
-              ),
-            ),
-            SizedBox(height: 16.h),
-            ElevatedButton.icon(
-              onPressed: _loadWithCache,
-              icon: Icon(Icons.refresh_rounded,
-                  color: Colors.white, size: 18.sp),
-              label: Text(
-                'Reintentar',
-                style:
-                    GoogleFonts.outfit(color: Colors.white, fontSize: 14.sp),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.sentryBlue,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12.r)),
-              ),
-            ),
-          ],
+        SizedBox(height: 8.h),
+        Text(
+          msg,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.outfit(
+            color: AppColors.sentryGrey,
+            fontSize: 13.sp,
+          ),
         ),
-      );
+        SizedBox(height: 16.h),
+        ElevatedButton.icon(
+          onPressed: _loadWithCache,
+          icon: Icon(Icons.refresh_rounded, color: Colors.white, size: 18.sp),
+          label: Text(
+            'Reintentar',
+            style: GoogleFonts.outfit(color: Colors.white, fontSize: 14.sp),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.sentryBlue,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   // ── Helpers ─────────────────────────────────────────────────────────────
 
   Widget _buildInfoNotice() => Container(
-        padding: EdgeInsets.all(16.r),
-        decoration: BoxDecoration(
-          color: AppColors.sentryNavy.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(15.r),
-          border: Border.all(
-              color: AppColors.sentryNavy.withValues(alpha: 0.05)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.shield_outlined,
-                color: AppColors.sentryNavy, size: 20.sp),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: Text(
-                'Este QR es personal e intransferible. El sistema detecta y rechaza usos duplicados automáticamente.',
-                style: GoogleFonts.outfit(
-                  color: AppColors.sentryNavy,
-                  fontSize: 12.sp,
-                ),
-              ),
+    padding: EdgeInsets.all(16.r),
+    decoration: BoxDecoration(
+      color: AppColors.sentryNavy.withValues(alpha: 0.03),
+      borderRadius: BorderRadius.circular(15.r),
+      border: Border.all(color: AppColors.sentryNavy.withValues(alpha: 0.05)),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.shield_outlined, color: AppColors.sentryNavy, size: 20.sp),
+        SizedBox(width: 12.w),
+        Expanded(
+          child: Text(
+            'Este QR es personal e intransferible. El sistema detecta y rechaza usos duplicados automáticamente.',
+            style: GoogleFonts.outfit(
+              color: AppColors.sentryNavy,
+              fontSize: 12.sp,
             ),
-          ],
-        ),
-      );
-
-  Widget _qrDataRow(String label, String val) => Padding(
-        padding: EdgeInsets.symmetric(vertical: 4.h),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label,
-                style: GoogleFonts.outfit(
-                    color: AppColors.sentryGrey, fontSize: 13.sp)),
-            Text(
-              val,
-              style: GoogleFonts.outfit(
-                color: AppColors.sentryNavy,
-                fontWeight: FontWeight.w700,
-                fontSize: 13.sp,
-              ),
-            ),
-          ],
-        ),
-      );
-
-  Widget _actionButton(
-          String label, IconData icon, Color color, VoidCallback onTap) =>
-      ElevatedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 18.sp, color: Colors.white),
-        label: Text(
-          label,
-          style: GoogleFonts.outfit(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
           ),
         ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          padding: EdgeInsets.symmetric(vertical: 12.h),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12.r)),
+      ],
+    ),
+  );
+
+  Widget _qrDataRow(String label, String val) => Padding(
+    padding: EdgeInsets.symmetric(vertical: 4.h),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.outfit(
+            color: AppColors.sentryGrey,
+            fontSize: 13.sp,
+          ),
         ),
-      );
+        Text(
+          val,
+          style: GoogleFonts.outfit(
+            color: AppColors.sentryNavy,
+            fontWeight: FontWeight.w700,
+            fontSize: 13.sp,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _actionButton(
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) => ElevatedButton.icon(
+    onPressed: onTap,
+    icon: Icon(icon, size: 18.sp, color: Colors.white),
+    label: Text(
+      label,
+      style: GoogleFonts.outfit(
+        color: Colors.white,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: color,
+      padding: EdgeInsets.symmetric(vertical: 12.h),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+    ),
+  );
 
   Widget _stepItem(int num, String text) => Padding(
-        padding: EdgeInsets.only(bottom: 12.h),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 12.r,
-              backgroundColor: AppColors.sentryBlue,
-              child: Text(
-                '$num',
-                style: GoogleFonts.outfit(
-                  color: Colors.white,
-                  fontSize: 10.sp,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+    padding: EdgeInsets.only(bottom: 12.h),
+    child: Row(
+      children: [
+        CircleAvatar(
+          radius: 12.r,
+          backgroundColor: AppColors.sentryBlue,
+          child: Text(
+            '$num',
+            style: GoogleFonts.outfit(
+              color: Colors.white,
+              fontSize: 10.sp,
+              fontWeight: FontWeight.w700,
             ),
-            SizedBox(width: 12.w),
-            Expanded(
-              child: Text(
-                text,
-                style: GoogleFonts.outfit(
-                  color: AppColors.sentryNavy,
-                  fontSize: 14.sp,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      );
+        SizedBox(width: 12.w),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.outfit(
+              color: AppColors.sentryNavy,
+              fontSize: 14.sp,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
