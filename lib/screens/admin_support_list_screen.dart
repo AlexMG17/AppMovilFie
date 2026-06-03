@@ -50,6 +50,13 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
         backgroundColor: AppColors.sentryNavy,
         elevation: 0,
         automaticallyImplyLeading: false,
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: Row(
           children: [
             CircleAvatar(

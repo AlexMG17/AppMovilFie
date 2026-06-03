@@ -144,12 +144,13 @@ class StudentService {
   /// Batch-inserts students skipping emails already in listado_estudiantes.
   /// For each truly new student, also creates a Supabase auth account and sends
   /// a welcome email with temporary credentials via the Edge Function.
-  /// Returns {'inserted': N, 'skipped': M, 'accounts_created': K} where
+  /// Returns {'inserted': N, 'skipped': M, 'accounts_created': K,
+  ///   'inserted_list': [...], 'skipped_list': [...]} where
   ///   skipped = already existed in listado_estudiantes
   ///   accounts_created = new auth accounts created (and email sent)
   static Future<Map<String, dynamic>> batchUpsert(
       List<Map<String, String>> students) async {
-    if (students.isEmpty) return {'inserted': 0, 'skipped': 0, 'accounts_created': 0, 'email_errors': 0, 'email_errors_detail': ''};
+    if (students.isEmpty) return {'inserted': 0, 'skipped': 0, 'accounts_created': 0, 'email_errors': 0, 'email_errors_detail': '', 'inserted_list': [], 'skipped_list': []};
 
     // 1. Detect which emails already exist in the DB
     final incomingEmails = students
@@ -173,9 +174,26 @@ class StudentService {
             ))
         .toList();
 
-    final skipped = students.length - newStudents.length;
+    final skippedStudents = students
+        .where((s) =>
+            existingEmails.contains(
+              (s['correo_electronico'] ?? '').toLowerCase(),
+            ))
+        .toList();
 
-    if (newStudents.isEmpty) return {'inserted': 0, 'skipped': skipped, 'accounts_created': 0, 'email_errors': 0, 'email_errors_detail': ''};
+    final skipped = skippedStudents.length;
+
+    if (newStudents.isEmpty) {
+      return {
+        'inserted': 0,
+        'skipped': skipped,
+        'accounts_created': 0,
+        'email_errors': 0,
+        'email_errors_detail': '',
+        'inserted_list': <Map<String, String>>[],
+        'skipped_list': skippedStudents,
+      };
+    }
 
     // 2. Create parent record in 'listados'
     final listadoResponse = await _client
@@ -236,6 +254,8 @@ class StudentService {
       'accounts_created': accountsCreated,
       'email_errors': emailErrors.length,
       'email_errors_detail': emailErrors.join(' | '),
+      'inserted_list': newStudents,
+      'skipped_list': skippedStudents,
     };
   }
 

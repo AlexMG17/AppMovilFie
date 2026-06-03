@@ -54,6 +54,90 @@ class _StudentListScreenState extends State<StudentListScreen>
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
 
+  // ── Selección múltiple ─────────────────────────────────────────────────────
+  bool _selectionMode = false;
+  final Set<String> _selectedEmails = {};
+
+  void _enterSelectionMode(StudentRecord s) {
+    setState(() {
+      _selectionMode = true;
+      _selectedEmails.add(s.email);
+    });
+  }
+
+  void _toggleSelection(StudentRecord s) {
+    setState(() {
+      if (_selectedEmails.contains(s.email)) {
+        _selectedEmails.remove(s.email);
+        if (_selectedEmails.isEmpty) _selectionMode = false;
+      } else {
+        _selectedEmails.add(s.email);
+      }
+    });
+  }
+
+  void _cancelSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedEmails.clear();
+    });
+  }
+
+  Future<void> _deleteSelected() async {
+    final count = _selectedEmails.length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _kCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Eliminar $count estudiante${count == 1 ? '' : 's'}',
+            style: _ts(16, fw: FontWeight.w700)),
+        content: Text(
+          '¿Eliminar los $count estudiantes seleccionados?\nEsta acción no se puede deshacer.',
+          style: _ts(13, color: _kGrey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancelar', style: _ts(13, color: _kGrey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kRed, foregroundColor: _kWhite,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('Eliminar', style: _ts(13, fw: FontWeight.w700, color: _kWhite)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    final toDelete = _students
+        .where((s) => _selectedEmails.contains(s.email) && s.idDetalle != null)
+        .toList();
+
+    for (final s in toDelete) {
+      try {
+        await StudentService.deleteStudent(s.idDetalle!);
+      } catch (_) {}
+    }
+
+    _cancelSelection();
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$count estudiante${count == 1 ? '' : 's'} eliminado${count == 1 ? '' : 's'}',
+            style: _ts(13)),
+        backgroundColor: _kCard,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
   // ── Stats ──────────────────────────────────────────────────────────────────
   int get _total => _students.length;
   int get _conQR => _students.where((s) => s.tieneQR).length;
@@ -322,12 +406,49 @@ class _StudentListScreenState extends State<StudentListScreen>
     }
   }
 
+  // ── Barra flotante de selección múltiple ──────────────────────────────────
+  Widget _buildSelectionBar() => Padding(
+    padding: EdgeInsets.only(bottom: 80.h, left: 16.w, right: 16.w),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: _kNavy,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 10, offset: Offset(0, 4))],
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+            onPressed: _cancelSelection,
+            tooltip: 'Cancelar',
+          ),
+          Expanded(
+            child: Text(
+              '${_selectedEmails.length} seleccionado${_selectedEmails.length == 1 ? '' : 's'}',
+              style: _ts(14, fw: FontWeight.w700, color: Colors.white),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_rounded, color: Colors.white, size: 22),
+            onPressed: _deleteSelected,
+            tooltip: 'Eliminar seleccionados',
+          ),
+        ],
+      ),
+    ),
+  );
+
   // ══════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     final list = _filtered;
     return Scaffold(
       backgroundColor: _kBg,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: (_selectionMode && !widget.showAppBar)
+          ? _buildSelectionBar()
+          : null,
       body: RefreshIndicator(
         onRefresh: _load,
         color: _kPurple,
@@ -361,15 +482,30 @@ class _StudentListScreenState extends State<StudentListScreen>
                           padding: EdgeInsets.only(top: 40),
                           child: CircularProgressIndicator(color: AppColors.sentryBlue),
                         ),
-                      )
-                    else ...[
-                      ...list.map(_buildStudentRow),
-                      if (list.isEmpty) _buildEmptyState(),
-                    ],
-                    const SizedBox(height: 32),
+                      ),
                   ]),
                 ),
               ),
+              if (!_loading) ...[
+                if (list.isEmpty)
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverToBoxAdapter(child: _buildEmptyState()),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (_, index) => RepaintBoundary(
+                          child: _buildStudentRow(list[index]),
+                        ),
+                        childCount: list.length,
+                      ),
+                    ),
+                  ),
+              ],
+              SliverToBoxAdapter(child: SizedBox(height: 80.h)),
             ],
           ),
         ),
@@ -379,74 +515,100 @@ class _StudentListScreenState extends State<StudentListScreen>
   }
 
   // ── AppBar ─────────────────────────────────────────────────────────────────
-  SliverAppBar _buildAppBar() => SliverAppBar(
-    backgroundColor: _kBg,
-    elevation: 0,
-    pinned: true,
-    automaticallyImplyLeading: false,
-    title: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Panel Administrativo', style: _ts(16, fw: FontWeight.w700)),
-        if (_eventName.isNotEmpty)
-          Text(_eventName, style: _ts(11, color: _kGrey)),
-      ],
-    ),
-    actions: [
-      PopupMenuButton<String>(
-        offset: const Offset(0, 44),
-        onSelected: (value) async {
-          if (value == 'logout') {
-            final nav = Navigator.of(context);
-            await SupabaseService.signOut();
-            nav.pushReplacementNamed('/login');
-          }
-        },
-        child: CircleAvatar(
-          radius: 16,
-          backgroundColor: _kCyan.withValues(alpha: 0.16),
-          child: const Icon(Icons.person_rounded, size: 18, color: _kPurple),
+  SliverAppBar _buildAppBar() {
+    if (_selectionMode) {
+      return SliverAppBar(
+        backgroundColor: _kNavy,
+        elevation: 0,
+        pinned: true,
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded, color: Colors.white),
+          onPressed: _cancelSelection,
         ),
-        itemBuilder: (_) => [
-          PopupMenuItem(
-            enabled: false,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _userName,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: Colors.black87),
-                ),
-                Text(
-                  SupabaseService.currentUser?.email ?? '',
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
-          const PopupMenuDivider(),
-          const PopupMenuItem(
-            value: 'logout',
-            child: Row(
-              children: [
-                Icon(Icons.logout_rounded, size: 16, color: Colors.red),
-                SizedBox(width: 8),
-                Text('Cerrar sesión',
-                    style: TextStyle(color: Colors.red, fontSize: 14)),
-              ],
-            ),
+        title: Text(
+          '${_selectedEmails.length} seleccionado${_selectedEmails.length == 1 ? '' : 's'}',
+          style: _ts(16, fw: FontWeight.w700, color: Colors.white),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_rounded, color: Colors.white),
+            tooltip: 'Eliminar seleccionados',
+            onPressed: _deleteSelected,
           ),
         ],
+      );
+    }
+
+    return SliverAppBar(
+      backgroundColor: _kBg,
+      elevation: 0,
+      pinned: true,
+      automaticallyImplyLeading: false,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Panel Administrativo', style: _ts(16, fw: FontWeight.w700)),
+          if (_eventName.isNotEmpty)
+            Text(_eventName, style: _ts(11, color: _kGrey)),
+        ],
       ),
-      IconButton(
-        icon: Icon(Icons.refresh_rounded, color: _kGrey, size: 20),
-        onPressed: _load,
-      ),
-    ],
-  );
+      actions: [
+        PopupMenuButton<String>(
+          offset: const Offset(0, 44),
+          onSelected: (value) async {
+            if (value == 'logout') {
+              final nav = Navigator.of(context);
+              await SupabaseService.signOut();
+              nav.pushReplacementNamed('/login');
+            }
+          },
+          child: CircleAvatar(
+            radius: 16,
+            backgroundColor: _kCyan.withValues(alpha: 0.16),
+            child: const Icon(Icons.person_rounded, size: 18, color: _kPurple),
+          ),
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              enabled: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _userName,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.black87),
+                  ),
+                  Text(
+                    SupabaseService.currentUser?.email ?? '',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'logout',
+              child: Row(
+                children: [
+                  Icon(Icons.logout_rounded, size: 16, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Cerrar sesión',
+                      style: TextStyle(color: Colors.red, fontSize: 14)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        IconButton(
+          icon: Icon(Icons.refresh_rounded, color: _kGrey, size: 20),
+          onPressed: _load,
+        ),
+      ],
+    );
+  }
 
   // ── Header ─────────────────────────────────────────────────────────────────
   Widget _buildHeader() => Column(
@@ -569,6 +731,66 @@ class _StudentListScreenState extends State<StudentListScreen>
 
   // ── Fila de estudiante ──────────────────────────────────────────────────────
   Widget _buildStudentRow(StudentRecord s) {
+    final isSelected = _selectedEmails.contains(s.email);
+
+    // En modo selección: tap selecciona, sin Dismissible
+    if (_selectionMode) {
+      return GestureDetector(
+        onTap: () => _toggleSelection(s),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? _kRed.withValues(alpha: 0.07) : _kCard,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected ? _kRed.withValues(alpha: 0.4) : _kBorder,
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Checkbox(
+                value: isSelected,
+                onChanged: (_) => _toggleSelection(s),
+                activeColor: _kRed,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                flex: 10,
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18.r,
+                      backgroundColor: _avatarColor(s.nombre).withValues(alpha: 0.2),
+                      child: Text(
+                        s.nombre.isNotEmpty ? s.nombre[0].toUpperCase() : '?',
+                        style: GoogleFonts.outfit(fontSize: 13.sp, fontWeight: FontWeight.w800, color: _avatarColor(s.nombre)),
+                      ),
+                    ),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(s.nombre, style: _ts(13, fw: FontWeight.w700), overflow: TextOverflow.ellipsis),
+                          Text(s.email, style: _ts(10, color: _kGrey), overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _StatusChip(status: s.status),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Modo normal: long press activa selección, swipe elimina
     return Dismissible(
       key: ValueKey(s.idDetalle ?? s.email),
       direction: DismissDirection.endToStart,
@@ -598,6 +820,7 @@ class _StudentListScreenState extends State<StudentListScreen>
       ),
       child: GestureDetector(
         onTap: () => _showStudentDialog(s),
+        onLongPress: () => _enterSelectionMode(s),
         child: Container(
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
