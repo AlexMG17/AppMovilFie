@@ -214,7 +214,11 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
         final file = _selectedFile!;
         final bytes = await File(file.path!).readAsBytes();
         final ext = file.extension?.toLowerCase() ?? 'bin';
-        final mime = (ext == 'pdf') ? 'application/pdf' : 'image/$ext';
+        final mime = (ext == 'pdf')
+            ? 'application/pdf'
+            : (ext == 'jpg' || ext == 'jpeg')
+                ? 'image/jpeg'
+                : 'image/$ext';
         final isImage = mime.startsWith('image/');
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final storagePath = 'soporte/$_convUserId/${timestamp}_${file.name}';
