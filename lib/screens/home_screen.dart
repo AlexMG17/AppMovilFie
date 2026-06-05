@@ -165,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildFloatingBottomBar() {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
     return Container(
       margin: EdgeInsets.fromLTRB(24.w, 0, 24.w, 12.h + bottomPadding),
       height: 60.h,
@@ -227,9 +227,6 @@ class _HomeContentState extends State<_HomeContent> {
   RealtimeChannel? _eventChannel;
   RealtimeChannel? _entradaChannel;
 
-  Timer? _countdownTimer;
-  Duration _remaining = Duration.zero;
-
   // Variables de Geofencing
   GeofenceService? _geofenceService;
   GeofenceState _geoState = GeofenceState.afuera;
@@ -255,7 +252,6 @@ class _HomeContentState extends State<_HomeContent> {
 
   @override
   void dispose() {
-    _countdownTimer?.cancel();
     _geofenceService?.dispose();
     _eventChannel?.unsubscribe();
     _entradaChannel?.unsubscribe();
@@ -282,7 +278,7 @@ class _HomeContentState extends State<_HomeContent> {
       },
       onTimerTick: (segundos) {
         if (!mounted) return;
-        setState(() => _segundosSalida = segundos);
+        _segundosSalida = segundos;
       },
       onTimerExpired: () {
         if (!mounted) return;
@@ -365,7 +361,7 @@ class _HomeContentState extends State<_HomeContent> {
       final email = SupabaseService.currentUser?.email;
       if (!_activationChecked && uid != null && email != null) {
         _activationChecked = true;
-        await StudentService.checkAndActivateIfPreApproved(
+        StudentService.checkAndActivateIfPreApproved(
           email: email,
           idUsuario: uid,
           idEvento: event.id,
@@ -394,7 +390,6 @@ class _HomeContentState extends State<_HomeContent> {
 
         _loading = false;
       });
-      _startCountdown(event.fecha);
 
       // Si tenemos entrada, escuchamos en tiempo real si el guardia nos aprueba
       if (_idEntrada != null) {
@@ -404,21 +399,6 @@ class _HomeContentState extends State<_HomeContent> {
       setState(() => _loading = false);
     }
   }
-
-  void _startCountdown(DateTime eventDate) {
-    _updateRemaining(eventDate);
-    _countdownTimer?.cancel();
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) _updateRemaining(eventDate);
-    });
-  }
-
-  void _updateRemaining(DateTime eventDate) {
-    final diff = eventDate.difference(DateTime.now());
-    setState(() => _remaining = diff.isNegative ? Duration.zero : diff);
-  }
-
-  String _pad(int n) => n.toString().padLeft(2, '0');
 
   // =========================================================================
   // MÉTODO PARA ABRIR MAPA EN PANTALLA COMPLETA
@@ -448,7 +428,7 @@ class _HomeContentState extends State<_HomeContent> {
                 ),
                 // Botón "X" para cerrar
                 Positioned(
-                  top: MediaQuery.of(context).padding.top + 16,
+                  top: MediaQuery.paddingOf(context).top + 16,
                   right: 16,
                   child: FloatingActionButton(
                     mini: true,
@@ -557,7 +537,7 @@ class _HomeContentState extends State<_HomeContent> {
           children: [
             _buildMainEventCard(),
             SizedBox(height: 25.h),
-            _buildCountdownSection(),
+            CountdownSection(eventDate: _event?.fecha),
             SizedBox(height: 25.h),
             _buildAforoCard(),
             SizedBox(height: 25.h),
@@ -657,66 +637,6 @@ class _HomeContentState extends State<_HomeContent> {
       ),
     );
   }
-
-  Widget _buildCountdownSection() {
-    final days = _remaining.inDays;
-    final hours = _remaining.inHours.remainder(24);
-    final minutes = _remaining.inMinutes.remainder(60);
-    final seconds = _remaining.inSeconds.remainder(60);
-
-    return Column(
-      children: [
-        Text(
-          'CUENTA REGRESIVA',
-          style: GoogleFonts.outfit(
-            color: AppColors.sentryGrey,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.5,
-            fontSize: 11.sp,
-          ),
-        ),
-        SizedBox(height: 16.h),
-        Row(
-          children: [
-            _timeUnit(_pad(days), 'días'),
-            _timeUnit(_pad(hours), 'hrs'),
-            _timeUnit(_pad(minutes), 'min'),
-            _timeUnit(_pad(seconds), 'seg'),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _timeUnit(String val, String label) => Expanded(
-    child: Container(
-      margin: EdgeInsets.symmetric(horizontal: 4.w),
-      padding: EdgeInsets.all(10.r),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16.r),
-      ),
-      child: Column(
-        children: [
-          Text(
-            val,
-            style: GoogleFonts.outfit(
-              color: AppColors.sentryNavy,
-              fontSize: 20.sp,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          Text(
-            label,
-            style: GoogleFonts.outfit(
-              color: AppColors.sentryGrey,
-              fontSize: 10.sp,
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
 
   Widget _buildAforoCard() {
     final capacity = _capacidad;
@@ -984,49 +904,14 @@ class _HomeContentState extends State<_HomeContent> {
           Icon(icon, color: textColor, size: 28.sp),
           SizedBox(width: 12.w),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  text,
-                  style: GoogleFonts.outfit(
-                    color: textColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13.sp,
-                    height: 1.3,
-                  ),
-                ),
-                // Si está afuera y hay timer de salida, lo mostramos integrado aquí
-                if (_geoState == GeofenceState.afuera &&
-                    _segundosSalida > 0) ...[
-                  SizedBox(height: 8.h),
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 10.w,
-                      vertical: 4.h,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(8.r),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.timer, color: AppColors.error, size: 14.sp),
-                        SizedBox(width: 6.w),
-                        Text(
-                          'Tiempo para volver: 00:${_segundosSalida.toString().padLeft(2, '0')}',
-                          style: GoogleFonts.outfit(
-                            color: AppColors.error,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12.sp,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
+            child: Text(
+              text,
+              style: GoogleFonts.outfit(
+                color: textColor,
+                fontWeight: FontWeight.w600,
+                fontSize: 13.sp,
+                height: 1.3,
+              ),
             ),
           ),
         ],
@@ -1170,4 +1055,123 @@ class _HomeContentState extends State<_HomeContent> {
           ],
         ),
       );
+}
+
+// ── Widget de Cuenta Regresiva Aislado ───────────────────────────────────────
+
+class CountdownSection extends StatefulWidget {
+  final DateTime? eventDate;
+  const CountdownSection({super.key, this.eventDate});
+
+  @override
+  State<CountdownSection> createState() => _CountdownSectionState();
+}
+
+class _CountdownSectionState extends State<CountdownSection> {
+  Timer? _timer;
+  Duration _remaining = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _startCountdown();
+  }
+
+  @override
+  void didUpdateWidget(covariant CountdownSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.eventDate != widget.eventDate) {
+      _startCountdown();
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startCountdown() {
+    _timer?.cancel();
+    if (widget.eventDate == null) {
+      setState(() => _remaining = Duration.zero);
+      return;
+    }
+    _updateRemaining();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) _updateRemaining();
+    });
+  }
+
+  void _updateRemaining() {
+    if (widget.eventDate == null) {
+      setState(() => _remaining = Duration.zero);
+      return;
+    }
+    final diff = widget.eventDate!.difference(DateTime.now());
+    setState(() => _remaining = diff.isNegative ? Duration.zero : diff);
+  }
+
+  String _pad(int n) => n.toString().padLeft(2, '0');
+
+  Widget _timeUnit(String val, String label) => Expanded(
+    child: Container(
+      margin: EdgeInsets.symmetric(horizontal: 4.w),
+      padding: EdgeInsets.all(10.r),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16.r),
+      ),
+      child: Column(
+        children: [
+          Text(
+            val,
+            style: GoogleFonts.outfit(
+              color: AppColors.sentryNavy,
+              fontSize: 20.sp,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            label,
+            style: GoogleFonts.outfit(
+              color: AppColors.sentryGrey,
+              fontSize: 10.sp,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final days = _remaining.inDays;
+    final hours = _remaining.inHours.remainder(24);
+    final minutes = _remaining.inMinutes.remainder(60);
+    final seconds = _remaining.inSeconds.remainder(60);
+
+    return Column(
+      children: [
+        Text(
+          'CUENTA REGRESIVA',
+          style: GoogleFonts.outfit(
+            color: AppColors.sentryGrey,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            fontSize: 11.sp,
+          ),
+        ),
+        SizedBox(height: 16.h),
+        Row(
+          children: [
+            _timeUnit(_pad(days), 'días'),
+            _timeUnit(_pad(hours), 'hrs'),
+            _timeUnit(_pad(minutes), 'min'),
+            _timeUnit(_pad(seconds), 'seg'),
+          ],
+        ),
+      ],
+    );
+  }
 }

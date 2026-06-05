@@ -51,8 +51,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _otpController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
 
-  bool _obscurePassword = true;
-
   @override
   void initState() {
     super.initState();
@@ -494,7 +492,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    final size = MediaQuery.sizeOf(context);
+    final paddingTop = MediaQuery.paddingOf(context).top;
 
     return Scaffold(
       backgroundColor: Colors.white, // Fondo final en caso de extenderse
@@ -577,16 +576,12 @@ class _LoginScreenState extends State<LoginScreen> {
           Positioned.fill(
             child: Column(
               children: [
-                SizedBox(
-                  height: MediaQuery.of(context).padding.top,
-                ), // Respetar la barra de estado
+                SizedBox(height: paddingTop), // Respetar la barra de estado
                 // ÁREA DEL LOGO SENTRY (Limpio, sin sombras, centrado)
                 SizedBox(
                   height:
                       size.height * 0.36 -
-                      MediaQuery.of(
-                        context,
-                      ).padding.top, // Exactamente sobre la tarjeta blanca
+                      paddingTop, // Exactamente sobre la tarjeta blanca
                   child: Center(
                     child: Image.asset(
                       'assets/images/logo.png',
@@ -598,29 +593,36 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 // ÁREA DEL FORMULARIO (Se desplaza sobre el fondo blanco)
                 Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: EdgeInsets.only(
-                      top: 50.0, //36.0
-                      left: 24.0,
-                      right: 24.0,
-                      // Permite desplazar el contenido hacia arriba cuando sale el teclado
-                      bottom: MediaQuery.of(context).viewInsets.bottom + 40,
-                    ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 400),
-                      switchInCurve: Curves.easeOutQuart,
-                      switchOutCurve: Curves.easeInQuart,
-                      child: isStudent == null
-                          ? _buildInitialQuestion()
-                          : (_isResetPasswordFlow
-                                ? _buildResetPasswordForm()
-                                : (_isVerificationFlow
-                                      ? _buildVerificationForm()
-                                      : (isStudent == true
-                                            ? _buildStudentLogin()
-                                            : _buildNormalLogin()))),
-                    ),
+                  child: Builder(
+                    builder: (context) {
+                      final bottomInset = MediaQuery.viewInsetsOf(
+                        context,
+                      ).bottom;
+                      return SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: EdgeInsets.only(
+                          top: 50.0, //36.0
+                          left: 24.0,
+                          right: 24.0,
+                          // Permite desplazar el contenido hacia arriba cuando sale el teclado
+                          bottom: bottomInset + 40,
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          switchInCurve: Curves.easeOutQuart,
+                          switchOutCurve: Curves.easeInQuart,
+                          child: isStudent == null
+                              ? _buildInitialQuestion()
+                              : (_isResetPasswordFlow
+                                    ? _buildResetPasswordForm()
+                                    : (_isVerificationFlow
+                                          ? _buildVerificationForm()
+                                          : (isStudent == true
+                                                ? _buildStudentLogin()
+                                                : _buildNormalLogin()))),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -737,7 +739,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           SizedBox(height: 30.h),
 
-          _buildEpicTextField(
+          EpicTextField(
             controller: _otpController,
             label: 'Código de recuperación',
             hint: 'Ej: 123456',
@@ -749,7 +751,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           SizedBox(height: 20.h),
 
-          _buildEpicTextField(
+          EpicTextField(
             controller: _newPasswordController,
             label: 'Tu nueva contraseña',
             hint: '••••••••',
@@ -836,7 +838,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           SizedBox(height: 30.h),
 
-          _buildEpicTextField(
+          EpicTextField(
             controller: _otpController,
             label: 'Código de validación',
             hint: 'Ej: 123456',
@@ -920,7 +922,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
           // Campo de Nombre (Solo visible en Registro)
           if (!_isStudentLogin) ...[
-            _buildEpicTextField(
+            EpicTextField(
               controller: _nameController,
               label: 'Nombre Completo',
               hint: 'Ej. Juan Pérez',
@@ -935,7 +937,7 @@ class _LoginScreenState extends State<LoginScreen> {
             SizedBox(height: 20.h),
           ],
 
-          _buildEpicTextField(
+          EpicTextField(
             controller: _emailController,
             label: 'Correo Institucional',
             hint: 'ejemplo@espoch.edu.ec',
@@ -952,7 +954,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           SizedBox(height: 20.h),
 
-          _buildEpicTextField(
+          EpicTextField(
             controller: _passwordController,
             label: 'Contraseña',
             hint: '••••••••',
@@ -984,7 +986,7 @@ class _LoginScreenState extends State<LoginScreen> {
           // Confirmar Contraseña (Solo visible en Registro)
           if (!_isStudentLogin) ...[
             SizedBox(height: 20.h),
-            _buildEpicTextField(
+            EpicTextField(
               controller: _confirmPasswordController,
               label: 'Confirmar Contraseña',
               hint: '••••••••',
@@ -1120,7 +1122,7 @@ class _LoginScreenState extends State<LoginScreen> {
           SizedBox(height: 30.h),
 
           if (!_isExternalLogin) ...[
-            _buildEpicTextField(
+            EpicTextField(
               controller: _nameController,
               label: 'Nombre Completo',
               hint: 'Ej. María Gómez',
@@ -1133,7 +1135,7 @@ class _LoginScreenState extends State<LoginScreen> {
             SizedBox(height: 20.h),
           ],
 
-          _buildEpicTextField(
+          EpicTextField(
             controller: _emailController,
             label: 'Correo electrónico',
             hint: 'ejemplo@correo.com',
@@ -1145,7 +1147,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           SizedBox(height: 20.h),
 
-          _buildEpicTextField(
+          EpicTextField(
             controller: _passwordController,
             label: 'Contraseña',
             hint: '••••••••',
@@ -1176,7 +1178,7 @@ class _LoginScreenState extends State<LoginScreen> {
           // Confirmar Contraseña (Solo visible en Registro)
           if (!_isExternalLogin) ...[
             SizedBox(height: 20.h),
-            _buildEpicTextField(
+            EpicTextField(
               controller: _confirmPasswordController,
               label: 'Confirmar Contraseña',
               hint: '••••••••',
@@ -1420,93 +1422,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildEpicTextField({
-    TextEditingController? controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    bool isPassword = false,
-    String? Function(String?)? validator,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.only(left: 4.w),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: AppColors.sentryNavy,
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        SizedBox(height: 8.h),
-        TextFormField(
-          controller: controller,
-          obscureText: isPassword ? _obscurePassword : false,
-          style: const TextStyle(
-            color: AppColors.sentryNavy,
-            fontWeight: FontWeight.w600,
-            fontSize: 15,
-          ),
-          validator: validator,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: AppColors.sentryGrey.withAlpha(150)),
-            prefixIcon: Icon(
-              icon,
-              color: AppColors.sentryNavy.withAlpha(150),
-              size: 22,
-            ),
-            suffixIcon: isPassword
-                ? IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off_rounded
-                          : Icons.visibility_rounded,
-                      color: AppColors.sentryNavy.withAlpha(150),
-                      size: 22,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
-                  )
-                : null,
-            filled: true,
-            fillColor: AppColors.sentryBg.withAlpha(150),
-            contentPadding: EdgeInsets.symmetric(
-              vertical: 18.h,
-              horizontal: 20.w,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(20.r),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(20.r),
-              borderSide: const BorderSide(
-                color: AppColors.sentryCyan,
-                width: 2,
-              ),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(20.r),
-              borderSide: const BorderSide(color: Colors.redAccent, width: 2),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(20.r),
-              borderSide: const BorderSide(color: Colors.redAccent, width: 2),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildEpicButton({
     required String text,
     required VoidCallback onPressed,
@@ -1557,6 +1472,119 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
       ),
+    );
+  }
+}
+
+class EpicTextField extends StatefulWidget {
+  final TextEditingController? controller;
+  final String label;
+  final String hint;
+  final IconData icon;
+  final bool isPassword;
+  final String? Function(String?)? validator;
+
+  const EpicTextField({
+    super.key,
+    this.controller,
+    required this.label,
+    required this.hint,
+    required this.icon,
+    this.isPassword = false,
+    this.validator,
+  });
+
+  @override
+  State<EpicTextField> createState() => _EpicTextFieldState();
+}
+
+class _EpicTextFieldState extends State<EpicTextField> {
+  late bool _obscureText;
+
+  @override
+  void initState() {
+    super.initState();
+    _obscureText = widget.isPassword;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(left: 4.w),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              color: AppColors.sentryNavy,
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        SizedBox(height: 8.h),
+        TextFormField(
+          controller: widget.controller,
+          obscureText: _obscureText,
+          style: const TextStyle(
+            color: AppColors.sentryNavy,
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+          ),
+          validator: widget.validator,
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            hintStyle: TextStyle(color: AppColors.sentryGrey.withAlpha(150)),
+            prefixIcon: Icon(
+              widget.icon,
+              color: AppColors.sentryNavy.withAlpha(150),
+              size: 22,
+            ),
+            suffixIcon: widget.isPassword
+                ? IconButton(
+                    icon: Icon(
+                      _obscureText
+                          ? Icons.visibility_off_rounded
+                          : Icons.visibility_rounded,
+                      color: AppColors.sentryNavy.withAlpha(150),
+                      size: 22,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureText = !_obscureText;
+                      });
+                    },
+                  )
+                : null,
+            filled: true,
+            fillColor: AppColors.sentryBg.withAlpha(150),
+            contentPadding: EdgeInsets.symmetric(
+              vertical: 18.h,
+              horizontal: 20.w,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20.r),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20.r),
+              borderSide: const BorderSide(
+                color: AppColors.sentryCyan,
+                width: 2,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20.r),
+              borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20.r),
+              borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
