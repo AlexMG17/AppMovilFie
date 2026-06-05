@@ -76,10 +76,11 @@ class _GuardScreenState extends State<GuardScreen>
 
   Future<void> _loadUserName() async {
     final name = await EventService.getCurrentUserName();
-    if (mounted)
+    if (mounted) {
       setState(
         () => _userName = name ?? SupabaseService.currentUser?.email ?? '',
       );
+    }
   }
 
   Future<void> _initializeGuard() async {
