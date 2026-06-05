@@ -235,7 +235,6 @@ class _HomeContentState extends State<_HomeContent> {
   double? _distanceMeters;
   LatLng? _userLocation;
   bool _isUpdatingGps = false;
-  int _segundosSalida = 0;
 
   // Variable de control para el estado de ingreso (Código QR)
   bool _qrValidado = false;
@@ -276,10 +275,7 @@ class _HomeContentState extends State<_HomeContent> {
           }
         });
       },
-      onTimerTick: (segundos) {
-        if (!mounted) return;
-        _segundosSalida = segundos;
-      },
+      onTimerTick: (segundos) {},
       onTimerExpired: () {
         if (!mounted) return;
         // Si el tiempo de salida expira, registramos formalmente la salida en BD
