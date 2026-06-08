@@ -119,6 +119,20 @@ class _MyQrScreenState extends State<MyQrScreen> {
         return;
       }
 
+      // Si el caché es de un evento diferente, descartarlo antes de continuar.
+      if (cached != null && cached.eventId != event.id) {
+        await QrCacheService.clear(userId);
+        if (mounted) {
+          setState(() {
+            _codigoQr = null;
+            _entradaEstado = null;
+            _expiresAt = null;
+            _isOffline = false;
+            _cachedAt = null;
+          });
+        }
+      }
+
       // Guardamos las coordenadas reales del evento activo (Ej: La Poli)
       _eventCenterLat = event.lat;
       _eventCenterLng = event.lng;

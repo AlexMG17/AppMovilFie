@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'payment_service.dart';
 import 'supabase_service.dart';
 
@@ -45,84 +46,27 @@ class StudentRecord {
 class StudentService {
   StudentService._();
 
-  static dynamic get _client => SupabaseService.client;
+  static SupabaseClient get _client => SupabaseService.client;
 
-  /// Fetches all students from listado_estudiantes, merged with their
-  /// payment and entry status for [idEvento].
+  /// Fetches all students merged with their payment/entry status for [idEvento].
+  /// Calls the RPC get_students_with_status which does the JOIN server-side.
   static Future<List<StudentRecord>> getStudentsWithStatus({
     required int idEvento,
   }) async {
-    // 1. All students in the list
-    final studentRows = await _client
-        .from('listado_estudiantes')
-        .select('id_detalle, nombre, correo_electronico, carrera, cedula')
-        .order('nombre') as List;
+    final rows = await _client.rpc(
+      'get_students_with_status',
+      params: {'p_id_evento': idEvento},
+    ) as List;
 
-    // 2. Pagos for this event → build email→estado map
-    final pagosRows = await _client
-        .from('pagos')
-        .select('estado, usuarios(email)')
-        .eq('id_evento', idEvento) as List;
-
-    final pagosByEmail = <String, String>{};
-    for (final p in pagosRows) {
-      final u = p['usuarios'];
-      if (u is Map) {
-        final email = u['email'] as String?;
-        if (email != null) pagosByEmail[email] = p['estado'] ?? 'pendiente';
-      }
-    }
-
-    // 3. Entradas for this event → build email set
-    final entradasRows = await _client
-        .from('entradas')
-        .select('estado, usuarios(email)')
-        .eq('id_evento', idEvento)
-        .neq('estado', 'cancelado') as List;
-
-    final entradasByEmail = <String, String>{};
-    for (final e in entradasRows) {
-      final u = e['usuarios'];
-      if (u is Map) {
-        final email = u['email'] as String?;
-        if (email != null) entradasByEmail[email] = e['estado'] ?? 'activo';
-      }
-    }
-
-    // 4. Merge
-    return studentRows.map<StudentRecord>((row) {
-      final email = (row['correo_electronico'] ?? row['email'] ?? '') as String;
-      final entradaEstado = entradasByEmail[email];
-      final pagoEstado = pagosByEmail[email];
-
-      String status;
-      bool tieneQR;
-
-      if (entradaEstado == 'usado') {
-        status = 'ingresado';
-        tieneQR = true;
-      } else if (entradaEstado == 'activo') {
-        status = 'aprobado';
-        tieneQR = true;
-      } else if (pagoEstado == 'aprobado') {
-        status = 'aprobado';
-        tieneQR = false;
-      } else if (pagoEstado == 'pendiente') {
-        status = 'revision';
-        tieneQR = false;
-      } else {
-        status = 'pendiente';
-        tieneQR = false;
-      }
-
+    return rows.map<StudentRecord>((row) {
       return StudentRecord(
         idDetalle: row['id_detalle'] as int?,
         nombre: (row['nombre'] ?? '') as String,
-        email: email,
+        email: (row['correo_electronico'] ?? '') as String,
         carrera: (row['carrera'] ?? '') as String,
         cedula: (row['cedula'] ?? '') as String,
-        status: status,
-        tieneQR: tieneQR,
+        status: (row['status'] ?? 'pendiente') as String,
+        tieneQR: (row['tiene_qr'] as bool?) ?? false,
       );
     }).toList();
   }
@@ -244,8 +188,8 @@ class StudentService {
             emailErrors.add('${s['correo_electronico']}: ${data['email_error']}');
           }
         }
-      } catch (_) {
-        // Account creation failures don't block the import
+      } catch (e) {
+        debugPrint('StudentService.importStudents create account: $e');
       }
     }
 
@@ -367,7 +311,8 @@ class StudentService {
           .toList()
         ..sort();
       return careers;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('StudentService.getUniqueCareers: $e');
       return [];
     }
   }

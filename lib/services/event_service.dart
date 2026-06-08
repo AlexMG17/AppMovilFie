@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 
@@ -9,8 +10,6 @@ class EventModel {
   final String lugar;
   final double lat;
   final double lng;
-  // Radio en metros para geofencing (configurable, no está en DB)
-  static const int radioMetros = 300;
 
   const EventModel({
     required this.id,
@@ -80,7 +79,8 @@ class EventService {
       _cachedEvent = data != null ? EventModel.fromMap(data) : null;
       _cacheTime = DateTime.now();
       return _cachedEvent;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('EventService.getActiveEvent: $e');
       return _cachedEvent; // Devuelve caché obsoleto antes de reportar null
     }
   }
@@ -88,13 +88,13 @@ class EventService {
   /// Número de entradas no canceladas (aforo actual).
   static Future<int> getAforo(int idEvento) async {
     try {
-      final data = await _client
+      return await _client
           .from('entradas')
-          .select('id_entrada')
+          .count(CountOption.exact)
           .eq('id_evento', idEvento)
           .neq('estado', 'cancelado');
-      return (data as List).length;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('EventService.getAforo: $e');
       return 0;
     }
   }
@@ -102,11 +102,11 @@ class EventService {
   /// Capacidad total desde listado_estudiantes.
   static Future<int> getCapacidad() async {
     try {
-      final data = await _client
+      return await _client
           .from('listado_estudiantes')
-          .select('id_detalle');
-      return (data as List).length;
-    } catch (_) {
+          .count(CountOption.exact);
+    } catch (e) {
+      debugPrint('EventService.getCapacidad: $e');
       return 350;
     }
   }
@@ -138,7 +138,8 @@ class EventService {
           .single();
 
       return inserted['id_usuario'] as int?;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('EventService.getCurrentUserId: $e');
       return null;
     }
   }
@@ -193,7 +194,8 @@ class EventService {
           .eq('email', user.email!)
           .single();
       return data['nombre'] as String?;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('EventService.getCurrentUserName: $e');
       return user.email;
     }
   }

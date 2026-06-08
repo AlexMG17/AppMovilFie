@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -6,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class SupabaseService {
   SupabaseService._();
 
+  // Inyectar con --dart-define=SUPABASE_URL=... y --dart-define=SUPABASE_ANON_KEY=...
+  // Los defaultValues son solo para desarrollo local; en producción siempre inyectar via CI/CD.
   static const String supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
     defaultValue: 'https://nnglhmbldffzlsnraryv.supabase.co',
@@ -51,7 +54,9 @@ class SupabaseService {
       if (await google.isSignedIn()) {
         await google.disconnect();
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('SupabaseService.signOut Google disconnect: $e');
+    }
     await client.auth.signOut();
   }
 }

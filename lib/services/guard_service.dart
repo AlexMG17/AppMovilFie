@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'qr_unique_service.dart';
@@ -71,7 +72,8 @@ class GuardService {
         await prefs.setString(_kRoleKey, role);
       }
       return role;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('GuardService.getCurrentUserRole: $e');
       return null;
     }
   }
@@ -92,7 +94,8 @@ class GuardService {
           .eq('email', user.email!)
           .single();
       return data['id_usuario'] as int;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('GuardService.getCurrentGuardId: $e');
       return null;
     }
   }
@@ -149,7 +152,9 @@ class GuardService {
         'nombre_asistente': nombreAsistente,
         'escaneado_en': DateTime.now().toIso8601String(),
       });
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('GuardService._logScan: $e');
+    }
   }
 
   // ── Historial de escaneos recientes ───────────────────────────
@@ -175,7 +180,8 @@ class GuardService {
               DateTime.tryParse(row['escaneado_en'] ?? '') ?? DateTime.now(),
         );
       }).toList();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('GuardService.getRecentScans: $e');
       return [];
     }
   }
@@ -196,7 +202,7 @@ class GuardService {
 
       await _client
           .from('entradas')
-          .update({'dentro_evento': false})
+          .update({'dentro_evento': false, 'estado': 'activo'})
           .eq('id_entrada', idEntrada);
 
       final asist = await _client
@@ -215,7 +221,8 @@ class GuardService {
       }
 
       return true;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('GuardService.undoEntry: $e');
       return false;
     }
   }
@@ -223,34 +230,26 @@ class GuardService {
   /// 'valido' → ingresados | 'usado' → usados | todo lo demás → invalidos
   static Future<ScanStats> getStats({required int idGuardia}) async {
     try {
-      final rows = await _client
-          .from('scan_logs')
-          .select('resultado')
-          .eq('id_guardia', idGuardia);
+      final results = await Future.wait([
+        _client.from('scan_logs').count(CountOption.exact)
+            .eq('id_guardia', idGuardia),
+        _client.from('scan_logs').count(CountOption.exact)
+            .eq('id_guardia', idGuardia).eq('resultado', 'valido'),
+        _client.from('scan_logs').count(CountOption.exact)
+            .eq('id_guardia', idGuardia).eq('resultado', 'usado'),
+      ]);
 
-      int ingresados = 0;
-      int invalidos = 0;
-      int usados = 0;
-
-      for (final row in rows) {
-        switch (row['resultado']) {
-          case 'valido':
-            ingresados++;
-            break;
-          case 'usado':
-            usados++;
-            break;
-          default:
-            invalidos++;
-        }
-      }
+      final total = results[0];
+      final ingresados = results[1];
+      final usados = results[2];
 
       return ScanStats(
         ingresados: ingresados,
-        invalidos: invalidos,
         usados: usados,
+        invalidos: total - ingresados - usados,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('GuardService.getStats: $e');
       return ScanStats(ingresados: 0, invalidos: 0, usados: 0);
     }
   }

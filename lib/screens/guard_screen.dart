@@ -32,7 +32,6 @@ class _GuardScreenState extends State<GuardScreen>
   int? _guardId;
   int? _eventoId;
   bool _isInitializing = true;
-  final bool _isCameraActive = true;
   bool _isProcessingScan = false;
   String _userName = '';
 
@@ -146,21 +145,8 @@ class _GuardScreenState extends State<GuardScreen>
       idEvento: _eventoId,
     );
 
-    // Vibración según resultado y ACTUALIZACIÓN A SUPABASE
     if (result.resultado == 'valido') {
       HapticFeedback.heavyImpact();
-
-      // 🔥 LA MAGIA EN TIEMPO REAL 🔥
-      // Le decimos a Supabase que este código ha sido USADO exitosamente
-      // Esto disparará la señal al celular del estudiante para ocultar su QR
-      try {
-        await SupabaseService.client
-            .from('entradas')
-            .update({'estado': 'usado'})
-            .eq('codigo_qr', code);
-      } catch (e) {
-        debugPrint("Error actualizando estado a usado en BD: $e");
-      }
     } else {
       HapticFeedback.vibrate();
     }
@@ -222,19 +208,7 @@ class _GuardScreenState extends State<GuardScreen>
     if (confirm == true && scan.codigoQR != null && mounted) {
       final ok = await GuardService.undoEntry(codigoQR: scan.codigoQR!);
 
-      if (ok) {
-        // 🔥 MAGIA INVERSA 🔥
-        // Si el guardia deshace la entrada, el QR vuelve a estar "activo"
-        // para que al estudiante le reaparezca en su celular.
-        try {
-          await SupabaseService.client
-              .from('entradas')
-              .update({'estado': 'activo'})
-              .eq('codigo_qr', scan.codigoQR!);
-        } catch (e) {
-          debugPrint("Error revirtiendo estado a activo en BD: $e");
-        }
-      }
+      // GuardService.undoEntry ya revierte dentro_evento y estado
 
       await _refreshData();
       if (mounted) {
@@ -501,7 +475,7 @@ class _GuardScreenState extends State<GuardScreen>
         child: Stack(
           children: [
             // Cámara/Scanner
-            if (_isCameraActive && _scannerController != null)
+            if (_scannerController != null)
               MobileScanner(
                 controller: _scannerController!,
                 onDetect: (capture) {
@@ -708,17 +682,6 @@ class _GuardScreenState extends State<GuardScreen>
                   GestureDetector(
                     onTap: () async {
                       await GuardService.undoEntry(codigoQR: result.codigoQR!);
-
-                      // Magia inversa: Al deshacer, vuelve a estado activo
-                      try {
-                        await SupabaseService.client
-                            .from('entradas')
-                            .update({'estado': 'activo'})
-                            .eq('codigo_qr', result.codigoQR!);
-                      } catch (e) {
-                        debugPrint("Error revirtiendo: $e");
-                      }
-
                       await _refreshData();
                       if (mounted) setState(() => _lastScanResult = null);
                     },

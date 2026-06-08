@@ -1,16 +1,25 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/support_service.dart';
+import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 import 'support_chat_screen.dart';
 
 class AdminSupportListScreen extends StatefulWidget {
   final void Function(String convId, DateTime lastAt)? onConversationRead;
-  const AdminSupportListScreen({super.key, this.onConversationRead});
+  // Stream del AdminShellScreen; evita crear una segunda suscripción Realtime.
+  final Stream<void>? inboxUpdates;
+  const AdminSupportListScreen({
+    super.key,
+    this.onConversationRead,
+    this.inboxUpdates,
+  });
 
   @override
   State<AdminSupportListScreen> createState() => _AdminSupportListScreenState();
@@ -19,28 +28,49 @@ class AdminSupportListScreen extends StatefulWidget {
 class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
   List<SupportConversation> _conversations = [];
   bool _loading = true;
-  RealtimeChannel? _channel;
-  // Guarda el lastAt de cada conversación en el momento en que el admin la abrió.
-  // El punto desaparece si _readAt[id] >= conv.lastAt.
+  StreamSubscription<void>? _inboxSub;
+  RealtimeChannel? _fallbackChannel;
   final Map<String, DateTime> _readAt = {};
 
   @override
   void initState() {
     super.initState();
     _load();
-    _channel = SupportService.subscribeAll(() {
-      if (mounted) _load();
-    });
+    if (widget.inboxUpdates != null) {
+      _inboxSub = widget.inboxUpdates!.listen((_) {
+        if (mounted) _load();
+      });
+    } else {
+      _fallbackChannel = SupportService.subscribeAll(() {
+        if (mounted) _load();
+      });
+    }
   }
 
   @override
   void dispose() {
-    _channel?.unsubscribe();
+    _inboxSub?.cancel();
+    _fallbackChannel?.unsubscribe();
     super.dispose();
   }
 
   Future<void> _load() async {
     final convs = await SupportService.getConversationList();
+    if (!mounted) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final currentUserId = SupabaseService.currentUser?.id ?? '';
+    for (final c in convs) {
+      final key = 'sentry_chat_read_at_${currentUserId}_${c.usuarioId}';
+      final storedTimeStr = prefs.getString(key);
+      if (storedTimeStr != null) {
+        final dt = DateTime.tryParse(storedTimeStr);
+        if (dt != null) {
+          _readAt[c.usuarioId] = dt;
+        }
+      }
+    }
+
     if (!mounted) return;
     setState(() {
       _conversations = convs;
@@ -229,9 +259,15 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
           ],
         ],
       ),
-      onTap: () {
+      onTap: () async {
         setState(() => _readAt[conv.usuarioId] = conv.lastAt);
         widget.onConversationRead?.call(conv.usuarioId, conv.lastAt);
+
+        final currentUserId = SupabaseService.currentUser?.id ?? '';
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('sentry_chat_read_at_${currentUserId}_${conv.usuarioId}', conv.lastAt.toIso8601String());
+
+        if (!mounted) return;
         Navigator.push(
           context,
           MaterialPageRoute(

@@ -261,132 +261,22 @@ class _StudentListScreenState extends State<StudentListScreen>
 
   // ── RF25: Agregar / Editar ─────────────────────────────────────────────────
   Future<void> _showStudentDialog(StudentRecord? existing) async {
-    final isEdit = existing != null;
-    final nombreCtrl = TextEditingController(text: existing?.nombre);
-    final emailCtrl = TextEditingController(text: existing?.email);
-    final cedulaCtrl = TextEditingController(text: existing?.cedula);
-    String selCareer = existing?.carrera ?? (_careers.length > 1 ? _careers[1] : '');
-    bool saving = false;
-    bool saved = false;
+    FocusManager.instance.primaryFocus?.unfocus();
 
-    await showModalBottomSheet(
+    final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: _kCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModal) => SingleChildScrollView(
-          padding: EdgeInsets.only(
-            left: 20, right: 20, top: 16,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(color: _kBorder, borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(isEdit ? 'Editar Estudiante' : 'Agregar Estudiante', style: _ts(18, fw: FontWeight.w800)),
-              Text(isEdit ? 'Modificar registro' : 'Nuevo registro', style: _ts(11, color: _kGrey)),
-              const SizedBox(height: 20),
-              _field('Nombre completo', nombreCtrl, Icons.person_outline_rounded),
-              const SizedBox(height: 12),
-              _field('Correo electrónico', emailCtrl, Icons.email_outlined, keyboardType: TextInputType.emailAddress),
-              const SizedBox(height: 12),
-              _field('Cédula', cedulaCtrl, Icons.badge_outlined, keyboardType: TextInputType.number, maxLength: 10),
-              const SizedBox(height: 12),
-              if (_careers.length > 1)
-                _dropdown<String>(
-                  value: selCareer.isEmpty ? _careers[1] : selCareer,
-                  items: _careers.skip(1).map((c) => DropdownMenuItem(value: c, child: Text(c, style: _ts(13)))).toList(),
-                  onChanged: (v) => setModal(() => selCareer = v!),
-                ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: _kBorder),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: Text('Cancelar', style: _ts(14, color: _kGrey)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: saving ? null : () async {
-                        final nombre = nombreCtrl.text.trim();
-                        final email = emailCtrl.text.trim();
-                        final cedula = cedulaCtrl.text.trim();
-                        if (nombre.isEmpty || email.isEmpty) return;
-                        setModal(() => saving = true);
-                        try {
-                          if (isEdit && existing.idDetalle != null) {
-                            await StudentService.updateStudent(
-                              idDetalle: existing.idDetalle!,
-                              nombre: nombre, email: email,
-                              carrera: selCareer, cedula: cedula,
-                            );
-                          } else {
-                            await StudentService.addStudent(
-                              nombre: nombre, email: email,
-                              carrera: selCareer, cedula: cedula,
-                            );
-                          }
-                          saved = true;
-                          // Dismiss keyboard first: keyboard + modal animating
-                          // simultaneously triggers viewport metrics changes
-                          // mid-animation which causes _dependents.isEmpty.
-                          // Use FocusManager (no context) and parent context
-                          // (State-owned, safe after await with mounted check).
-                          if (!mounted) return;
-                          FocusManager.instance.primaryFocus?.unfocus();
-                          final nav = Navigator.of(context);
-                          Future.delayed(const Duration(milliseconds: 320), () => nav.pop());
-                        } catch (e) {
-                          setModal(() => saving = false);
-                          if (ctx.mounted) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(
-                              SnackBar(content: Text('Error: $e'), backgroundColor: _kRed),
-                            );
-                          }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _kPurple, foregroundColor: _kWhite,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                      ),
-                      child: saving
-                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: _kWhite))
-                          : Text(isEdit ? 'Guardar' : 'Agregar', style: _ts(14, fw: FontWeight.w700, color: _kWhite)),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+      builder: (ctx) => _StudentFormSheet(
+        existing: existing,
+        careers: _careers,
       ),
     );
 
-    nombreCtrl.dispose();
-    emailCtrl.dispose();
-    cedulaCtrl.dispose();
-
-    if (saved && mounted) {
+    if (saved == true && mounted) {
       // Poll frame-by-frame until this route is topmost (modal animation
       // fully complete and its elements deactivated). Calling setState while
       // the modal is still transitioning out triggers _dependents.isEmpty.
@@ -862,7 +752,10 @@ class _StudentListScreenState extends State<StudentListScreen>
       confirmDismiss: (_) => _confirmDelete(s),
       onDismissed: (_) {
         if (!mounted) return;
-        setState(() => _students.removeWhere((st) => st.idDetalle == s.idDetalle && st.email == s.email));
+        setState(() {
+          _students.removeWhere((st) => st.idDetalle == s.idDetalle && st.email == s.email);
+          _filtered.removeWhere((st) => st.idDetalle == s.idDetalle && st.email == s.email);
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${s.nombre} eliminado', style: _ts(13)),
@@ -961,50 +854,7 @@ class _StudentListScreenState extends State<StudentListScreen>
     ),
   );
 
-  // ── Helpers UI ─────────────────────────────────────────────────────────────
-  Widget _field(
-    String label,
-    TextEditingController ctrl,
-    IconData icon, {
-    TextInputType keyboardType = TextInputType.text,
-    int? maxLength,
-  }) => TextField(
-    controller: ctrl,
-    keyboardType: keyboardType,
-    maxLength: maxLength,
-    style: _ts(13),
-    cursorColor: _kPurple,
-    decoration: InputDecoration(
-      counterText: '',
-      labelText: label,
-      labelStyle: _ts(13, color: _kGrey),
-      prefixIcon: Icon(icon, color: _kGrey, size: 18),
-      filled: true,
-      fillColor: _kBg,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kBorder)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kBorder)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kPurple)),
-    ),
-  );
-
-  Widget _dropdown<T>({
-    required T value,
-    required List<DropdownMenuItem<T>> items,
-    required ValueChanged<T?> onChanged,
-  }) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-    decoration: BoxDecoration(color: _kBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: _kBorder)),
-    child: DropdownButtonHideUnderline(
-      child: DropdownButton<T>(
-        value: value,
-        dropdownColor: _kCard,
-        isExpanded: true,
-        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _kGrey),
-        items: items,
-        onChanged: onChanged,
-      ),
-    ),
-  );
+  // (Deleted unused _field and _dropdown helpers to fix unused_element warnings)
 }
 
 // ─── Tarjeta de estadística ───────────────────────────────────────────────────
@@ -1058,6 +908,194 @@ class _StatusChip extends StatelessWidget {
       child: Text(
         label,
         style: GoogleFonts.outfit(fontSize: 9.sp, fontWeight: FontWeight.w700, color: color),
+      ),
+    );
+  }
+}
+
+// ─── Formulario de estudiante en modal bottom sheet ──────────────────────────────
+class _StudentFormSheet extends StatefulWidget {
+  final StudentRecord? existing;
+  final List<String> careers;
+
+  const _StudentFormSheet({
+    required this.existing,
+    required this.careers,
+  });
+
+  @override
+  State<_StudentFormSheet> createState() => _StudentFormSheetState();
+}
+
+class _StudentFormSheetState extends State<_StudentFormSheet> {
+  late final TextEditingController _nombreCtrl;
+  late final TextEditingController _emailCtrl;
+  late final TextEditingController _cedulaCtrl;
+  late String _selCareer;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nombreCtrl = TextEditingController(text: widget.existing?.nombre);
+    _emailCtrl = TextEditingController(text: widget.existing?.email);
+    _cedulaCtrl = TextEditingController(text: widget.existing?.cedula);
+    _selCareer = widget.existing?.carrera ?? (widget.careers.length > 1 ? widget.careers[1] : '');
+  }
+
+  @override
+  void dispose() {
+    _nombreCtrl.dispose();
+    _emailCtrl.dispose();
+    _cedulaCtrl.dispose();
+    super.dispose();
+  }
+
+  TextStyle _ts(double size, {FontWeight fw = FontWeight.w400, Color? color}) =>
+      GoogleFonts.outfit(fontSize: size.sp, fontWeight: fw, color: color ?? _kNavy);
+
+  Widget _field(
+    String label,
+    TextEditingController ctrl,
+    IconData icon, {
+    TextInputType keyboardType = TextInputType.text,
+    int? maxLength,
+  }) => TextField(
+    controller: ctrl,
+    keyboardType: keyboardType,
+    maxLength: maxLength,
+    style: _ts(13),
+    cursorColor: _kPurple,
+    decoration: InputDecoration(
+      counterText: '',
+      labelText: label,
+      labelStyle: _ts(13, color: _kGrey),
+      prefixIcon: Icon(icon, color: _kGrey, size: 18),
+      filled: true,
+      fillColor: _kBg,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kBorder)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kBorder)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kPurple)),
+    ),
+  );
+
+  Widget _dropdown<T>({
+    required T value,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+  }) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+    decoration: BoxDecoration(color: _kBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: _kBorder)),
+    child: DropdownButtonHideUnderline(
+      child: DropdownButton<T>(
+        value: value,
+        dropdownColor: _kCard,
+        isExpanded: true,
+        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _kGrey),
+        items: items,
+        onChanged: onChanged,
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final isEdit = widget.existing != null;
+    return SingleChildScrollView(
+      padding: EdgeInsets.only(
+        left: 20, right: 20, top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(color: _kBorder, borderRadius: BorderRadius.circular(2)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(isEdit ? 'Editar Estudiante' : 'Agregar Estudiante', style: _ts(18, fw: FontWeight.w800)),
+          Text(isEdit ? 'Modificar registro' : 'Nuevo registro', style: _ts(11, color: _kGrey)),
+          const SizedBox(height: 20),
+          _field('Nombre completo', _nombreCtrl, Icons.person_outline_rounded),
+          const SizedBox(height: 12),
+          _field('Correo electrónico', _emailCtrl, Icons.email_outlined, keyboardType: TextInputType.emailAddress),
+          const SizedBox(height: 12),
+          _field('Cédula', _cedulaCtrl, Icons.badge_outlined, keyboardType: TextInputType.number, maxLength: 10),
+          const SizedBox(height: 12),
+          if (widget.careers.length > 1)
+            _dropdown<String>(
+              value: _selCareer.isEmpty ? widget.careers[1] : _selCareer,
+              items: widget.careers.skip(1).map((c) => DropdownMenuItem(value: c, child: Text(c, style: _ts(13)))).toList(),
+              onChanged: (v) => setState(() => _selCareer = v!),
+            ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: _kBorder),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text('Cancelar', style: _ts(14, color: _kGrey)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _saving ? null : () async {
+                    final nombre = _nombreCtrl.text.trim();
+                    final email = _emailCtrl.text.trim();
+                    final cedula = _cedulaCtrl.text.trim();
+                    if (nombre.isEmpty || email.isEmpty) return;
+                    setState(() => _saving = true);
+                    try {
+                      if (isEdit && widget.existing!.idDetalle != null) {
+                        await StudentService.updateStudent(
+                          idDetalle: widget.existing!.idDetalle!,
+                          nombre: nombre, email: email,
+                          carrera: _selCareer, cedula: cedula,
+                        );
+                      } else {
+                        await StudentService.addStudent(
+                          nombre: nombre, email: email,
+                          carrera: _selCareer, cedula: cedula,
+                        );
+                      }
+                      if (!mounted) return;
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      if (!context.mounted) return;
+                      final nav = Navigator.of(context);
+                      Future.delayed(const Duration(milliseconds: 320), () => nav.pop(true));
+                    } catch (e) {
+                      if (context.mounted) {
+                        setState(() => _saving = false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e'), backgroundColor: _kRed),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kPurple, foregroundColor: _kWhite,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  child: _saving
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: _kWhite))
+                      : Text(isEdit ? 'Guardar' : 'Agregar', style: _ts(14, fw: FontWeight.w700, color: _kWhite)),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

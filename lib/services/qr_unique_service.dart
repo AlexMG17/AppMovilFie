@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'supabase_service.dart';
@@ -125,7 +126,6 @@ class QrUniqueService {
 
       final entrada = rows.first as Map<String, dynamic>;
       final estado = entrada['estado'] as String? ?? '';
-      final dentroEvento = entrada['dentro_evento'] as bool? ?? false;
       final idEventoEntrada = entrada['id_evento'] as int?;
       final idEntrada = entrada['id_entrada'] as int;
       final usuarioData = entrada['usuarios'];
@@ -184,8 +184,17 @@ class QrUniqueService {
         );
       }
 
-      // 4. Verificar que no esté ya adentro
-      if (dentroEvento) {
+      // 4. Marcar dentro_evento = true SOLO si aún es false (UPDATE atómico).
+      // Si dos guardias escanean el mismo QR simultáneamente, solo uno obtendrá
+      // la fila actualizada; el otro recibirá lista vacía → ya_adentro.
+      final updated = await _client
+          .from('entradas')
+          .update({'dentro_evento': true, 'estado': 'usado'})
+          .eq('id_entrada', idEntrada)
+          .eq('dentro_evento', false)
+          .select('id_entrada');
+
+      if ((updated as List).isEmpty) {
         return QrValidationResult(
           resultado: 'ya_adentro',
           nombreAsistente: nombre,
@@ -198,20 +207,16 @@ class QrUniqueService {
         );
       }
 
-      // 5. QR válido → marcar dentro_evento = true
-      await _client
-          .from('entradas')
-          .update({'dentro_evento': true})
-          .eq('id_entrada', idEntrada);
-
-      // 6. Registrar asistencia
+      // 5. Registrar asistencia
       try {
         await _client.from('asistencias').insert({
           'id_entrada': idEntrada,
           'fecha_ingreso': DateTime.now().toIso8601String(),
           'validado_por': idGuardia,
         });
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('QrUniqueService._logAsistencia: $e');
+      }
 
       return QrValidationResult(
         resultado: 'valido',

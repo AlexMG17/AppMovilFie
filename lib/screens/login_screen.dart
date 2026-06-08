@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../services/guard_service.dart';
+import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/epic_text_field.dart';
 
@@ -371,7 +372,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (isLoginFlow) {
         // ------------------ INICIAR SESIÓN ------------------
-        await _authService.signIn(email: email, password: password);
+        await SupabaseService.signInWithEmail(email: email, password: password);
 
         if (mounted) {
           _showTopToast('¡Inicio de sesión exitoso!');

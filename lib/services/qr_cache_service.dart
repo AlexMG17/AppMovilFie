@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Datos del QR que se persisten localmente.
@@ -75,7 +76,8 @@ class QrCacheService {
     if (raw == null) return null;
     try {
       return QrCacheData.fromMap(jsonDecode(raw) as Map<String, dynamic>);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('QrCacheService.load parse error: $e');
       return null;
     }
   }

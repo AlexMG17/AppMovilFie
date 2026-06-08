@@ -28,17 +28,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   String _userName = '';
-  late final List<Widget> _pages;
+  final Set<int> _visitedTabs = {0};
 
   @override
   void initState() {
     super.initState();
-    _pages = [
-      _HomeContent(onActionTap: _onItemTapped),
-      const UploadPaymentScreen(),
-      const PaymentStatusScreen(),
-      const MyQrScreen(),
-    ];
     _loadUserName();
   }
 
@@ -51,7 +45,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _onItemTapped(int index) => setState(() => _selectedIndex = index);
+  void _onItemTapped(int index) => setState(() {
+    _visitedTabs.add(index);
+    _selectedIndex = index;
+  });
 
   Future<void> _logout() async {
     final userId = SupabaseService.currentUser?.id ?? '';
@@ -159,7 +156,15 @@ class _HomeScreenState extends State<HomeScreen> {
           SizedBox(width: 14.w),
         ],
       ),
-      body: IndexedStack(index: _selectedIndex, children: _pages),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          _HomeContent(onActionTap: _onItemTapped),
+          _visitedTabs.contains(1) ? const UploadPaymentScreen()  : const SizedBox.shrink(),
+          _visitedTabs.contains(2) ? const PaymentStatusScreen()  : const SizedBox.shrink(),
+          _visitedTabs.contains(3) ? const MyQrScreen()           : const SizedBox.shrink(),
+        ],
+      ),
       bottomNavigationBar: _buildFloatingBottomBar(),
     );
   }
@@ -245,7 +250,6 @@ class _HomeContentState extends State<_HomeContent> {
   void initState() {
     super.initState();
     _loadEvent();
-    _iniciarGeocercaAutomatica();
     _subscribeToEvents();
   }
 
@@ -258,11 +262,11 @@ class _HomeContentState extends State<_HomeContent> {
     super.dispose();
   }
 
-  void _iniciarGeocercaAutomatica() {
+  void _iniciarGeocercaAutomatica(LatLng center) {
     _geofenceService = GeofenceService(
+      eventCenter: center,
       onStateChanged: (estado, distancia, ubicacion) {
         if (!mounted) return;
-        // Solo reconstruir si el estado cambió o el usuario se movió más de 3 metros
         final moved = _distanceMeters == null ||
             (distancia - _distanceMeters!).abs() > 3;
         final stateChanged = estado != _geoState;
@@ -276,10 +280,8 @@ class _HomeContentState extends State<_HomeContent> {
           }
         });
       },
-      onTimerTick: (segundos) {},
       onTimerExpired: () {
         if (!mounted) return;
-        // Si el tiempo de salida expira, registramos formalmente la salida en BD
         if (_idEntrada != null) {
           QrUniqueService.registrarSalida(_idEntrada!);
         }
@@ -346,6 +348,10 @@ class _HomeContentState extends State<_HomeContent> {
     if (!mounted) return;
 
     if (event != null) {
+      if (_geofenceService == null) {
+        _iniciarGeocercaAutomatica(LatLng(event.lat, event.lng));
+      }
+
       final uidFuture = EventService.getCurrentUserId();
       final results = await Future.wait([
         EventService.getAforo(event.id),
@@ -623,7 +629,11 @@ class _HomeContentState extends State<_HomeContent> {
                   SizedBox(height: 20.h),
                   if (event != null) ...[
                     _infoRow(Icons.calendar_today, _formatDate(event.fecha)),
-                    _infoRow(Icons.access_time, '19:00 – 23:00'),
+                    if (event.fecha.hour != 0 || event.fecha.minute != 0)
+                      _infoRow(
+                        Icons.access_time,
+                        '${event.fecha.hour.toString().padLeft(2, '0')}:${event.fecha.minute.toString().padLeft(2, '0')}',
+                      ),
                     _infoRow(Icons.location_on, event.lugar),
                   ],
                 ],

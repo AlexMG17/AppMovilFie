@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/support_service.dart';
 import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
@@ -22,14 +24,20 @@ class AdminShellScreen extends StatefulWidget {
 
 class _AdminShellScreenState extends State<AdminShellScreen> {
   late int _selectedIndex;
+  late Set<int> _visitedTabs;
   int _unreadSupport = 0;
   RealtimeChannel? _supportChannel;
   final Map<String, DateTime> _readAt = {};
+  // Stream compartido: AdminSupportListScreen lo usa para evitar una segunda
+  // suscripción al mismo canal.
+  final StreamController<void> _inboxUpdates =
+      StreamController<void>.broadcast();
 
   @override
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex.clamp(0, 3);
+    _visitedTabs = {_selectedIndex};
     _loadUnreadCount();
     _supportChannel = SupabaseService.client
         .channel('admin-shell-support')
@@ -37,7 +45,10 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: 'soporte_mensajes',
-          callback: (_) => _loadUnreadCount(),
+          callback: (_) {
+            _loadUnreadCount();
+            _inboxUpdates.add(null);
+          },
         )
         .subscribe();
   }
@@ -45,11 +56,27 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   @override
   void dispose() {
     _supportChannel?.unsubscribe();
+    _inboxUpdates.close();
     super.dispose();
   }
 
   Future<void> _loadUnreadCount() async {
     final convs = await SupportService.getConversationList();
+    if (!mounted) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final currentUserId = SupabaseService.currentUser?.id ?? '';
+    for (final c in convs) {
+      final key = 'sentry_chat_read_at_${currentUserId}_${c.usuarioId}';
+      final storedTimeStr = prefs.getString(key);
+      if (storedTimeStr != null) {
+        final dt = DateTime.tryParse(storedTimeStr);
+        if (dt != null) {
+          _readAt[c.usuarioId] = dt;
+        }
+      }
+    }
+
     if (!mounted) return;
     setState(() {
       _unreadSupport = convs.where((c) {
@@ -61,27 +88,35 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     });
   }
 
-  void _onConversationRead(String convId, DateTime lastAt) {
+  void _onConversationRead(String convId, DateTime lastAt) async {
     if (!mounted) return;
     _readAt[convId] = lastAt;
     _loadUnreadCount();
+
+    final currentUserId = SupabaseService.currentUser?.id ?? '';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('sentry_chat_read_at_${currentUserId}_$convId', lastAt.toIso8601String());
   }
 
   void _selectTab(int index) {
     if (index == _selectedIndex) return;
-    setState(() => _selectedIndex = index);
+    setState(() {
+      _visitedTabs.add(index);
+      _selectedIndex = index;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final pages = [
       AdminDashboardScreen(onSelectTab: _selectTab),
-      const ParticipantsScreen(),
-      const ImportStudentsScreen(),
-      _MoreScreen(
+      _visitedTabs.contains(1) ? const ParticipantsScreen()    : const SizedBox.shrink(),
+      _visitedTabs.contains(2) ? const ImportStudentsScreen()  : const SizedBox.shrink(),
+      _visitedTabs.contains(3) ? _MoreScreen(
         unreadSupport: _unreadSupport,
         onConversationRead: _onConversationRead,
-      ),
+        inboxUpdates: _inboxUpdates.stream,
+      ) : const SizedBox.shrink(),
     ];
 
     return Scaffold(
@@ -109,7 +144,12 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
 class _MoreScreen extends StatelessWidget {
   final int unreadSupport;
   final void Function(String, DateTime)? onConversationRead;
-  const _MoreScreen({this.unreadSupport = 0, this.onConversationRead});
+  final Stream<void>? inboxUpdates;
+  const _MoreScreen({
+    this.unreadSupport = 0,
+    this.onConversationRead,
+    this.inboxUpdates,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -169,6 +209,7 @@ class _MoreScreen extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (_) => AdminSupportListScreen(
                       onConversationRead: onConversationRead,
+                      inboxUpdates: inboxUpdates,
                     ),
                   ),
                 ),

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'qr_unique_service.dart';
 import 'supabase_service.dart';
@@ -166,7 +167,8 @@ class PaymentService {
           .maybeSingle();
       if (data == null) return null;
       return PagoModel.fromMap(data);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('PaymentService.getMyPago: $e');
       return null;
     }
   }
@@ -248,15 +250,17 @@ class PaymentService {
   static Future<Map<String, int>> getDashboardStats({
     required int idEvento,
   }) async {
+    // pagos y entradas ya están filtrados por evento (payload pequeño).
+    // usuarios se cuenta con HEAD request (sin transferir filas).
     final results = await Future.wait([
       _client.from('pagos').select('estado').eq('id_evento', idEvento),
       _client.from('entradas').select('estado').eq('id_evento', idEvento),
-      _client.from('usuarios').select('id_usuario'),
+      _client.from('usuarios').count(CountOption.exact),
     ]);
 
     final pagosList = results[0] as List;
     final entradasList = results[1] as List;
-    final usuariosList = results[2] as List;
+    final totalUsuarios = results[2] as int;
 
     return {
       'pendientes': pagosList.where((p) => p['estado'] == 'pendiente').length,
@@ -264,7 +268,7 @@ class PaymentService {
       'rechazados': pagosList.where((p) => p['estado'] == 'rechazado').length,
       'ingresaron': entradasList.where((e) => e['estado'] == 'usado').length,
       'qr_generados': entradasList.where((e) => e['estado'] != 'cancelado').length,
-      'total_usuarios': usuariosList.length,
+      'total_usuarios': totalUsuarios,
       'total': pagosList.length,
     };
   }
@@ -285,7 +289,8 @@ class PaymentService {
           .limit(1)
           .maybeSingle();
       return data;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('PaymentService.getMyEntry: $e');
       return null;
     }
   }

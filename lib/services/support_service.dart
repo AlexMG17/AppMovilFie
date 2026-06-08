@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'event_service.dart';
 import 'supabase_service.dart';
@@ -69,51 +70,41 @@ class SupportService {
       return (data as List)
           .map((m) => SupportMessage.fromMap(m as Map<String, dynamic>))
           .toList();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('SupportService.getConversationMessages: $e');
       return [];
     }
   }
 
   /// Lista de conversaciones para la bandeja del admin,
   /// agrupada por usuario y ordenada por última actividad.
+  /// Usa la vista soporte_ultimos_mensajes (DISTINCT ON server-side).
   static Future<List<SupportConversation>> getConversationList() async {
     try {
       final data = await _client
-          .from('soporte_mensajes')
+          .from('soporte_ultimos_mensajes')
           .select()
-          .order('created_at', ascending: false)
-          .limit(500);
+          .order('created_at', ascending: false);
 
-      final Map<String, SupportMessage> latestByCid = {};
-      final Map<String, String> studentNameByCid = {};
-
-      for (final row in (data as List)) {
-        final msg = SupportMessage.fromMap(row as Map<String, dynamic>);
-        final cid = msg.conversacionUsuarioId;
-        if (cid.isEmpty) continue;
-
-        if (!latestByCid.containsKey(cid)) {
-          latestByCid[cid] = msg;
-        }
-        if (!msg.esAdmin && !studentNameByCid.containsKey(cid)) {
-          studentNameByCid[cid] = msg.nombreUsuario;
-        }
-      }
-
-      return latestByCid.entries.map((e) {
-        final cid = e.key;
-        final msg = e.value;
-        final name = studentNameByCid[cid] ?? 'Usuario';
+      return (data as List).map((row) {
+        final cid = row['conversacion_usuario_id'] as String? ?? '';
+        final nombre = row['nombre_usuario'] as String? ?? 'Usuario';
+        final mensaje = row['mensaje'] as String? ?? '';
+        final esAdmin = row['es_admin'] as bool? ?? false;
+        final createdAt =
+            (DateTime.tryParse(row['created_at'] as String? ?? '') ??
+                    DateTime.now())
+                .toLocal();
         return SupportConversation(
           usuarioId: cid,
-          nombreUsuario: name,
-          lastMessage: msg.esAdmin ? 'Tú: ${msg.mensaje}' : msg.mensaje,
-          lastAt: msg.createdAt,
-          lastIsAdmin: msg.esAdmin,
+          nombreUsuario: nombre,
+          lastMessage: esAdmin ? 'Tú: $mensaje' : mensaje,
+          lastAt: createdAt,
+          lastIsAdmin: esAdmin,
         );
-      }).toList()
-        ..sort((a, b) => b.lastAt.compareTo(a.lastAt));
-    } catch (_) {
+      }).toList();
+    } catch (e) {
+      debugPrint('SupportService.getConversationList: $e');
       return [];
     }
   }

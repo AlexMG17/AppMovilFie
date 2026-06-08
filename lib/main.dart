@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/admin_shell_screen.dart';
 import 'screens/change_password_screen.dart';
 import 'screens/login_screen.dart';
@@ -10,6 +12,8 @@ import 'theme/app_colors.dart';
 import 'screens/home_screen.dart';
 import 'services/guard_service.dart';
 import 'services/supabase_service.dart';
+
+final _navigatorKey = GlobalKey<NavigatorState>();
 
 class _AppRouter extends StatefulWidget {
   const _AppRouter();
@@ -32,22 +36,19 @@ class _AppRouterState extends State<_AppRouter> {
       return;
     }
 
-    // Imported students must change their temporary password before anything else.
     if (user.userMetadata?['must_change_password'] == true) {
       Navigator.pushReplacementNamed(context, '/change-password');
       return;
     }
 
-    // Navigate immediately using cached role (no network needed).
     final cached = await GuardService.getCachedRole();
-    if (!mounted) return;
-    _navigateByRole(cached);
 
-    // Refresh role in background and re-navigate only if it changed.
-    GuardService.getCurrentUserRole().then((fresh) {
-      if (!mounted || fresh == null || fresh == cached) return;
-      _navigateByRole(fresh);
-    });
+    // Navigate exactly once: fresh role within 3 s, otherwise fall back to cache.
+    final fresh = await GuardService.getCurrentUserRole()
+        .timeout(const Duration(seconds: 3), onTimeout: () => cached);
+
+    if (!mounted) return;
+    _navigateByRole(fresh ?? cached);
   }
 
   void _navigateByRole(String? role) {
@@ -78,8 +79,32 @@ Future<void> main() async {
   runApp(const SentryApp());
 }
 
-class SentryApp extends StatelessWidget {
+class SentryApp extends StatefulWidget {
   const SentryApp({super.key});
+
+  @override
+  State<SentryApp> createState() => _SentryAppState();
+}
+
+class _SentryAppState extends State<SentryApp> {
+  StreamSubscription<AuthState>? _authSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _authSub = SupabaseService.client.auth.onAuthStateChange.listen((data) {
+      if (data.event == AuthChangeEvent.signedOut) {
+        _navigatorKey.currentState
+            ?.pushNamedAndRemoveUntil('/login', (_) => false);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +114,7 @@ class SentryApp extends StatelessWidget {
       splitScreenMode: true,
       builder: (context, child) => MaterialApp(
         title: 'Sentry',
+        navigatorKey: _navigatorKey,
         debugShowCheckedModeBanner: false,
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
@@ -111,10 +137,7 @@ class SentryApp extends StatelessWidget {
           '/home': (_) => const HomeScreen(),
           '/guard': (_) => const GuardScreen(),
           '/admin': (_) => const AdminShellScreen(),
-          '/vouchers': (_) => const AdminShellScreen(initialIndex: 1),
           '/import': (_) => const AdminShellScreen(initialIndex: 2),
-          '/attendees': (_) => const AdminShellScreen(initialIndex: 3),
-          '/students': (_) => const AdminShellScreen(initialIndex: 1),
         },
       ),
     );

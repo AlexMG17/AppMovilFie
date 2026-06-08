@@ -19,10 +19,7 @@ class GeofenceService {
     const LatLng(-1.6560103463875289, -78.67499382274276),
   ];
 
-  final LatLng eventCenter = const LatLng(
-    -1.6558909094711447,
-    -78.67475706289616,
-  );
+  final LatLng eventCenter;
   final double radioCerca = 50.0;
 
   StreamSubscription<Position>? _positionStreamSubscription;
@@ -36,12 +33,13 @@ class GeofenceService {
     LatLng ubicacionUsuario,
   )
   onStateChanged;
-  final Function(int segundosRestantes) onTimerTick;
+  final Function(int segundosRestantes)? onTimerTick;
   final Function() onTimerExpired;
 
   GeofenceService({
+    required this.eventCenter,
     required this.onStateChanged,
-    required this.onTimerTick,
+    this.onTimerTick,
     required this.onTimerExpired,
   });
 
@@ -148,7 +146,7 @@ class GeofenceService {
     _exitTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_secondsRemaining > 0) {
         _secondsRemaining--;
-        onTimerTick(_secondsRemaining);
+        onTimerTick?.call(_secondsRemaining);
       } else {
         _exitTimer?.cancel();
         _isTimerRunning = false;

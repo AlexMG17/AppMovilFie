@@ -104,6 +104,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       orElse: () => _roles.first,
     );
 
+    RoleOption? savedRole;
+
+    FocusManager.instance.primaryFocus?.unfocus();
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -113,39 +117,42 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         roles: _roles,
         initialRole: selected,
         onConfirm: (newRole) async {
-          try {
-            await UserManagementService.updateUserRole(user.id, newRole.id);
-            final idx = _allUsers.indexWhere((u) => u.id == user.id);
-            if (idx != -1) {
-              _allUsers[idx] = user.copyWith(
-                idRol: newRole.id,
-                rolNombre: newRole.nombre.toLowerCase().trim(),
-              );
-            }
-            _applyFilter();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Rol de ${user.nombre} actualizado a ${newRole.nombre}.',
-                  ),
-                  backgroundColor: AppColors.success,
-                ),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error al actualizar: $e'),
-                  backgroundColor: AppColors.error,
-                ),
-              );
-            }
-          }
+          await UserManagementService.updateUserRole(user.id, newRole.id);
+          savedRole = newRole;
         },
       ),
     );
+
+    // El sheet ya cerró — ahora es seguro llamar setState en el padre.
+    if (savedRole != null && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        void waitForCurrentRoute() {
+          if (!mounted) return;
+          final route = ModalRoute.of(context);
+          if (route == null || route.isCurrent) {
+            final idx = _allUsers.indexWhere((u) => u.id == user.id);
+            if (idx != -1) {
+              _allUsers[idx] = user.copyWith(
+                idRol: savedRole!.id,
+                rolNombre: savedRole!.nombre.toLowerCase().trim(),
+              );
+            }
+            _applyFilter();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Rol de ${user.nombre} actualizado a ${savedRole!.nombre}.',
+                ),
+                backgroundColor: AppColors.success,
+              ),
+            );
+          } else {
+            WidgetsBinding.instance.addPostFrameCallback((_) => waitForCurrentRoute());
+          }
+        }
+        waitForCurrentRoute();
+      });
+    }
   }
 
   @override
@@ -947,8 +954,24 @@ class _ChangeRoleSheetState extends State<_ChangeRoleSheet> {
       return;
     }
     setState(() => _saving = true);
-    await widget.onConfirm(_selected);
-    if (mounted) Navigator.pop(context);
+    try {
+      await widget.onConfirm(_selected);
+      if (mounted) {
+        FocusManager.instance.primaryFocus?.unfocus();
+        final nav = Navigator.of(context);
+        Future.delayed(const Duration(milliseconds: 320), () => nav.pop());
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al actualizar: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   @override
