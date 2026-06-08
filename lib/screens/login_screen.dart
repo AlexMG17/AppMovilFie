@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../services/guard_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/epic_text_field.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -452,10 +453,12 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       setState(() => _googleSignInInProgress = true);
 
-      final googleSignIn = GoogleSignIn(
-        serverClientId:
+      const googleClientId = String.fromEnvironment(
+        'GOOGLE_CLIENT_ID',
+        defaultValue:
             '20543870962-g64kl64vhdu5dlthkmlglgq5qfl6ocg0.apps.googleusercontent.com',
       );
+      final googleSignIn = GoogleSignIn(serverClientId: googleClientId);
 
       final account = await googleSignIn.signIn();
       if (account == null) {
@@ -678,7 +681,7 @@ class _LoginScreenState extends State<LoginScreen> {
           subtitle: 'Acceso con Google o correo',
           icon: Icons.person_rounded,
           iconColor: AppColors.sentryCyan,
-          color: Colors.white.withOpacity(0.85),
+          color: Colors.white.withValues(alpha: 0.85),
           onTap: () {
             setState(() {
               isStudent = false;
@@ -1348,7 +1351,7 @@ class _LoginScreenState extends State<LoginScreen> {
     required VoidCallback onTap,
     Color? color,
   }) {
-    final bgColor = color ?? Colors.white.withOpacity(0.60);
+    final bgColor = color ?? Colors.white.withValues(alpha: 0.60);
     return Container(
       decoration: BoxDecoration(
         color: bgColor,
@@ -1472,119 +1475,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
       ),
-    );
-  }
-}
-
-class EpicTextField extends StatefulWidget {
-  final TextEditingController? controller;
-  final String label;
-  final String hint;
-  final IconData icon;
-  final bool isPassword;
-  final String? Function(String?)? validator;
-
-  const EpicTextField({
-    super.key,
-    this.controller,
-    required this.label,
-    required this.hint,
-    required this.icon,
-    this.isPassword = false,
-    this.validator,
-  });
-
-  @override
-  State<EpicTextField> createState() => _EpicTextFieldState();
-}
-
-class _EpicTextFieldState extends State<EpicTextField> {
-  late bool _obscureText;
-
-  @override
-  void initState() {
-    super.initState();
-    _obscureText = widget.isPassword;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.only(left: 4.w),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              color: AppColors.sentryNavy,
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        SizedBox(height: 8.h),
-        TextFormField(
-          controller: widget.controller,
-          obscureText: _obscureText,
-          style: const TextStyle(
-            color: AppColors.sentryNavy,
-            fontWeight: FontWeight.w600,
-            fontSize: 15,
-          ),
-          validator: widget.validator,
-          decoration: InputDecoration(
-            hintText: widget.hint,
-            hintStyle: TextStyle(color: AppColors.sentryGrey.withAlpha(150)),
-            prefixIcon: Icon(
-              widget.icon,
-              color: AppColors.sentryNavy.withAlpha(150),
-              size: 22,
-            ),
-            suffixIcon: widget.isPassword
-                ? IconButton(
-                    icon: Icon(
-                      _obscureText
-                          ? Icons.visibility_off_rounded
-                          : Icons.visibility_rounded,
-                      color: AppColors.sentryNavy.withAlpha(150),
-                      size: 22,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _obscureText = !_obscureText;
-                      });
-                    },
-                  )
-                : null,
-            filled: true,
-            fillColor: AppColors.sentryBg.withAlpha(150),
-            contentPadding: EdgeInsets.symmetric(
-              vertical: 18.h,
-              horizontal: 20.w,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(20.r),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(20.r),
-              borderSide: const BorderSide(
-                color: AppColors.sentryCyan,
-                width: 2,
-              ),
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(20.r),
-              borderSide: const BorderSide(color: Colors.redAccent, width: 2),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(20.r),
-              borderSide: const BorderSide(color: Colors.redAccent, width: 2),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

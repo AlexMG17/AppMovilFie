@@ -73,6 +73,7 @@ class _AppRouterState extends State<_AppRouter> {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  GoogleFonts.config.allowRuntimeFetching = false;
   await SupabaseService.initialize();
   runApp(const SentryApp());
 }

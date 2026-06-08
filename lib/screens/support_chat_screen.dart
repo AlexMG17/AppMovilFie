@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:gal/gal.dart';
 import '../services/event_service.dart';
 import '../services/support_service.dart';
 import '../services/supabase_service.dart';
@@ -314,27 +316,35 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   }
 
   PreferredSizeWidget _buildAppBar() {
+    final appBarDecoration = PreferredSize(
+      preferredSize: const Size.fromHeight(1),
+      child: Container(height: 1, color: AppColors.cardBorder),
+    );
+
     if (widget.isAdmin) {
       final initial = (widget.studentName?.isNotEmpty == true)
           ? widget.studentName![0].toUpperCase()
           : '?';
       return AppBar(
-        backgroundColor: AppColors.sentryNavy,
+        backgroundColor: AppColors.sentryBg,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        bottom: appBarDecoration,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white),
+              color: AppColors.sentryNavy),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
           children: [
             CircleAvatar(
               radius: 17.r,
-              backgroundColor: AppColors.sentryCyan.withValues(alpha: 0.25),
+              backgroundColor: AppColors.sentryCyan.withValues(alpha: 0.15),
               child: Text(
                 initial,
                 style: TextStyle(
-                    color: AppColors.sentryCyan,
+                    color: AppColors.sentryBlue,
                     fontWeight: FontWeight.w700,
                     fontSize: 15.sp),
               ),
@@ -346,14 +356,14 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
                 Text(
                   widget.studentName ?? 'Usuario',
                   style: GoogleFonts.outfit(
-                      color: Colors.white,
+                      color: AppColors.sentryNavy,
                       fontWeight: FontWeight.w700,
                       fontSize: 16.sp),
                 ),
                 Text(
                   'Conversación privada',
                   style: GoogleFonts.outfit(
-                      color: AppColors.sentryCyan, fontSize: 11.sp),
+                      color: AppColors.sentryGrey, fontSize: 11.sp),
                 ),
               ],
             ),
@@ -361,7 +371,8 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            icon: const Icon(Icons.refresh_rounded,
+                color: AppColors.sentryNavy),
             onPressed: () => _loadMessages(scroll: true),
           ),
         ],
@@ -370,13 +381,16 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
 
     // Estudiante: AppBar con botón de regreso + logout
     return AppBar(
-      backgroundColor: AppColors.sentryNavy,
+      backgroundColor: AppColors.sentryBg,
       elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      bottom: appBarDecoration,
       automaticallyImplyLeading: false,
       leading: Navigator.canPop(context)
           ? IconButton(
               icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white),
+                  color: AppColors.sentryNavy),
               onPressed: () => Navigator.pop(context),
             )
           : null,
@@ -384,9 +398,9 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
         children: [
           CircleAvatar(
             radius: 18.r,
-            backgroundColor: AppColors.sentryCyan,
+            backgroundColor: AppColors.sentryBlue.withValues(alpha: 0.12),
             child: Icon(Icons.support_agent_rounded,
-                color: Colors.white, size: 20.sp),
+                color: AppColors.sentryBlue, size: 20.sp),
           ),
           SizedBox(width: 10.w),
           Column(
@@ -395,7 +409,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               Text(
                 'Soporte Técnico',
                 style: GoogleFonts.outfit(
-                    color: Colors.white,
+                    color: AppColors.sentryNavy,
                     fontWeight: FontWeight.w700,
                     fontSize: 16.sp),
               ),
@@ -405,7 +419,8 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+          icon: const Icon(Icons.refresh_rounded,
+              color: AppColors.sentryNavy),
           onPressed: () => _loadMessages(scroll: true),
         ),
         PopupMenuButton<String>(
@@ -417,13 +432,13 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
               nav.pushReplacementNamed('/login');
             }
           },
-          child: const Padding(
-            padding: EdgeInsets.only(right: 12),
+          child: Padding(
+            padding: const EdgeInsets.only(right: 12),
             child: CircleAvatar(
               radius: 16,
-              backgroundColor: AppColors.sentryCyan,
-              child:
-                  Icon(Icons.person_rounded, color: Colors.white, size: 18),
+              backgroundColor: AppColors.sentryBlue.withValues(alpha: 0.15),
+              child: const Icon(Icons.person_rounded,
+                  color: AppColors.sentryBlue, size: 18),
             ),
           ),
           itemBuilder: (_) => [
@@ -597,25 +612,35 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     );
 
     if (isImage) {
-      return ClipRRect(
-        borderRadius: radius,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 220.w, maxHeight: 200.h),
-          child: Image.network(
-            url,
-            fit: BoxFit.cover,
-            loadingBuilder: (_, child, progress) => progress == null
-                ? child
-                : Container(
-                    width: 220.w,
-                    height: 120.h,
-                    color: AppColors.sentryBg,
-                    child: const Center(
-                      child: CircularProgressIndicator(
-                          color: AppColors.sentryBlue, strokeWidth: 2),
+      return GestureDetector(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => _ImageViewerScreen(url: url),
+            fullscreenDialog: true,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 220.w, maxHeight: 200.h),
+            child: Image.network(
+              url,
+              fit: BoxFit.cover,
+              loadingBuilder: (_, child, progress) => progress == null
+                  ? child
+                  : Container(
+                      width: 220.w,
+                      height: 120.h,
+                      color: AppColors.sentryBg,
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                            color: AppColors.sentryBlue, strokeWidth: 2),
+                      ),
                     ),
-                  ),
-            errorBuilder: (_, _, _) => _fileFallback(name, isMe, radius, bubbleColor),
+              errorBuilder: (_, _, _) =>
+                  _fileFallback(name, isMe, radius, bubbleColor),
+            ),
           ),
         ),
       );
@@ -652,8 +677,11 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     );
   }
 
-  Widget _buildInput() => Container(
-        padding: EdgeInsets.fromLTRB(8.w, 10.h, 12.w, 16.h),
+  Widget _buildInput() {
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
+    return Container(
+        padding: EdgeInsets.fromLTRB(
+            8.w, 10.h, 12.w, (bottomPadding > 0 ? bottomPadding : 16.h)),
         decoration: const BoxDecoration(
           color: Colors.white,
           boxShadow: [
@@ -738,10 +766,116 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
           ],
         ),
       );
+  }
 
   String _formatTime(DateTime dt) {
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
     return '$h:$m';
+  }
+}
+
+// ── Visor de imagen en pantalla completa ──────────────────────────────────────
+class _ImageViewerScreen extends StatefulWidget {
+  final String url;
+  const _ImageViewerScreen({required this.url});
+
+  @override
+  State<_ImageViewerScreen> createState() => _ImageViewerScreenState();
+}
+
+class _ImageViewerScreenState extends State<_ImageViewerScreen> {
+  bool _saving = false;
+
+  Future<void> _saveToGallery() async {
+    setState(() => _saving = true);
+    try {
+      final request = await HttpClient().getUrl(Uri.parse(widget.url));
+      final response = await request.close();
+      final bytes = await response.fold<List<int>>(
+          [], (prev, chunk) => prev..addAll(chunk));
+      await Gal.putImageBytes(Uint8List.fromList(bytes));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Imagen guardada en la galería',
+                style: GoogleFonts.outfit()),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar: $e',
+                style: GoogleFonts.outfit()),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.black.withValues(alpha: 0.5),
+        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        actions: [
+          if (_saving)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                    color: Colors.white, strokeWidth: 2),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.download_rounded, color: Colors.white),
+              tooltip: 'Guardar en galería',
+              onPressed: _saveToGallery,
+            ),
+        ],
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 8.0,
+          child: Image.network(
+            widget.url,
+            fit: BoxFit.contain,
+            loadingBuilder: (_, child, progress) => progress == null
+                ? child
+                : const Center(
+                    child:
+                        CircularProgressIndicator(color: Colors.white)),
+            errorBuilder: (ctx, err, st) => const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.broken_image_rounded,
+                    color: Colors.white54, size: 64),
+                SizedBox(height: 8),
+                Text('No se pudo cargar la imagen',
+                    style: TextStyle(color: Colors.white54)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

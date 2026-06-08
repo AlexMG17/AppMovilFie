@@ -24,6 +24,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   late int _selectedIndex;
   int _unreadSupport = 0;
   RealtimeChannel? _supportChannel;
+  final Map<String, DateTime> _readAt = {};
 
   @override
   void initState() {
@@ -51,8 +52,19 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     final convs = await SupportService.getConversationList();
     if (!mounted) return;
     setState(() {
-      _unreadSupport = convs.where((c) => !c.lastIsAdmin).length;
+      _unreadSupport = convs.where((c) {
+        if (c.lastIsAdmin) return false;
+        final readTime = _readAt[c.usuarioId];
+        if (readTime == null) return true;
+        return c.lastAt.isAfter(readTime);
+      }).length;
     });
+  }
+
+  void _onConversationRead(String convId, DateTime lastAt) {
+    if (!mounted) return;
+    _readAt[convId] = lastAt;
+    _loadUnreadCount();
   }
 
   void _selectTab(int index) {
@@ -66,7 +78,10 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       AdminDashboardScreen(onSelectTab: _selectTab),
       const ParticipantsScreen(),
       const ImportStudentsScreen(),
-      _MoreScreen(unreadSupport: _unreadSupport),
+      _MoreScreen(
+        unreadSupport: _unreadSupport,
+        onConversationRead: _onConversationRead,
+      ),
     ];
 
     return Scaffold(
@@ -93,7 +108,8 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
 // ── Pantalla "Más opciones" ───────────────────────────────────────────────────
 class _MoreScreen extends StatelessWidget {
   final int unreadSupport;
-  const _MoreScreen({this.unreadSupport = 0});
+  final void Function(String, DateTime)? onConversationRead;
+  const _MoreScreen({this.unreadSupport = 0, this.onConversationRead});
 
   @override
   Widget build(BuildContext context) {
@@ -151,7 +167,10 @@ class _MoreScreen extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => const AdminSupportListScreen()),
+                    builder: (_) => AdminSupportListScreen(
+                      onConversationRead: onConversationRead,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -274,7 +293,7 @@ class _AdminBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active3 = selectedIndex == 3;
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
     return Container(
       margin: EdgeInsets.fromLTRB(24.w, 0, 24.w, 12.h + bottomPadding),
       height: 60.h,

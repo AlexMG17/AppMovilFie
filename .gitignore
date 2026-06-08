@@ -52,3 +52,7 @@ app.*.map.json
 
 # Supabase temp files
 supabase/.temp/
+
+# Variables de entorno (contienen credenciales — NO subir al repo)
+.env.json
+key.properties

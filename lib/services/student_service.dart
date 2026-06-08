@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'payment_service.dart';
 import 'supabase_service.dart';
 
@@ -329,8 +330,24 @@ class StudentService {
     }
   }
 
-  /// Deletes a student from listado_estudiantes.
-  static Future<void> deleteStudent(int idDetalle) async {
+  /// Eliminación completa de un estudiante:
+  /// 1. Borra sus datos (entradas, pagos, usuarios) via Edge Function con service role.
+  /// 2. Elimina su cuenta de Supabase Auth.
+  /// 3. Elimina su fila de listado_estudiantes.
+  static Future<void> deleteStudent(int idDetalle, String email) async {
+    // Llamar la Edge Function que borra usuarios, entradas, pagos y auth account
+    try {
+      await _client.functions.invoke(
+        'delete-user-account',
+        body: {'email': email},
+      );
+    } catch (e) {
+      // Si la Edge Function falla (ej. usuario no tenía cuenta), continuamos
+      // para al menos limpiar listado_estudiantes
+      debugPrint('delete-user-account edge fn: $e');
+    }
+
+    // Siempre borrar de listado_estudiantes independientemente del resultado anterior
     await _client
         .from('listado_estudiantes')
         .delete()

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Excluir datos sensibles del backup automático de Google -->
+    <exclude domain="sharedpref" path="FlutterSecureStorage" />
+    <exclude domain="database" path="." />
+</full-backup-content>

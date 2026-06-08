@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,7 +9,8 @@ import '../theme/app_colors.dart';
 import 'support_chat_screen.dart';
 
 class AdminSupportListScreen extends StatefulWidget {
-  const AdminSupportListScreen({super.key});
+  final void Function(String convId, DateTime lastAt)? onConversationRead;
+  const AdminSupportListScreen({super.key, this.onConversationRead});
 
   @override
   State<AdminSupportListScreen> createState() => _AdminSupportListScreenState();
@@ -17,6 +20,9 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
   List<SupportConversation> _conversations = [];
   bool _loading = true;
   RealtimeChannel? _channel;
+  // Guarda el lastAt de cada conversación en el momento en que el admin la abrió.
+  // El punto desaparece si _readAt[id] >= conv.lastAt.
+  final Map<String, DateTime> _readAt = {};
 
   @override
   void initState() {
@@ -47,13 +53,19 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
     return Scaffold(
       backgroundColor: AppColors.sentryBg,
       appBar: AppBar(
-        backgroundColor: AppColors.sentryNavy,
+        backgroundColor: AppColors.sentryBg,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: AppColors.cardBorder),
+        ),
         automaticallyImplyLeading: false,
         leading: Navigator.canPop(context)
             ? IconButton(
                 icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                    color: Colors.white),
+                    color: AppColors.sentryNavy),
                 onPressed: () => Navigator.pop(context),
               )
             : null,
@@ -61,9 +73,9 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
           children: [
             CircleAvatar(
               radius: 18.r,
-              backgroundColor: AppColors.sentryCyan,
+              backgroundColor: AppColors.sentryBlue.withValues(alpha: 0.12),
               child: Icon(Icons.support_agent_rounded,
-                  color: Colors.white, size: 20.sp),
+                  color: AppColors.sentryBlue, size: 20.sp),
             ),
             SizedBox(width: 10.w),
             Column(
@@ -72,7 +84,7 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                 Text(
                   'Soporte',
                   style: GoogleFonts.outfit(
-                      color: Colors.white,
+                      color: AppColors.sentryNavy,
                       fontWeight: FontWeight.w700,
                       fontSize: 16.sp),
                 ),
@@ -81,7 +93,7 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                       ? 'Cargando...'
                       : '${_conversations.length} conversacion${_conversations.length == 1 ? '' : 'es'}',
                   style: GoogleFonts.outfit(
-                      color: AppColors.sentryCyan, fontSize: 11.sp),
+                      color: AppColors.sentryGrey, fontSize: 11.sp),
                 ),
               ],
             ),
@@ -89,7 +101,8 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            icon: const Icon(Icons.refresh_rounded,
+                color: AppColors.sentryNavy),
             onPressed: _load,
           ),
         ],
@@ -103,6 +116,9 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
                   onRefresh: _load,
                   color: AppColors.sentryBlue,
                   child: ListView.separated(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.paddingOf(context).bottom + 16,
+                    ),
                     itemCount: _conversations.length,
                     separatorBuilder: (_, _) =>
                         const Divider(height: 1, indent: 72, endIndent: 16),
@@ -136,6 +152,19 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
         ),
       );
 
+  String _friendlyLastMessage(String msg) {
+    if (!msg.startsWith('{')) return msg;
+    try {
+      final map = jsonDecode(msg) as Map<String, dynamic>;
+      if (map['_sentry_attachment'] == true) {
+        return map['is_image'] == true
+            ? 'Imagen adjunta'
+            : 'Archivo: ${map['name'] ?? 'adjunto'}';
+      }
+    } catch (_) {}
+    return msg;
+  }
+
   Widget _buildTile(SupportConversation conv) {
     final initial = conv.nombreUsuario.isNotEmpty
         ? conv.nombreUsuario[0].toUpperCase()
@@ -165,7 +194,7 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
       subtitle: Padding(
         padding: EdgeInsets.only(top: 3.h),
         child: Text(
-          conv.lastMessage,
+          _friendlyLastMessage(conv.lastMessage),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.outfit(
@@ -184,7 +213,10 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
             style: GoogleFonts.outfit(
                 fontSize: 11.sp, color: AppColors.sentryGrey),
           ),
-          if (!conv.lastIsAdmin) ...[
+          if (!conv.lastIsAdmin &&
+              !(_readAt[conv.usuarioId]?.isAtSameMomentAs(conv.lastAt) ??
+                  false) &&
+              !(_readAt[conv.usuarioId]?.isAfter(conv.lastAt) ?? false)) ...[
             SizedBox(height: 4.h),
             Container(
               width: 8.w,
@@ -197,16 +229,20 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
           ],
         ],
       ),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SupportChatScreen(
-            isAdmin: true,
-            conversacionUsuarioId: conv.usuarioId,
-            studentName: conv.nombreUsuario,
+      onTap: () {
+        setState(() => _readAt[conv.usuarioId] = conv.lastAt);
+        widget.onConversationRead?.call(conv.usuarioId, conv.lastAt);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => SupportChatScreen(
+              isAdmin: true,
+              conversacionUsuarioId: conv.usuarioId,
+              studentName: conv.nombreUsuario,
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

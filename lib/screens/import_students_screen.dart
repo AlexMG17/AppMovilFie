@@ -357,7 +357,9 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       final row = rows[i];
       if (row.every(
         (c) => c?.value == null || c!.value.toString().trim().isEmpty,
-      )) continue;
+      )) {
+        continue;
+      }
 
       final data = <String, String>{};
       for (int j = 0; j < headers.length && j < row.length; j++) {

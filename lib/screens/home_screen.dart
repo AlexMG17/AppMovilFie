@@ -28,10 +28,17 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   String _userName = '';
+  late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
+    _pages = [
+      _HomeContent(onActionTap: _onItemTapped),
+      const UploadPaymentScreen(),
+      const PaymentStatusScreen(),
+      const MyQrScreen(),
+    ];
     _loadUserName();
   }
 
@@ -56,13 +63,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      _HomeContent(onActionTap: _onItemTapped),
-      const UploadPaymentScreen(),
-      const PaymentStatusScreen(),
-      const MyQrScreen(),
-    ];
-
     return Scaffold(
       backgroundColor: AppColors.sentryBg,
       appBar: AppBar(
@@ -159,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
           SizedBox(width: 14.w),
         ],
       ),
-      body: IndexedStack(index: _selectedIndex, children: pages),
+      body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: _buildFloatingBottomBar(),
     );
   }
@@ -262,16 +262,17 @@ class _HomeContentState extends State<_HomeContent> {
     _geofenceService = GeofenceService(
       onStateChanged: (estado, distancia, ubicacion) {
         if (!mounted) return;
+        // Solo reconstruir si el estado cambió o el usuario se movió más de 3 metros
+        final moved = _distanceMeters == null ||
+            (distancia - _distanceMeters!).abs() > 3;
+        final stateChanged = estado != _geoState;
+        if (!stateChanged && !moved) return;
         setState(() {
           _geoState = estado;
           _distanceMeters = distancia;
           _userLocation = ubicacion;
-
-          // Reactivación automática al salir del recinto
-          if (estado == GeofenceState.afuera) {
-            if (_qrValidado) {
-              _qrValidado = false; // Se resetea el QR al abandonar la zona
-            }
+          if (estado == GeofenceState.afuera && _qrValidado) {
+            _qrValidado = false;
           }
         });
       },
@@ -790,15 +791,17 @@ class _HomeContentState extends State<_HomeContent> {
                     GestureDetector(
                       onTap: _abrirMapaPantallaCompleta,
                       child: AbsorbPointer(
-                        child: FlutterMap(
-                          mapController: _mapController,
-                          options: MapOptions(
-                            initialCenter:
-                                _geofenceService?.eventCenter ??
-                                LatLng(event.lat, event.lng),
-                            initialZoom: 16.0,
+                        child: RepaintBoundary(
+                          child: FlutterMap(
+                            mapController: _mapController,
+                            options: MapOptions(
+                              initialCenter:
+                                  _geofenceService?.eventCenter ??
+                                  LatLng(event.lat, event.lng),
+                              initialZoom: 16.0,
+                            ),
+                            children: _buildMapLayers(),
                           ),
-                          children: _buildMapLayers(),
                         ),
                       ),
                     )

@@ -1,7 +1,7 @@
 name: sentry_app
 description: "Sentry - Control de acceso seguro a eventos."
 publish_to: "none"
-version: 0.1.0+1
+version: 1.0.0+1
 
 environment:
   sdk: ^3.11.4
@@ -27,6 +27,7 @@ dependencies:
   permission_handler: ^11.3.1
   shared_preferences: ^2.3.2
   uuid: ^4.5.1
+  gal: ^1.1.0
   pdf: ^3.11.0
   printing: ^5.13.1
 
@@ -51,3 +52,4 @@ flutter:
     - assets/images/icono_sentry2.png
     - assets/images/Llamasgif.gif
     - assets/templates/PLANTILLA_CSV_SENTRY.xlsx
+    - assets/google_fonts/

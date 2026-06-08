@@ -43,6 +43,7 @@ class StudentListScreen extends StatefulWidget {
 class _StudentListScreenState extends State<StudentListScreen>
     with SingleTickerProviderStateMixin {
   List<StudentRecord> _students = [];
+  List<StudentRecord> _filtered = [];
   List<String> _careers = ['Todas las carreras'];
   String _query = '';
   String _selectedCareer = 'Todas las carreras';
@@ -53,6 +54,9 @@ class _StudentListScreenState extends State<StudentListScreen>
   final _searchCtrl = TextEditingController();
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
+
+  final _scrollCtrl = ScrollController();
+  bool _showScrollTop = false;
 
   // ── Selección múltiple ─────────────────────────────────────────────────────
   bool _selectionMode = false;
@@ -120,7 +124,7 @@ class _StudentListScreenState extends State<StudentListScreen>
 
     for (final s in toDelete) {
       try {
-        await StudentService.deleteStudent(s.idDetalle!);
+        await StudentService.deleteStudent(s.idDetalle!, s.email);
       } catch (_) {}
     }
 
@@ -147,17 +151,20 @@ class _StudentListScreenState extends State<StudentListScreen>
       _students.where((s) => s.status == 'pendiente' || s.status == 'revision').length;
 
   // ── Filtered ───────────────────────────────────────────────────────────────
-  List<StudentRecord> get _filtered => _students.where((s) {
+  void _applyFilter() {
     final q = _query.toLowerCase();
-    final matchQ =
-        q.isEmpty ||
-        s.nombre.toLowerCase().contains(q) ||
-        s.email.toLowerCase().contains(q) ||
-        s.cedula.contains(q);
-    final matchCareer =
-        _selectedCareer == 'Todas las carreras' || s.carrera == _selectedCareer;
-    return matchQ && matchCareer;
-  }).toList();
+    setState(() {
+      _filtered = _students.where((s) {
+        final matchQ = q.isEmpty ||
+            s.nombre.toLowerCase().contains(q) ||
+            s.email.toLowerCase().contains(q) ||
+            s.cedula.contains(q);
+        final matchCareer =
+            _selectedCareer == 'Todas las carreras' || s.carrera == _selectedCareer;
+        return matchQ && matchCareer;
+      }).toList();
+    });
+  }
 
   @override
   void initState() {
@@ -165,6 +172,10 @@ class _StudentListScreenState extends State<StudentListScreen>
     _fadeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _fadeCtrl.forward();
+    _scrollCtrl.addListener(() {
+      final show = _scrollCtrl.hasClients && _scrollCtrl.offset > 300;
+      if (show != _showScrollTop) setState(() => _showScrollTop = show);
+    });
     _load();
     _loadUserName();
   }
@@ -177,11 +188,13 @@ class _StudentListScreenState extends State<StudentListScreen>
   @override
   void dispose() {
     _fadeCtrl.dispose();
+    _scrollCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     setState(() => _loading = true);
     try {
       final event = await EventService.getActiveEvent();
@@ -191,17 +204,28 @@ class _StudentListScreenState extends State<StudentListScreen>
         StudentService.getCareers(),
       ]);
 
+      if (!mounted) return;
+
       final students = results[0] as List<StudentRecord>;
       final careers = ['Todas las carreras', ...(results[1] as List<String>)];
+      final q = _query.toLowerCase();
+      final filtered = students.where((s) {
+        final matchQ = q.isEmpty ||
+            s.nombre.toLowerCase().contains(q) ||
+            s.email.toLowerCase().contains(q) ||
+            s.cedula.contains(q);
+        final matchCareer =
+            _selectedCareer == 'Todas las carreras' || s.carrera == _selectedCareer;
+        return matchQ && matchCareer;
+      }).toList();
 
-      if (mounted) {
-        setState(() {
-          _students = students;
-          _careers = careers;
-          _eventName = event?.nombre ?? '';
-          _loading = false;
-        });
-      }
+      setState(() {
+        _students = students;
+        _careers = careers;
+        _eventName = event?.nombre ?? '';
+        _loading = false;
+        _filtered = filtered;
+      });
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -253,10 +277,10 @@ class _StudentListScreenState extends State<StudentListScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModal) => Padding(
+        builder: (ctx, setModal) => SingleChildScrollView(
           padding: EdgeInsets.only(
             left: 20, right: 20, top: 16,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 24,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -321,7 +345,15 @@ class _StudentListScreenState extends State<StudentListScreen>
                             );
                           }
                           saved = true;
-                          if (ctx.mounted) Navigator.pop(ctx);
+                          // Dismiss keyboard first: keyboard + modal animating
+                          // simultaneously triggers viewport metrics changes
+                          // mid-animation which causes _dependents.isEmpty.
+                          // Use FocusManager (no context) and parent context
+                          // (State-owned, safe after await with mounted check).
+                          if (!mounted) return;
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          final nav = Navigator.of(context);
+                          Future.delayed(const Duration(milliseconds: 320), () => nav.pop());
                         } catch (e) {
                           setModal(() => saving = false);
                           if (ctx.mounted) {
@@ -354,10 +386,23 @@ class _StudentListScreenState extends State<StudentListScreen>
     emailCtrl.dispose();
     cedulaCtrl.dispose();
 
-    // Reload only after the modal is fully dismissed to avoid InheritedWidget
-    // dependents assertion (_dependents.isEmpty) triggered by setState during
-    // the modal's dismiss animation.
-    if (saved) await _load();
+    if (saved && mounted) {
+      // Poll frame-by-frame until this route is topmost (modal animation
+      // fully complete and its elements deactivated). Calling setState while
+      // the modal is still transitioning out triggers _dependents.isEmpty.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        void waitForCurrentRoute() {
+          if (!mounted) return;
+          final route = ModalRoute.of(context);
+          if (route == null || route.isCurrent) {
+            _load();
+          } else {
+            WidgetsBinding.instance.addPostFrameCallback((_) => waitForCurrentRoute());
+          }
+        }
+        waitForCurrentRoute();
+      });
+    }
   }
 
   // ── RF25: Eliminar ─────────────────────────────────────────────────────────
@@ -390,7 +435,7 @@ class _StudentListScreenState extends State<StudentListScreen>
     );
     if (ok != true || s.idDetalle == null) return false;
     try {
-      await StudentService.deleteStudent(s.idDetalle!);
+      await StudentService.deleteStudent(s.idDetalle!, s.email);
       return true;
     } catch (e) {
       if (!mounted) return false;
@@ -445,10 +490,29 @@ class _StudentListScreenState extends State<StudentListScreen>
     final list = _filtered;
     return Scaffold(
       backgroundColor: _kBg,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButtonLocation: (_selectionMode && !widget.showAppBar)
+          ? FloatingActionButtonLocation.centerFloat
+          : FloatingActionButtonLocation.endFloat,
       floatingActionButton: (_selectionMode && !widget.showAppBar)
           ? _buildSelectionBar()
-          : null,
+          : _showScrollTop
+              ? Padding(
+                  padding: EdgeInsets.only(
+                    bottom: widget.showAppBar ? 0 : 80.h,
+                  ),
+                  child: FloatingActionButton.small(
+                    heroTag: 'scrollTop',
+                    onPressed: () => _scrollCtrl.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 400),
+                      curve: Curves.easeOut,
+                    ),
+                    backgroundColor: _kPurple,
+                    foregroundColor: _kWhite,
+                    child: const Icon(Icons.keyboard_arrow_up_rounded),
+                  ),
+                )
+              : null,
       body: RefreshIndicator(
         onRefresh: _load,
         color: _kPurple,
@@ -456,6 +520,7 @@ class _StudentListScreenState extends State<StudentListScreen>
         opacity: _fadeAnim,
         child: SafeArea(
           child: CustomScrollView(
+            controller: _scrollCtrl,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               if (widget.showAppBar) _buildAppBar(),
@@ -671,7 +736,7 @@ class _StudentListScreenState extends State<StudentListScreen>
     controller: _searchCtrl,
     style: _ts(13),
     cursorColor: _kPurple,
-    onChanged: (v) => setState(() => _query = v),
+    onChanged: (v) { _query = v; _applyFilter(); },
     decoration: InputDecoration(
       hintText: 'Buscar por nombre, email, cédula...',
       hintStyle: _ts(13, color: _kGrey),
@@ -679,7 +744,7 @@ class _StudentListScreenState extends State<StudentListScreen>
       suffixIcon: _query.isNotEmpty
           ? IconButton(
               icon: const Icon(Icons.close_rounded, color: _kGrey, size: 18),
-              onPressed: () { _searchCtrl.clear(); setState(() => _query = ''); },
+              onPressed: () { _searchCtrl.clear(); _query = ''; _applyFilter(); },
             )
           : null,
       filled: true,
@@ -707,7 +772,7 @@ class _StudentListScreenState extends State<StudentListScreen>
               isExpanded: true,
               icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _kGrey),
               items: _careers.map((c) => DropdownMenuItem(value: c, child: Text(c, style: _ts(13)))).toList(),
-              onChanged: (v) => setState(() => _selectedCareer = v!),
+              onChanged: (v) { _selectedCareer = v!; _applyFilter(); },
             ),
           ),
         ),

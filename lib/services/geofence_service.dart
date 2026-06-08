@@ -55,33 +55,25 @@ class GeofenceService {
       if (permission == LocationPermission.denied) return;
     }
 
-    // =========================================================
-    // CONFIGURACIÓN DE GPS EXTREMA (Para pruebas instantáneas)
-    // =========================================================
     late LocationSettings locationSettings;
 
     if (defaultTargetPlatform == TargetPlatform.android) {
       locationSettings = AndroidSettings(
-        accuracy: LocationAccuracy.bestForNavigation, // Máxima precisión
-        distanceFilter: 1, // Actualiza cada 1 metro de movimiento
-        forceLocationManager: true, // Fuerza a usar el GPS del chip
-        intervalDuration: const Duration(
-          seconds: 1,
-        ), // Fuerza lectura cada 1 segundo
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5,
+        intervalDuration: const Duration(seconds: 5),
       );
     } else if (defaultTargetPlatform == TargetPlatform.iOS) {
       locationSettings = AppleSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        activityType:
-            ActivityType.fitness, // Evita que iOS duerma el GPS al caminar
-        distanceFilter: 1,
-        pauseLocationUpdatesAutomatically:
-            false, // ¡Clave para que no se pause!
+        accuracy: LocationAccuracy.high,
+        activityType: ActivityType.otherNavigation,
+        distanceFilter: 5,
+        pauseLocationUpdatesAutomatically: false,
       );
     } else {
       locationSettings = const LocationSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 1,
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5,
       );
     }
 
@@ -95,12 +87,14 @@ class GeofenceService {
 
   Future<void> forceUpdate() async {
     try {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.bestForNavigation,
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       _procesarUbicacion(position);
     } catch (e) {
-      debugPrint("Error obteniendo ubicación manual: $e");
+      debugPrint('GeofenceService.forceUpdate error: $e');
     }
   }
 

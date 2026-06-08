@@ -204,7 +204,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               )
             else ...[
               SliverToBoxAdapter(
-                child: _buildStatsRow(adminCount, guardCount, studentCount),
+                child: _buildPageHeader(_allUsers.length),
+              ),
+              SliverToBoxAdapter(
+                child: _buildStatsGrid(adminCount, guardCount, studentCount),
               ),
               SliverToBoxAdapter(child: _buildSearchBar()),
               SliverToBoxAdapter(
@@ -248,7 +251,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     childCount: _filtered.length,
                   ),
                 ),
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: MediaQuery.paddingOf(context).bottom + 24,
+                ),
+              ),
             ],
           ],
         ),
@@ -258,41 +265,48 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   SliverAppBar _buildAppBar() {
     return SliverAppBar(
+      backgroundColor: AppColors.sentryBg,
+      elevation: 0,
       pinned: true,
-      expandedHeight: 100,
-      backgroundColor: AppColors.sentryNavy,
       automaticallyImplyLeading: false,
-      leading: Navigator.canPop(context)
-          ? IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            )
-          : null,
-      flexibleSpace: FlexibleSpaceBar(
-        titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Gestión de Usuarios',
-              style: GoogleFonts.outfit(
-                fontSize: 18.sp,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            ),
-            Text(
-              'Asignación de roles',
-              style: GoogleFonts.outfit(
-                fontSize: 11.sp,
-                fontWeight: FontWeight.w400,
-                color: Colors.white70,
-              ),
+      flexibleSpace: Container(
+        decoration: BoxDecoration(
+          color: AppColors.sentryBg,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.sentryNavy.withValues(alpha: 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
+      ),
+      leading: Navigator.canPop(context)
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                  color: AppColors.sentryNavy),
+              onPressed: () => Navigator.pop(context),
+            )
+          : null,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Gestión de Usuarios',
+            style: GoogleFonts.outfit(
+              fontSize: 16.sp,
+              fontWeight: FontWeight.w700,
+              color: AppColors.sentryNavy,
+            ),
+          ),
+          Text(
+            'Asignación de roles',
+            style: GoogleFonts.outfit(
+              fontSize: 11.sp,
+              color: AppColors.sentryGrey,
+            ),
+          ),
+        ],
       ),
       actions: [
         PopupMenuButton<String>(
@@ -304,10 +318,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               nav.pushReplacementNamed('/login');
             }
           },
-          child: const CircleAvatar(
+          child: CircleAvatar(
             radius: 16,
-            backgroundColor: AppColors.sentryCyan,
-            child: Icon(Icons.person_rounded, color: Colors.white, size: 18),
+            backgroundColor: AppColors.sentryBlue.withValues(alpha: 0.15),
+            child: Icon(Icons.person_rounded,
+                color: AppColors.sentryBlue, size: 18),
           ),
           itemBuilder: (_) => [
             PopupMenuItem(
@@ -345,7 +360,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ),
         const SizedBox(width: 4),
         IconButton(
-          icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+          icon: const Icon(Icons.refresh_rounded, color: AppColors.sentryNavy),
           onPressed: _load,
           tooltip: 'Recargar',
         ),
@@ -354,35 +369,130 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  Widget _buildStatsRow(int admins, int guardias, int estudiantes) {
+  Widget _buildPageHeader(int totalUsers) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 0),
+      padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 0),
       child: Row(
         children: [
-          _StatTile(
-            label: 'Total',
-            value: _allUsers.length,
-            color: AppColors.sentryBlue,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Gestión de Usuarios',
+                  style: GoogleFonts.outfit(
+                    fontSize: 22.sp,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.sentryNavy,
+                  ),
+                ),
+                Text(
+                  'Asignación de roles',
+                  style: GoogleFonts.outfit(
+                    fontSize: 11.sp,
+                    color: AppColors.sentryGrey,
+                  ),
+                ),
+              ],
+            ),
           ),
-          SizedBox(width: 10.w),
-          _StatTile(
-            label: 'Admins',
-            value: admins,
-            color: AppColors.sentryNavy,
-          ),
-          SizedBox(width: 10.w),
-          _StatTile(
-            label: 'Validadores',
-            value: guardias,
-            color: AppColors.warning,
-          ),
-          SizedBox(width: 10.w),
-          _StatTile(
-            label: 'Estudiantes',
-            value: estudiantes,
-            color: AppColors.sentryCyan,
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.sentryNavy, AppColors.sentryBlue],
+              ),
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 8.w,
+                  height: 8.w,
+                  decoration: const BoxDecoration(
+                    color: AppColors.sentryCyan,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                SizedBox(width: 6.w),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      '$totalUsers',
+                      style: GoogleFonts.outfit(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      'usuarios',
+                      style: GoogleFonts.outfit(
+                          fontSize: 10, color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatsGrid(int admins, int guardias, int estudiantes) {
+    final stats = [
+      _StatData(
+        Icons.people_alt_rounded,
+        AppColors.sentryBlue,
+        '${_allUsers.length}',
+        'Total',
+        'Usuarios registrados',
+      ),
+      _StatData(
+        Icons.admin_panel_settings_rounded,
+        AppColors.sentryNavy,
+        '$admins',
+        'Admins',
+        'Rol administrador',
+      ),
+      _StatData(
+        Icons.security_rounded,
+        AppColors.warning,
+        '$guardias',
+        'Validadores',
+        'Rol validador',
+      ),
+      _StatData(
+        Icons.school_rounded,
+        AppColors.sentryCyan,
+        '$estudiantes',
+        'Estudiantes',
+        'Rol estudiante',
+      ),
+    ];
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16.w, 20.h, 16.w, 0),
+      child: LayoutBuilder(
+        builder: (_, constraints) {
+          // Altura dinámica: la tarjeta mide (ancho disponible - espacio) / 2 cols / ratio 1.2
+          // garantiza que el contenido siempre cabe sin overflow en cualquier pantalla.
+          final cardHeight = (constraints.maxWidth - 12) / 2 / 1.2;
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisExtent: cardHeight,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+            ),
+            itemCount: stats.length,
+            itemBuilder: (_, i) => _StatCard(data: stats[i]),
+          );
+        },
       ),
     );
   }
@@ -719,49 +829,84 @@ class _RoleStyle {
   });
 }
 
-// ── Stat tile ─────────────────────────────────────────────────────────────────
+// ── Stat card ─────────────────────────────────────────────────────────────────
 
-class _StatTile extends StatelessWidget {
-  final String label;
-  final int value;
+class _StatData {
+  final IconData icon;
   final Color color;
+  final String value;
+  final String label;
+  final String sublabel;
+  const _StatData(this.icon, this.color, this.value, this.label, this.sublabel);
+}
 
-  const _StatTile({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
+class _StatCard extends StatelessWidget {
+  final _StatData data;
+  const _StatCard({required this.data});
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.cardBorder),
-        ),
-        child: Column(
-          children: [
-            Text(
-              '$value',
-              style: GoogleFonts.outfit(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: color,
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(color: AppColors.cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.sentryNavy.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: EdgeInsets.all(14.r),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36.w,
+                height: 36.w,
+                decoration: BoxDecoration(
+                  color: data.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10.r),
+                ),
+                child: Icon(data.icon, color: data.color, size: 18.sp),
               ),
-            ),
-            Text(
-              label,
-              style: GoogleFonts.outfit(
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
+              const Spacer(),
+              Icon(
+                Icons.trending_up_rounded,
+                size: 14.sp,
                 color: AppColors.sentryGrey,
               ),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            data.value,
+            style: GoogleFonts.outfit(
+              fontSize: 26.sp,
+              fontWeight: FontWeight.w800,
+              color: AppColors.sentryNavy,
             ),
-          ],
-        ),
+          ),
+          Text(
+            data.label,
+            style: GoogleFonts.outfit(
+              fontSize: 12.sp,
+              fontWeight: FontWeight.w600,
+              color: AppColors.sentryNavy,
+            ),
+          ),
+          Text(
+            data.sublabel,
+            style: GoogleFonts.outfit(
+              fontSize: 10.sp,
+              color: AppColors.sentryGrey,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -817,7 +962,9 @@ class _ChangeRoleSheetState extends State<_ChangeRoleSheet> {
         24,
         20,
         24,
-        MediaQuery.of(context).viewInsets.bottom + 24,
+        MediaQuery.of(context).viewInsets.bottom +
+            MediaQuery.of(context).padding.bottom +
+            24,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
