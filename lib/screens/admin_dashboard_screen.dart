@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -12,6 +13,7 @@ import '../services/payment_service.dart' show PaymentService;
 import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 import 'attendees_screen.dart';
+import 'geofence_editor_screen.dart';
 import 'import_students_screen.dart';
 import 'payment_vouchers_screen.dart';
 import 'student_list_screen.dart';
@@ -1554,6 +1556,7 @@ class _EventFormSheetState extends State<_EventFormSheet> {
   late final TextEditingController _lng;
   DateTime? _fecha;
   bool _saving = false;
+  List<LatLng>? _polygon;
 
   @override
   void initState() {
@@ -1565,6 +1568,25 @@ class _EventFormSheetState extends State<_EventFormSheet> {
     _lat = TextEditingController(text: e != null ? e.lat.toString() : '');
     _lng = TextEditingController(text: e != null ? e.lng.toString() : '');
     _fecha = e?.fecha;
+    _polygon = e?.polygon;
+  }
+
+  Future<void> _openGeofenceEditor() async {
+    final lat = double.tryParse(_lat.text.trim()) ?? -1.6489;
+    final lng = double.tryParse(_lng.text.trim()) ?? -78.6480;
+    final result = await Navigator.push<List<LatLng>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GeofenceEditorScreen(
+          initialPolygon: _polygon,
+          initialCenter: LatLng(lat, lng),
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() => _polygon = result);
+    }
   }
 
   @override
@@ -1621,6 +1643,7 @@ class _EventFormSheetState extends State<_EventFormSheet> {
           lugar: _lugar.text.trim(),
           lat: lat,
           lng: lng,
+          polygon: _polygon,
         );
       } else {
         await EventService.updateEvent(
@@ -1631,6 +1654,7 @@ class _EventFormSheetState extends State<_EventFormSheet> {
           lugar: _lugar.text.trim(),
           lat: lat,
           lng: lng,
+          polygon: _polygon,
         );
       }
       if (mounted) Navigator.pop(context, true);
@@ -1720,6 +1744,70 @@ class _EventFormSheetState extends State<_EventFormSheet> {
                     ),
                   ),
                 ],
+              ),
+              SizedBox(height: 12.h),
+              // ── Botón geocerca ──────────────────────────────────────────
+              InkWell(
+                onTap: _openGeofenceEditor,
+                borderRadius: BorderRadius.circular(12.r),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: _polygon != null
+                          ? AppColors.sentryBlue
+                          : Colors.grey.shade400,
+                      width: _polygon != null ? 1.5 : 1.0,
+                    ),
+                    borderRadius: BorderRadius.circular(12.r),
+                    color: _polygon != null
+                        ? AppColors.sentryBlue.withValues(alpha: 0.06)
+                        : const Color(0xFFF5F6FA),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.draw_rounded,
+                        color: _polygon != null
+                            ? AppColors.sentryBlue
+                            : Colors.grey.shade600,
+                        size: 20.sp,
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Dibujar área de Evento',
+                              style: GoogleFonts.outfit(
+                                fontSize: 13.sp,
+                                fontWeight: FontWeight.w600,
+                                color: _polygon != null
+                                    ? AppColors.sentryBlue
+                                    : Colors.grey.shade700,
+                              ),
+                            ),
+                            Text(
+                              _polygon != null
+                                  ? '${_polygon!.length} puntos definidos'
+                                  : 'Sin zona definida — toca para dibujar',
+                              style: GoogleFonts.outfit(
+                                fontSize: 11.sp,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: Colors.grey.shade400,
+                        size: 20.sp,
+                      ),
+                    ],
+                  ),
+                ),
               ),
               SizedBox(height: 12.h),
               InkWell(

@@ -109,6 +109,43 @@ class SupportService {
     }
   }
 
+  /// Marca una conversación como leída por el admin actual (upsert en Supabase).
+  static Future<void> markConversationRead(String conversacionUsuarioId) async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return;
+    try {
+      await _client.from('soporte_leidos_admin').upsert({
+        'admin_id': user.id,
+        'conversacion_usuario_id': conversacionUsuarioId,
+        'leido_at': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'admin_id, conversacion_usuario_id');
+    } catch (e) {
+      debugPrint('SupportService.markConversationRead: $e');
+    }
+  }
+
+  /// Devuelve un mapa {conversacionUsuarioId → leidoAt} del admin actual.
+  static Future<Map<String, DateTime>> getAdminReadMap() async {
+    final user = SupabaseService.currentUser;
+    if (user == null) return {};
+    try {
+      final data = await _client
+          .from('soporte_leidos_admin')
+          .select('conversacion_usuario_id, leido_at')
+          .eq('admin_id', user.id);
+      return {
+        for (final row in data as List)
+          row['conversacion_usuario_id'] as String:
+              (DateTime.tryParse(row['leido_at'] as String? ?? '') ??
+                      DateTime(0))
+                  .toLocal(),
+      };
+    } catch (e) {
+      debugPrint('SupportService.getAdminReadMap: $e');
+      return {};
+    }
+  }
+
   /// Envía un mensaje. [convUserId] es siempre el UUID del estudiante.
   static Future<void> sendMessage({
     required String mensaje,

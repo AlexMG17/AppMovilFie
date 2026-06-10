@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../services/support_service.dart';
 import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
@@ -61,23 +60,16 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   }
 
   Future<void> _loadUnreadCount() async {
-    final convs = await SupportService.getConversationList();
+    final results = await Future.wait([
+      SupportService.getConversationList(),
+      SupportService.getAdminReadMap(),
+    ]);
     if (!mounted) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final currentUserId = SupabaseService.currentUser?.id ?? '';
-    for (final c in convs) {
-      final key = 'sentry_chat_read_at_${currentUserId}_${c.usuarioId}';
-      final storedTimeStr = prefs.getString(key);
-      if (storedTimeStr != null) {
-        final dt = DateTime.tryParse(storedTimeStr);
-        if (dt != null) {
-          _readAt[c.usuarioId] = dt;
-        }
-      }
-    }
+    final convs = results[0] as List<SupportConversation>;
+    final readMap = results[1] as Map<String, DateTime>;
+    _readAt.addAll(readMap);
 
-    if (!mounted) return;
     setState(() {
       _unreadSupport = convs.where((c) {
         if (c.lastIsAdmin) return false;
@@ -88,14 +80,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     });
   }
 
-  void _onConversationRead(String convId, DateTime lastAt) async {
+  void _onConversationRead(String convId, DateTime lastAt) {
     if (!mounted) return;
     _readAt[convId] = lastAt;
     _loadUnreadCount();
-
-    final currentUserId = SupabaseService.currentUser?.id ?? '';
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('sentry_chat_read_at_${currentUserId}_$convId', lastAt.toIso8601String());
+    SupportService.markConversationRead(convId);
   }
 
   void _selectTab(int index) {

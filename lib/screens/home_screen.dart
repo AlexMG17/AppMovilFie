@@ -262,8 +262,10 @@ class _HomeContentState extends State<_HomeContent> {
     super.dispose();
   }
 
-  void _iniciarGeocercaAutomatica(LatLng center) {
+  void _iniciarGeocercaAutomatica(LatLng center, {List<LatLng>? polygon}) {
     _geofenceService = GeofenceService(
+      center: center,
+      polygon: polygon,
       onStateChanged: (estado, distancia, ubicacion) {
         if (!mounted) return;
         final moved = _distanceMeters == null ||
@@ -348,7 +350,10 @@ class _HomeContentState extends State<_HomeContent> {
 
     if (event != null) {
       if (_geofenceService == null) {
-        _iniciarGeocercaAutomatica(LatLng(event.lat, event.lng));
+        _iniciarGeocercaAutomatica(
+          LatLng(event.lat, event.lng),
+          polygon: event.polygon,
+        );
       }
 
       final uidFuture = EventService.getCurrentUserId();

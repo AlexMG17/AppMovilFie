@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 
@@ -10,6 +11,7 @@ class EventModel {
   final String lugar;
   final double lat;
   final double lng;
+  final List<LatLng>? polygon;
 
   const EventModel({
     required this.id,
@@ -19,6 +21,7 @@ class EventModel {
     required this.lugar,
     required this.lat,
     required this.lng,
+    this.polygon,
   });
 
   factory EventModel.fromMap(Map<String, dynamic> map) => EventModel(
@@ -30,7 +33,24 @@ class EventModel {
         lugar: map['ubicacion'] ?? 'ESPOCH',
         lat: (map['latitud'] as num?)?.toDouble() ?? -1.6489,
         lng: (map['longitud'] as num?)?.toDouble() ?? -78.6480,
+        polygon: _parsePolygon(map['poligono']),
       );
+
+  static List<LatLng>? _parsePolygon(dynamic raw) {
+    if (raw == null) return null;
+    try {
+      final list = raw as List<dynamic>;
+      return list.map((p) {
+        final point = p as Map<String, dynamic>;
+        return LatLng(
+          (point['lat'] as num).toDouble(),
+          (point['lng'] as num).toDouble(),
+        );
+      }).toList();
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 class EventService {
@@ -144,6 +164,11 @@ class EventService {
     }
   }
 
+  static List<Map<String, double>>? _polygonToJson(List<LatLng>? polygon) {
+    if (polygon == null || polygon.isEmpty) return null;
+    return polygon.map((p) => {'lat': p.latitude, 'lng': p.longitude}).toList();
+  }
+
   /// Crea un nuevo evento en la tabla `eventos`.
   static Future<void> createEvent({
     required String nombre,
@@ -152,6 +177,7 @@ class EventService {
     required String lugar,
     required double lat,
     required double lng,
+    List<LatLng>? polygon,
   }) async {
     await _client.from('eventos').insert({
       'nombre': nombre,
@@ -160,6 +186,7 @@ class EventService {
       'ubicacion': lugar,
       'latitud': lat,
       'longitud': lng,
+      'poligono': _polygonToJson(polygon),
     });
   }
 
@@ -172,6 +199,7 @@ class EventService {
     required String lugar,
     required double lat,
     required double lng,
+    List<LatLng>? polygon,
   }) async {
     await _client.from('eventos').update({
       'nombre': nombre,
@@ -180,6 +208,7 @@ class EventService {
       'ubicacion': lugar,
       'latitud': lat,
       'longitud': lng,
+      'poligono': _polygonToJson(polygon),
     }).eq('id_evento', id);
   }
 
