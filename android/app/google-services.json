@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "623118659563",
+    "project_id": "sentry-notificacion",
+    "storage_bucket": "sentry-notificacion.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:623118659563:android:7bb6638d470065778ab3ae",
+        "android_client_info": {
+          "package_name": "com.sentry.fie.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB8W5uiOuyF2Cb3b7serZxGoXrJV-0cAgA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

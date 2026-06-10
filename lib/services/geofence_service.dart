@@ -9,6 +9,7 @@ class GeofenceService {
   // ==========================================
   // 1. DIBUJAR EL POLÍGONO DEL EVENTO (MACAJÍ)
   // ==========================================
+  // Coordenadas exactas trazadas manualmente sobre el recinto ferial de Macají
   final List<LatLng> eventPolygon = [
     const LatLng(-1.6560055260174005, -78.6749951089342),
     const LatLng(-1.6557045596366962, -78.6747027427223),
@@ -19,7 +20,7 @@ class GeofenceService {
     const LatLng(-1.6560103463875289, -78.67499382274276),
   ];
 
-  final LatLng eventCenter;
+  final LatLng eventCenter = const LatLng(-1.6558909094711447, -78.67475706289616);
   final double radioCerca = 50.0;
 
   StreamSubscription<Position>? _positionStreamSubscription;
@@ -37,7 +38,6 @@ class GeofenceService {
   final Function() onTimerExpired;
 
   GeofenceService({
-    required this.eventCenter,
     required this.onStateChanged,
     this.onTimerTick,
     required this.onTimerExpired,
