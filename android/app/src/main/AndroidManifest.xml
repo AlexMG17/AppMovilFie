@@ -7,6 +7,10 @@
     <!-- Internet -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Notificaciones push (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- Guardar imágenes en galería (solo Android < 10) -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />

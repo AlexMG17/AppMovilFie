@@ -264,7 +264,6 @@ class _HomeContentState extends State<_HomeContent> {
 
   void _iniciarGeocercaAutomatica(LatLng center) {
     _geofenceService = GeofenceService(
-      eventCenter: center,
       onStateChanged: (estado, distancia, ubicacion) {
         if (!mounted) return;
         final moved = _distanceMeters == null ||

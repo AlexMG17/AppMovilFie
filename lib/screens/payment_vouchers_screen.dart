@@ -273,7 +273,7 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
 
     setState(() => _processing.add(p.id));
     try {
-      await PaymentService.rejectPago(idPago: p.id);
+      await PaymentService.rejectPago(idPago: p.id, idUsuario: p.idUsuario);
       if (mounted) {
         await _refreshSilent();
         _showSnack('Comprobante de ${p.nombreUsuario} rechazado.');

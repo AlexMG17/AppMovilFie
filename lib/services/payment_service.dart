@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'notification_service.dart';
 import 'qr_unique_service.dart';
 import 'supabase_service.dart';
 
@@ -217,15 +218,32 @@ class PaymentService {
         .update({'estado': 'aprobado'})
         .eq('id_pago', idPago);
 
-    return generateEntryQr(idUsuario: idUsuario, idEvento: idEvento);
+    final qr = await generateEntryQr(idUsuario: idUsuario, idEvento: idEvento);
+
+    NotificationService.sendToUser(
+      idUsuario: idUsuario,
+      title: 'Pago aprobado',
+      body: 'Tu comprobante fue aprobado. Tu código QR de acceso está listo.',
+    ).ignore();
+
+    return qr;
   }
 
   /// Rechaza el pago.
-  static Future<void> rejectPago({required int idPago}) async {
+  static Future<void> rejectPago({
+    required int idPago,
+    required int idUsuario,
+  }) async {
     await _client
         .from('pagos')
         .update({'estado': 'rechazado'})
         .eq('id_pago', idPago);
+
+    NotificationService.sendToUser(
+      idUsuario: idUsuario,
+      title: 'Pago rechazado',
+      body: 'Tu comprobante fue rechazado. Puedes subir uno nuevo.',
+    ).ignore();
   }
 
   /// Revierte una aprobación: vuelve el pago a 'pendiente' y cancela la entrada QR.
