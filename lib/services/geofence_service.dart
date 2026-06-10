@@ -5,22 +5,20 @@ import 'package:latlong2/latlong.dart';
 
 enum GeofenceState { adentro, cerca, afuera }
 
-class GeofenceService {
-  // ==========================================
-  // 1. DIBUJAR EL POLÍGONO DEL EVENTO (MACAJÍ)
-  // ==========================================
-  // Coordenadas exactas trazadas manualmente sobre el recinto ferial de Macají
-  final List<LatLng> eventPolygon = [
-    const LatLng(-1.6560055260174005, -78.6749951089342),
-    const LatLng(-1.6557045596366962, -78.6747027427223),
-    const LatLng(-1.6558334608747622, -78.67455431005503),
-    const LatLng(-1.656097063174974, -78.67480476663376),
-    const LatLng(-1.656020981465435, -78.67488988280404),
-    const LatLng(-1.6560586132791175, -78.67493325931392),
-    const LatLng(-1.6560103463875289, -78.67499382274276),
-  ];
+// Polígono por defecto (recinto Macají) usado como fallback si el evento no tiene polígono guardado.
+const List<LatLng> _defaultPolygon = [
+  LatLng(-1.6560055260174005, -78.6749951089342),
+  LatLng(-1.6557045596366962, -78.6747027427223),
+  LatLng(-1.6558334608747622, -78.67455431005503),
+  LatLng(-1.656097063174974, -78.67480476663376),
+  LatLng(-1.656020981465435, -78.67488988280404),
+  LatLng(-1.6560586132791175, -78.67493325931392),
+  LatLng(-1.6560103463875289, -78.67499382274276),
+];
 
-  final LatLng eventCenter = const LatLng(-1.6558909094711447, -78.67475706289616);
+class GeofenceService {
+  final List<LatLng> eventPolygon;
+  final LatLng eventCenter;
   final double radioCerca = 50.0;
 
   StreamSubscription<Position>? _positionStreamSubscription;
@@ -38,10 +36,13 @@ class GeofenceService {
   final Function() onTimerExpired;
 
   GeofenceService({
+    List<LatLng>? polygon,
+    LatLng? center,
     required this.onStateChanged,
     this.onTimerTick,
     required this.onTimerExpired,
-  });
+  })  : eventPolygon = polygon ?? _defaultPolygon,
+        eventCenter = center ?? const LatLng(-1.6558909094711447, -78.67475706289616);
 
   void startMonitoring() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();

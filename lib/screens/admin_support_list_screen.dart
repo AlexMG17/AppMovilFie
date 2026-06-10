@@ -5,9 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../services/support_service.dart';
-import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 import 'support_chat_screen.dart';
 
@@ -55,23 +53,16 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
   }
 
   Future<void> _load() async {
-    final convs = await SupportService.getConversationList();
+    final results = await Future.wait([
+      SupportService.getConversationList(),
+      SupportService.getAdminReadMap(),
+    ]);
     if (!mounted) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final currentUserId = SupabaseService.currentUser?.id ?? '';
-    for (final c in convs) {
-      final key = 'sentry_chat_read_at_${currentUserId}_${c.usuarioId}';
-      final storedTimeStr = prefs.getString(key);
-      if (storedTimeStr != null) {
-        final dt = DateTime.tryParse(storedTimeStr);
-        if (dt != null) {
-          _readAt[c.usuarioId] = dt;
-        }
-      }
-    }
+    final convs = results[0] as List<SupportConversation>;
+    final readMap = results[1] as Map<String, DateTime>;
+    _readAt.addAll(readMap);
 
-    if (!mounted) return;
     setState(() {
       _conversations = convs;
       _loading = false;
@@ -259,15 +250,11 @@ class _AdminSupportListScreenState extends State<AdminSupportListScreen> {
           ],
         ],
       ),
-      onTap: () async {
+      onTap: () {
         setState(() => _readAt[conv.usuarioId] = conv.lastAt);
         widget.onConversationRead?.call(conv.usuarioId, conv.lastAt);
+        SupportService.markConversationRead(conv.usuarioId);
 
-        final currentUserId = SupabaseService.currentUser?.id ?? '';
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('sentry_chat_read_at_${currentUserId}_${conv.usuarioId}', conv.lastAt.toIso8601String());
-
-        if (!mounted) return;
         Navigator.push(
           context,
           MaterialPageRoute(
