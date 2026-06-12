@@ -1,5 +1,6 @@
 ﻿import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
@@ -700,6 +701,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     SizedBox(height: 16.h),
                     _buildBarChartCard(),
                     SizedBox(height: 16.h),
+                    _buildEventMapCard(),
+                    SizedBox(height: 16.h),
                     _buildActivityCard(),
                     SizedBox(height: 16.h),
                     _buildQuickAccess(),
@@ -1174,6 +1177,113 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
 
   // â”€â”€ Acceso rápido â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Mapa del área del evento ──────────────────────────────────────────────────
+  Widget _buildEventMapCard() {
+    final event = _activeEvent;
+    final polygon = event?.polygon;
+    final center = event != null ? LatLng(event.lat, event.lng) : null;
+
+    return _CardWrapper(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.map_rounded, color: _cyan, size: 20.sp),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: Text(
+                  'Área del Evento',
+                  style: _ts(15, fw: FontWeight.w700),
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                decoration: BoxDecoration(
+                  color: polygon != null
+                      ? _green.withValues(alpha: 0.12)
+                      : _yellow.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+                child: Text(
+                  polygon != null ? '${polygon.length} puntos' : 'Sin área',
+                  style: _ts(
+                    10,
+                    color: polygon != null ? _green : _yellow,
+                    fw: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12.h),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12.r),
+            child: SizedBox(
+              height: 190.h,
+              child: center != null && polygon != null
+                  ? FlutterMap(
+                      options: MapOptions(
+                        initialCenter: center,
+                        initialZoom: 16.5,
+                        interactionOptions: const InteractionOptions(
+                          flags: InteractiveFlag.none,
+                        ),
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.fie.sentry_app',
+                        ),
+                        PolygonLayer(
+                          polygons: [
+                            Polygon(
+                              points: polygon,
+                              color: _cyan.withValues(alpha: 0.2),
+                              borderColor: _blue,
+                              borderStrokeWidth: 2.5,
+                            ),
+                          ],
+                        ),
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: center,
+                              child: Icon(
+                                Icons.flag_rounded,
+                                color: _red,
+                                size: 22.sp,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  : Container(
+                      color: _bg,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.draw_rounded, size: 38.sp, color: _grey),
+                          SizedBox(height: 8.h),
+                          Text(
+                            event == null
+                                ? 'No hay evento activo'
+                                : 'Sin área definida.\nEdita el evento para dibujar.',
+                            style: _ts(12, color: _grey),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildQuickAccess() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
