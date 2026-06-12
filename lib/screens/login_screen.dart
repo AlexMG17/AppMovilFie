@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -1283,8 +1284,12 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.g_mobiledata, size: 32, color: Colors.red),
-                const SizedBox(width: 8),
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CustomPaint(painter: _GoogleGPainter()),
+                ),
+                const SizedBox(width: 10),
                 Text(
                   'Continuar con Google',
                   style: TextStyle(
@@ -1478,4 +1483,41 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
+
+class _GoogleGPainter extends CustomPainter {
+  static const _blue   = Color(0xFF4285F4);
+  static const _red    = Color(0xFFEA4335);
+  static const _yellow = Color(0xFFFBBC05);
+  static const _green  = Color(0xFF34A853);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final sw = size.width * 0.15;
+    final c = Offset(size.width / 2, size.height / 2);
+    final r = size.width / 2 - sw / 2;
+    final rect = Rect.fromCircle(center: c, radius: r);
+
+    Paint arc(Color color) => Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = sw
+      ..strokeCap = StrokeCap.butt;
+
+    // Arcos en sentido horario desde las 12 (−π/2)
+    canvas.drawArc(rect, -math.pi / 2,  math.pi / 2, false, arc(_blue));   // azul: 12→3
+    canvas.drawArc(rect, 0,             math.pi / 2, false, arc(_green));  // verde: 3→6
+    canvas.drawArc(rect, math.pi / 2,   math.pi / 2, false, arc(_yellow)); // amarillo: 6→9
+    canvas.drawArc(rect, math.pi,       math.pi / 2, false, arc(_red));    // rojo: 9→12
+
+    // Barra horizontal azul (la barra del "G")
+    final barH = sw * 0.85;
+    canvas.drawRect(
+      Rect.fromLTWH(c.dx, c.dy - barH / 2, r, barH),
+      Paint()..color = _blue..style = PaintingStyle.fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

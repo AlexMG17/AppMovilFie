@@ -466,7 +466,7 @@ class _HomeContentState extends State<_HomeContent> {
       ),
       PolygonLayer(
         polygons: [
-          if (_geofenceService != null)
+          if (_geofenceService != null && _event?.polygon != null)
             Polygon(
               points: _geofenceService!.eventPolygon,
               color: AppColors.sentryCyan.withValues(alpha: 0.2),
