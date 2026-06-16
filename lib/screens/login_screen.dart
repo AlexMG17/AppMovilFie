@@ -24,6 +24,11 @@ class _LoginScreenState extends State<LoginScreen> {
   // Estado para mostrar el círculo de carga
   bool _isLoading = false;
 
+  // Cached widgets for heavy background/logo images to avoid rebuild overhead
+  Widget? _fiestaImage;
+  Widget? _llamaImage;
+  Widget? _logoImage;
+
   // LÓGICA DE NAVEGACIÓN PRINCIPAL
   bool? isStudent;
 
@@ -44,6 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _googleSignInInProgress = false;
 
   final _formKey = GlobalKey<FormState>();
+
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -84,6 +90,42 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 1. Precache heavy images in memory
+    precacheImage(const AssetImage('assets/images/Fiesta_PNG.png'), context);
+    precacheImage(const AssetImage('assets/images/Llama_PNG.png'), context);
+    precacheImage(const AssetImage('assets/images/logo.png'), context);
+
+    // 2. Initialize and cache image widgets with native downscaling
+    if (_fiestaImage == null) {
+      final size = MediaQuery.sizeOf(context);
+      final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+
+      _fiestaImage = Image.asset(
+        'assets/images/Fiesta_PNG.png',
+        fit: BoxFit.cover,
+        alignment: const Alignment(0, 0.90),
+        cacheHeight: (size.height * 0.68 * pixelRatio).round(),
+      );
+
+      _llamaImage = Image.asset(
+        'assets/images/Llama_PNG.png',
+        width: size.width * 0.9,
+        fit: BoxFit.contain,
+        cacheWidth: (size.width * 0.9 * pixelRatio).round(),
+      );
+
+      _logoImage = Image.asset(
+        'assets/images/logo.png',
+        height: 200,
+        fit: BoxFit.contain,
+        cacheHeight: (200 * pixelRatio).round(),
+      );
+    }
   }
 
   @override
@@ -172,7 +214,6 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
-
     _activeToast = overlayEntry;
     overlay.insert(overlayEntry);
 
@@ -189,7 +230,6 @@ class _LoginScreenState extends State<LoginScreen> {
   // =========================================================================
   Future<void> _handleForgotPassword(bool isStudentFlow) async {
     final email = _emailController.text.trim();
-
     if (email.isEmpty) {
       _showTopToast('Por favor, ingresa tu correo primero', isError: true);
       return;
@@ -203,7 +243,6 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _isLoading = true;
     });
-
     try {
       await Supabase.instance.client.auth.resetPasswordForEmail(email);
 
@@ -247,14 +286,12 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _isLoading = true;
     });
-
     try {
       final AuthResponse res = await Supabase.instance.client.auth.verifyOTP(
         type: OtpType.recovery,
         token: otpCode,
         email: email,
       );
-
       if (res.session != null) {
         await Supabase.instance.client.auth.updateUser(
           UserAttributes(password: newPassword),
@@ -326,10 +363,8 @@ class _LoginScreenState extends State<LoginScreen> {
         token: otpCode,
         email: email,
       );
-
       if (res.session != null && mounted) {
         _showTopToast('¡Cuenta verificada exitosamente!');
-
         final role = await GuardService.getCurrentUserRole();
         if (!mounted) return;
 
@@ -363,21 +398,17 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _isLoading = true;
     });
-
     try {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
       final nombre = _nameController.text.trim();
-
       final int idRol = isStudentFlow ? 1 : 2;
 
       if (isLoginFlow) {
         // ------------------ INICIAR SESIÓN ------------------
         await SupabaseService.signInWithEmail(email: email, password: password);
-
         if (mounted) {
           _showTopToast('¡Inicio de sesión exitoso!');
-
           // Check if this is an imported student who must change their password
           final mustChange =
               Supabase
@@ -394,7 +425,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
           final role = await GuardService.getCurrentUserRole();
           if (!mounted) return;
-
           switch (role) {
             case 'validador':
               Navigator.pushReplacementNamed(context, '/guard');
@@ -413,7 +443,6 @@ class _LoginScreenState extends State<LoginScreen> {
           nombre: nombre,
           idRol: idRol,
         );
-
         if (mounted) {
           _showTopToast(
             '¡Cuenta pre-creada! Hemos enviado un código a tu correo.',
@@ -454,7 +483,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleGoogleSignIn() async {
     try {
       setState(() => _googleSignInInProgress = true);
-
       const googleClientId = String.fromEnvironment(
         'GOOGLE_CLIENT_ID',
         defaultValue:
@@ -470,7 +498,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final auth = await account.authentication;
       final idToken = auth.idToken;
-
       if (idToken == null) {
         setState(() => _googleSignInInProgress = false);
         if (mounted) {
@@ -514,14 +541,7 @@ class _LoginScreenState extends State<LoginScreen> {
             left: 0,
             right: 0,
             height: size.height * 0.68, // Mantén el alto que ya tenías
-            child: Image.asset(
-              'assets/images/Fiesta_PNG.png',
-              fit: BoxFit.cover,
-              alignment: const Alignment(
-                0,
-                0.90,
-              ), // <--- Ajusta este valor entre 0.0 y 1.0
-            ),
+            child: _fiestaImage ?? const SizedBox.shrink(),
           ),
 
           // =========================================================
@@ -563,13 +583,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: IgnorePointer(
                 child: Opacity(
                   opacity: 0.45,
-                  child: Image.asset(
-                    'assets/images/Llama_PNG.png',
-                    width:
-                        size.width *
-                        0.9, // Se mantiene exactamente el tamaño original
-                    fit: BoxFit.contain,
-                  ),
+                  child: _llamaImage ?? const SizedBox.shrink(),
                 ),
               ),
             ),
@@ -585,52 +599,80 @@ class _LoginScreenState extends State<LoginScreen> {
                 // ÁREA DEL LOGO SENTRY (Limpio, sin sombras, centrado)
                 SizedBox(
                   height:
-                      size.height * 0.36 -
-                      paddingTop, // Exactamente sobre la tarjeta blanca
-                  child: Center(
-                    child: Image.asset(
-                      'assets/images/logo.png',
-                      height: 200, //120 Tamaño fijo equilibrado
-                      fit: BoxFit.contain,
-                    ),
-                  ),
+                      size.height * 0.38 -
+                      paddingTop, // <--- Ajustado a 0.38 para alinear con el fondo blanco
+                  child: Center(child: _logoImage ?? const SizedBox.shrink()),
                 ),
 
                 // ÁREA DEL FORMULARIO (Se desplaza sobre el fondo blanco)
                 Expanded(
-                  child: Builder(
-                    builder: (context) {
-                      final bottomInset = MediaQuery.viewInsetsOf(
-                        context,
-                      ).bottom;
-                      return SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: EdgeInsets.only(
-                          top: 50.0, //36.0
-                          left: 24.0,
-                          right: 24.0,
-                          // Permite desplazar el contenido hacia arriba cuando sale el teclado
-                          bottom: bottomInset + 40,
-                        ),
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 400),
-                          switchInCurve: Curves.easeOutQuart,
-                          switchOutCurve: Curves.easeInQuart,
-                          child: isStudent == null
-                              ? _buildInitialQuestion()
-                              : (_isResetPasswordFlow
-                                    ? _buildResetPasswordForm()
-                                    : (_isVerificationFlow
-                                          ? _buildVerificationForm()
-                                          : (isStudent == true
-                                                ? _buildStudentLogin()
-                                                : _buildNormalLogin()))),
-                        ),
-                      );
-                    },
+                  child: ClipRRect(
+                    // <--- AÑADIDO: ClipRRect para cortar el texto en las curvas
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(40),
+                      topRight: Radius.circular(40),
+                    ),
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.only(
+                        top: 50.0, //36.0
+                        left: 24.0,
+                        right: 24.0,
+                        bottom: 40,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 400),
+                            switchInCurve: Curves.easeOutQuart,
+                            switchOutCurve: Curves.easeInQuart,
+                            child: isStudent == null
+                                ? _buildInitialQuestion()
+                                : (_isResetPasswordFlow
+                                      ? _buildResetPasswordForm()
+                                      : (_isVerificationFlow
+                                            ? _buildVerificationForm()
+                                            : (isStudent == true
+                                                  ? _buildStudentLogin()
+                                                  : _buildNormalLogin()))),
+                          ),
+                          Builder(
+                            builder: (context) {
+                              final bottomInset = MediaQuery.viewInsetsOf(
+                                context,
+                              ).bottom;
+                              return SizedBox(height: bottomInset);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
+            ),
+          ),
+
+          // =========================================================
+          // 5. VERSIÓN DE LA APP (Fija en la parte inferior)
+          // =========================================================
+          Positioned(
+            bottom: 16, // Separación del borde inferior
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Center(
+                child: Text(
+                  'v1.1.0',
+                  style: TextStyle(
+                    color: AppColors.sentryGrey.withAlpha(150), // Color sutil
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -735,7 +777,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           SizedBox(height: 20.h),
           Text(
-            'Revisa tu correo electrónico. Te enviamos un código de recuperación.',
+            'Revisa tu correo electrónico.\nTe enviamos un código de recuperación.',
             style: TextStyle(
               color: AppColors.sentryGrey,
               fontSize: 14.sp,
@@ -1486,10 +1528,10 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 class _GoogleGPainter extends CustomPainter {
-  static const _blue   = Color(0xFF4285F4);
-  static const _red    = Color(0xFFEA4335);
+  static const _blue = Color(0xFF4285F4);
+  static const _red = Color(0xFFEA4335);
   static const _yellow = Color(0xFFFBBC05);
-  static const _green  = Color(0xFF34A853);
+  static const _green = Color(0xFF34A853);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1505,16 +1547,30 @@ class _GoogleGPainter extends CustomPainter {
       ..strokeCap = StrokeCap.butt;
 
     // Arcos en sentido horario desde las 12 (−π/2)
-    canvas.drawArc(rect, -math.pi / 2,  math.pi / 2, false, arc(_blue));   // azul: 12→3
-    canvas.drawArc(rect, 0,             math.pi / 2, false, arc(_green));  // verde: 3→6
-    canvas.drawArc(rect, math.pi / 2,   math.pi / 2, false, arc(_yellow)); // amarillo: 6→9
-    canvas.drawArc(rect, math.pi,       math.pi / 2, false, arc(_red));    // rojo: 9→12
+    canvas.drawArc(
+      rect,
+      -math.pi / 2,
+      math.pi / 2,
+      false,
+      arc(_blue),
+    ); // azul: 12→3
+    canvas.drawArc(rect, 0, math.pi / 2, false, arc(_green)); // verde: 3→6
+    canvas.drawArc(
+      rect,
+      math.pi / 2,
+      math.pi / 2,
+      false,
+      arc(_yellow),
+    ); // amarillo: 6→9
+    canvas.drawArc(rect, math.pi, math.pi / 2, false, arc(_red)); // rojo: 9→12
 
     // Barra horizontal azul (la barra del "G")
     final barH = sw * 0.85;
     canvas.drawRect(
       Rect.fromLTWH(c.dx, c.dy - barH / 2, r, barH),
-      Paint()..color = _blue..style = PaintingStyle.fill,
+      Paint()
+        ..color = _blue
+        ..style = PaintingStyle.fill,
     );
   }
 
