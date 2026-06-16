@@ -7,13 +7,17 @@ enum GeofenceState { adentro, cerca, afuera }
 
 // Polígono por defecto (recinto Macají) usado como fallback si el evento no tiene polígono guardado.
 const List<LatLng> _defaultPolygon = [
-  LatLng(-1.6560055260174005, -78.6749951089342),
-  LatLng(-1.6557045596366962, -78.6747027427223),
-  LatLng(-1.6558334608747622, -78.67455431005503),
-  LatLng(-1.656097063174974, -78.67480476663376),
-  LatLng(-1.656020981465435, -78.67488988280404),
-  LatLng(-1.6560586132791175, -78.67493325931392),
-  LatLng(-1.6560103463875289, -78.67499382274276),
+  LatLng(-1.656042725316968, -78.67500315531241),
+  LatLng(-1.6559033087010442, -78.67489854917075),
+  LatLng(-1.6558832005344732, -78.67492671236273),
+  LatLng(-1.6558282382114882, -78.67487709150068),
+  LatLng(-1.6558456652896698, -78.67485295162182),
+  LatLng(-1.655694183758768, -78.67470543014),
+  LatLng(-1.6558322598449244, -78.67454852092752),
+  LatLng(-1.6561231579755422, -78.67481271849041),
+  LatLng(-1.6560601523932668, -78.67489989027513),
+  LatLng(-1.6561030498111975, -78.67494548782406),
+  LatLng(-1.656042725316968, -78.67500315531241),
 ];
 
 class GeofenceService {
@@ -41,8 +45,9 @@ class GeofenceService {
     required this.onStateChanged,
     this.onTimerTick,
     required this.onTimerExpired,
-  })  : eventPolygon = polygon ?? _defaultPolygon,
-        eventCenter = center ?? const LatLng(-1.6558909094711447, -78.67475706289616);
+  }) : eventPolygon = polygon ?? _defaultPolygon,
+       eventCenter =
+           center ?? const LatLng(-1.6558885627122442, -78.67476846204586);
 
   void startMonitoring() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
