@@ -252,6 +252,17 @@ class _HomeContentState extends State<_HomeContent> {
 
   final _mapController = MapController();
 
+  // Caché de widgets para optimizar reconstrucciones (setState)
+  Widget? _cachedEventCard;
+  Widget? _cachedCountdownSection;
+  Widget? _cachedAforoCard;
+  Widget? _cachedQuickActions;
+
+  // Caché de capas estáticas del mapa para evitar re-creación en cada GPS update
+  List<Polygon<Object>>? _cachedPolygons;
+  List<CircleMarker<Object>>? _cachedCircles;
+  Marker? _cachedCenterMarker;
+
   @override
   void initState() {
     super.initState();
@@ -274,56 +285,103 @@ class _HomeContentState extends State<_HomeContent> {
       polygon: polygon,
       onStateChanged: (estado, distancia, ubicacion) async {
         if (!mounted) return;
+
+        // Actualizar UI solo si algo cambió significativamente
         final moved =
             _distanceMeters == null || (distancia - _distanceMeters!).abs() > 3;
         final stateChanged = estado != _geoState;
-        if (!stateChanged && !moved) return;
-
-        setState(() {
-          _geoState = estado;
-          _distanceMeters = distancia;
-          _userLocation = ubicacion;
-        });
-
-        // ========================================================
-        // MAGIA DEL GEOFENCING:
-        // Si sale de la zona, forzamos que su QR vuelva a ser 'activo'
-        // en la base de datos para obligar al guardia a escanearlo de nuevo.
-        // ========================================================
-        if (estado == GeofenceState.afuera && _qrValidado) {
+        if (stateChanged || moved) {
           setState(() {
-            _qrValidado = false; // Bloqueo local instantáneo
+            _geoState = estado;
+            _distanceMeters = distancia;
+            _userLocation = ubicacion;
           });
+        }
 
-          if (_idEntrada != null) {
-            try {
-              await SupabaseService.client
-                  .from('entradas')
-                  .update({'estado': 'activo'}) // Reactivación en Base de Datos
-                  .eq('id_entrada', _idEntrada!);
-            } catch (e) {
-              debugPrint("Error forzando QR a activo: $e");
-            }
-          }
+        // SIEMPRE comprobar si hay que resetear el QR, independientemente
+        // de si la posición o el estado cambiaron.
+        // Esto corrige la condición de carrera donde el geofence disparó
+        // antes de que la entrada estuviera cargada.
+        if (estado != GeofenceState.adentro && _qrValidado) {
+          await _resetearQrSiEstaFuera();
         }
       },
       onTimerExpired: () async {
         if (!mounted) return;
         if (_idEntrada != null) {
           await QrUniqueService.registrarSalida(_idEntrada!);
-          // Por seguridad extrema, lo aseguramos nuevamente si el timer expira
           try {
             await SupabaseService.client
                 .from('entradas')
-                .update({'estado': 'activo'})
+                .update({
+                  'estado': 'activo',
+                  'dentro_evento': false,
+                })
                 .eq('id_entrada', _idEntrada!);
           } catch (_) {}
+          if (mounted) {
+            setState(() {
+              _qrValidado = false;
+            });
+          }
         }
       },
     );
 
+    // Inicializar capas estáticas del mapa para evitar re-creación en cada GPS update
+    if (polygon != null) {
+      _cachedPolygons = [
+        Polygon<Object>(
+          points: polygon,
+          color: AppColors.sentryCyan.withValues(alpha: 0.2),
+          borderColor: AppColors.sentryBlue,
+          borderStrokeWidth: 2.5,
+        ),
+      ];
+    } else {
+      _cachedPolygons = [
+        Polygon<Object>(
+          points: _geofenceService!.eventPolygon,
+          color: AppColors.sentryCyan.withValues(alpha: 0.2),
+          borderColor: AppColors.sentryBlue,
+          borderStrokeWidth: 2.5,
+        ),
+      ];
+    }
+
+    _cachedCircles = [
+      CircleMarker<Object>(
+        point: _geofenceService!.eventCenter,
+        radius: _geofenceService!.radioCerca,
+        useRadiusInMeter: true,
+        color: Colors.orange.withValues(alpha: 0.05),
+        borderColor: Colors.orange.withValues(alpha: 0.5),
+        borderStrokeWidth: 1,
+      )
+    ];
+
+    _cachedCenterMarker = Marker(
+      point: _geofenceService!.eventCenter,
+      child: const Icon(Icons.flag, color: AppColors.error, size: 24),
+    );
+
     _geofenceService!.startMonitoring();
     _geofenceService!.forceUpdate();
+  }
+
+  /// Resetea el QR en la BD y localmente.
+  /// Idempotente: solo actúa si _qrValidado es true.
+  Future<void> _resetearQrSiEstaFuera() async {
+    if (!_qrValidado || _idEntrada == null) return;
+    setState(() => _qrValidado = false);
+    try {
+      await SupabaseService.client
+          .from('entradas')
+          .update({'estado': 'activo', 'dentro_evento': false})
+          .eq('id_entrada', _idEntrada!);
+    } catch (e) {
+      debugPrint('_resetearQrSiEstaFuera error: $e');
+    }
   }
 
   Future<void> _forzarActualizacionGPS() async {
@@ -344,10 +402,15 @@ class _HomeContentState extends State<_HomeContent> {
           schema: 'public',
           table: 'eventos',
           callback: (_) {
-            if (mounted) _loadEvent();
+            if (mounted) {
+              // Limpiar caché para forzar fetch fresco con el nuevo polígono
+              EventService.clearEventCache();
+              _loadEvent();
+            }
           },
         )
         .subscribe();
+
   }
 
   void _subscribeToEntrada(int idEntrada) {
@@ -382,12 +445,14 @@ class _HomeContentState extends State<_HomeContent> {
     if (!mounted) return;
 
     if (event != null) {
-      if (_geofenceService == null) {
-        _iniciarGeocercaAutomatica(
-          LatLng(event.lat, event.lng),
-          polygon: event.polygon,
-        );
-      }
+      // Siempre recramos el servicio de geocerca para recoger
+      // cualquier cambio de coordenadas/polígono actualizado en Supabase.
+      _geofenceService?.dispose();
+      _geofenceService = null;
+      _iniciarGeocercaAutomatica(
+        LatLng(event.lat, event.lng),
+        polygon: event.polygon,
+      );
 
       final uidFuture = EventService.getCurrentUserId();
       final results = await Future.wait([
@@ -428,12 +493,28 @@ class _HomeContentState extends State<_HomeContent> {
           _qrValidado = estado.toLowerCase() == 'usado';
         }
 
+        // Generar widgets cacheados
+        _cachedEventCard = _buildMainEventCard();
+        _cachedCountdownSection = CountdownSection(eventDate: _event?.fecha);
+        _cachedAforoCard = _buildAforoCard();
+        _cachedQuickActions = _buildQuickActions();
+
         _loading = false;
       });
 
       // Si tenemos entrada, escuchamos en tiempo real si el guardia nos aprueba
       if (_idEntrada != null) {
         _subscribeToEntrada(_idEntrada!);
+
+        // FIX condición de carrera: el geofence pudo haber disparado antes de
+        // que la entrada estuviera cargada. Si el usuario ya está fuera del
+        // polígono, resetear el QR ahora mismo sin esperar otro update de GPS.
+        if (_qrValidado && _geoState != GeofenceState.adentro) {
+          await _resetearQrSiEstaFuera();
+        } else if (_qrValidado) {
+          // Forzar re-lectura del GPS para confirmar si está adentro o afuera
+          await _geofenceService?.forceUpdate();
+        }
       }
     } else {
       setState(() => _loading = false);
@@ -498,36 +579,14 @@ class _HomeContentState extends State<_HomeContent> {
         userAgentPackageName: 'com.fie.sentry_app',
       ),
       PolygonLayer(
-        polygons: [
-          if (_geofenceService != null && _event?.polygon != null)
-            Polygon(
-              points: _geofenceService!.eventPolygon,
-              color: AppColors.sentryCyan.withValues(alpha: 0.2),
-              borderColor: AppColors.sentryBlue,
-              borderStrokeWidth: 2.5,
-            ),
-        ],
+        polygons: _cachedPolygons ?? <Polygon<Object>>[],
       ),
       CircleLayer(
-        circles: [
-          if (_geofenceService != null)
-            CircleMarker(
-              point: _geofenceService!.eventCenter,
-              radius: _geofenceService!.radioCerca,
-              useRadiusInMeter: true,
-              color: Colors.orange.withValues(alpha: 0.05),
-              borderColor: Colors.orange.withValues(alpha: 0.5),
-              borderStrokeWidth: 1,
-            ),
-        ],
+        circles: _cachedCircles ?? <CircleMarker<Object>>[],
       ),
       MarkerLayer(
         markers: [
-          if (_geofenceService != null)
-            Marker(
-              point: _geofenceService!.eventCenter,
-              child: const Icon(Icons.flag, color: AppColors.error, size: 24),
-            ),
+          ?_cachedCenterMarker,
           if (_userLocation != null)
             Marker(
               point: _userLocation!,
@@ -575,15 +634,15 @@ class _HomeContentState extends State<_HomeContent> {
         padding: EdgeInsets.all(20.r),
         child: Column(
           children: [
-            _buildMainEventCard(),
+            _cachedEventCard ?? _buildMainEventCard(),
             SizedBox(height: 25.h),
-            CountdownSection(eventDate: _event?.fecha),
+            _cachedCountdownSection ?? CountdownSection(eventDate: _event?.fecha),
             SizedBox(height: 25.h),
-            _buildAforoCard(),
+            _cachedAforoCard ?? _buildAforoCard(),
             SizedBox(height: 25.h),
             _buildGeofenceCard(),
             SizedBox(height: 25.h),
-            _buildQuickActions(),
+            _cachedQuickActions ?? _buildQuickActions(),
             SizedBox(height: 100.h),
           ],
         ),

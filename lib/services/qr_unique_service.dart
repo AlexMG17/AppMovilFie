@@ -85,12 +85,15 @@ class QrUniqueService {
     return codigoQR;
   }
 
-  /// Registra la salida del usuario del evento: resetea dentro_evento a false.
+  /// Registra la salida del usuario del evento: resetea dentro_evento a false y estado a activo.
   /// Llamado por el geofencing cuando el timer de salida expira.
   static Future<void> registrarSalida(int idEntrada) async {
     await _client
         .from('entradas')
-        .update({'dentro_evento': false})
+        .update({
+          'dentro_evento': false,
+          'estado': 'activo',
+        })
         .eq('id_entrada', idEntrada);
   }
 

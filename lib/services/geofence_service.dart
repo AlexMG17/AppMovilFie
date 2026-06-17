@@ -117,12 +117,13 @@ class GeofenceService {
     if (isInsidePolygon) {
       _cancelarTimer();
       onStateChanged(GeofenceState.adentro, distanceInMeters, userLoc);
-    } else if (distanceInMeters <= radioCerca) {
-      _cancelarTimer();
-      onStateChanged(GeofenceState.cerca, distanceInMeters, userLoc);
     } else {
-      onStateChanged(GeofenceState.afuera, distanceInMeters, userLoc);
       _iniciarTimerDeSalida();
+      if (distanceInMeters <= radioCerca) {
+        onStateChanged(GeofenceState.cerca, distanceInMeters, userLoc);
+      } else {
+        onStateChanged(GeofenceState.afuera, distanceInMeters, userLoc);
+      }
     }
   }
 
