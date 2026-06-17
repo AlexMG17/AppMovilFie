@@ -34,6 +34,14 @@ class _EpicTextFieldState extends State<EpicTextField> {
   }
 
   @override
+  void didUpdateWidget(covariant EpicTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPassword != oldWidget.isPassword) {
+      _obscureText = widget.isPassword;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
