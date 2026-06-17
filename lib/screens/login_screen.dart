@@ -787,6 +787,7 @@ class _LoginScreenState extends State<LoginScreen> {
           SizedBox(height: 30.h),
 
           EpicTextField(
+            key: const ValueKey("reset_otp_field"),
             controller: _otpController,
             label: 'Código de recuperación',
             hint: 'Ej: 123456',
@@ -799,6 +800,7 @@ class _LoginScreenState extends State<LoginScreen> {
           SizedBox(height: 20.h),
 
           EpicTextField(
+            key: const ValueKey("reset_new_password_field"),
             controller: _newPasswordController,
             label: 'Tu nueva contraseña',
             hint: '••••••••',
@@ -886,6 +888,7 @@ class _LoginScreenState extends State<LoginScreen> {
           SizedBox(height: 30.h),
 
           EpicTextField(
+            key: const ValueKey("verify_otp_field"),
             controller: _otpController,
             label: 'Código de validación',
             hint: 'Ej: 123456',
@@ -970,6 +973,7 @@ class _LoginScreenState extends State<LoginScreen> {
           // Campo de Nombre (Solo visible en Registro)
           if (!_isStudentLogin) ...[
             EpicTextField(
+              key: const ValueKey("student_name_field"),
               controller: _nameController,
               label: 'Nombre Completo',
               hint: 'Ej. Juan Pérez',
@@ -985,6 +989,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
 
           EpicTextField(
+            key: const ValueKey("student_email_field"),
             controller: _emailController,
             label: 'Correo Institucional',
             hint: 'ejemplo@espoch.edu.ec',
@@ -1002,6 +1007,7 @@ class _LoginScreenState extends State<LoginScreen> {
           SizedBox(height: 20.h),
 
           EpicTextField(
+            key: const ValueKey("student_password_field"),
             controller: _passwordController,
             label: 'Contraseña',
             hint: '••••••••',
@@ -1034,6 +1040,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (!_isStudentLogin) ...[
             SizedBox(height: 20.h),
             EpicTextField(
+              key: const ValueKey("student_confirm_password_field"),
               controller: _confirmPasswordController,
               label: 'Confirmar Contraseña',
               hint: '••••••••',
@@ -1170,6 +1177,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
           if (!_isExternalLogin) ...[
             EpicTextField(
+              key: const ValueKey("normal_name_field"),
               controller: _nameController,
               label: 'Nombre Completo',
               hint: 'Ej. María Gómez',
@@ -1183,6 +1191,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
 
           EpicTextField(
+            key: const ValueKey("normal_email_field"),
             controller: _emailController,
             label: 'Correo electrónico',
             hint: 'ejemplo@correo.com',
@@ -1195,6 +1204,7 @@ class _LoginScreenState extends State<LoginScreen> {
           SizedBox(height: 20.h),
 
           EpicTextField(
+            key: const ValueKey("normal_password_field"),
             controller: _passwordController,
             label: 'Contraseña',
             hint: '••••••••',
@@ -1226,6 +1236,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (!_isExternalLogin) ...[
             SizedBox(height: 20.h),
             EpicTextField(
+              key: const ValueKey("normal_confirm_password_field"),
               controller: _confirmPasswordController,
               label: 'Confirmar Contraseña',
               hint: '••••••••',
