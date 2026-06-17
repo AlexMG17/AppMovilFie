@@ -160,9 +160,15 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _selectedIndex,
         children: [
           _HomeContent(onActionTap: _onItemTapped),
-          _visitedTabs.contains(1) ? const UploadPaymentScreen()  : const SizedBox.shrink(),
-          _visitedTabs.contains(2) ? const PaymentStatusScreen()  : const SizedBox.shrink(),
-          _visitedTabs.contains(3) ? const MyQrScreen()           : const SizedBox.shrink(),
+          _visitedTabs.contains(1)
+              ? const UploadPaymentScreen()
+              : const SizedBox.shrink(),
+          _visitedTabs.contains(2)
+              ? const PaymentStatusScreen()
+              : const SizedBox.shrink(),
+          _visitedTabs.contains(3)
+              ? const MyQrScreen()
+              : const SizedBox.shrink(),
         ],
       ),
       bottomNavigationBar: _buildFloatingBottomBar(),
@@ -266,25 +272,52 @@ class _HomeContentState extends State<_HomeContent> {
     _geofenceService = GeofenceService(
       center: center,
       polygon: polygon,
-      onStateChanged: (estado, distancia, ubicacion) {
+      onStateChanged: (estado, distancia, ubicacion) async {
         if (!mounted) return;
-        final moved = _distanceMeters == null ||
-            (distancia - _distanceMeters!).abs() > 3;
+        final moved =
+            _distanceMeters == null || (distancia - _distanceMeters!).abs() > 3;
         final stateChanged = estado != _geoState;
         if (!stateChanged && !moved) return;
+
         setState(() {
           _geoState = estado;
           _distanceMeters = distancia;
           _userLocation = ubicacion;
-          if (estado == GeofenceState.afuera && _qrValidado) {
-            _qrValidado = false;
-          }
         });
+
+        // ========================================================
+        // MAGIA DEL GEOFENCING:
+        // Si sale de la zona, forzamos que su QR vuelva a ser 'activo'
+        // en la base de datos para obligar al guardia a escanearlo de nuevo.
+        // ========================================================
+        if (estado == GeofenceState.afuera && _qrValidado) {
+          setState(() {
+            _qrValidado = false; // Bloqueo local instantáneo
+          });
+
+          if (_idEntrada != null) {
+            try {
+              await SupabaseService.client
+                  .from('entradas')
+                  .update({'estado': 'activo'}) // Reactivación en Base de Datos
+                  .eq('id_entrada', _idEntrada!);
+            } catch (e) {
+              debugPrint("Error forzando QR a activo: $e");
+            }
+          }
+        }
       },
-      onTimerExpired: () {
+      onTimerExpired: () async {
         if (!mounted) return;
         if (_idEntrada != null) {
-          QrUniqueService.registrarSalida(_idEntrada!);
+          await QrUniqueService.registrarSalida(_idEntrada!);
+          // Por seguridad extrema, lo aseguramos nuevamente si el timer expira
+          try {
+            await SupabaseService.client
+                .from('entradas')
+                .update({'estado': 'activo'})
+                .eq('id_entrada', _idEntrada!);
+          } catch (_) {}
         }
       },
     );
