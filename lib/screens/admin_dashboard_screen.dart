@@ -71,6 +71,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   int rechazados = 0;
   int ingresaron = 0;
   int qrGenerados = 0;
+  double totalRecaudado = 0;
   String _eventName = 'Gala FIE';
   String _userName = '';
   EventModel? _activeEvent;
@@ -148,7 +149,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       ]);
 
       if (!mounted) return;
-      final stats = results[0] as Map<String, int>;
+      final stats = results[0] as Map<String, dynamic>;
       final cap = results[1] as int;
       final logs = results[2] as List;
       final scansForChart = results[3] as List;
@@ -250,12 +251,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _activeEvent = event;
         _eventName = event.nombre;
         totalCapacidad = cap > 0 ? cap : 350;
-        totalRegistrados = stats['total_usuarios'] ?? 0;
-        pendientes = stats['pendientes'] ?? 0;
-        aprobados = stats['aprobados'] ?? 0;
-        rechazados = stats['rechazados'] ?? 0;
-        ingresaron = stats['ingresaron'] ?? 0;
-        qrGenerados = stats['qr_generados'] ?? 0;
+        totalRegistrados = (stats['total_usuarios'] as int?) ?? 0;
+        pendientes = (stats['pendientes'] as int?) ?? 0;
+        aprobados = (stats['aprobados'] as int?) ?? 0;
+        rechazados = (stats['rechazados'] as int?) ?? 0;
+        ingresaron = (stats['ingresaron'] as int?) ?? 0;
+        qrGenerados = (stats['qr_generados'] as int?) ?? 0;
+        totalRecaudado = (stats['total_recaudado'] as double?) ?? 0;
         _activities = activities;
 
         _lineLabels = lineLabelsTemp;
@@ -535,6 +537,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     ['Ingresaron', '$ingresaron', 'Entradas al evento']),
                 _pdfDataRow(
                     ['QR Generados', '$qrGenerados', 'C\u00f3digos activos']),
+                _pdfDataRow([
+                  'Total Recaudado',
+                  '\$${totalRecaudado.toStringAsFixed(2)}',
+                  'Suma de pagos aprobados',
+                ]),
               ],
             ),
             pw.SizedBox(height: 20),
@@ -934,6 +941,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         '$qrGenerados',
         'QR Generados',
         'Códigos activos',
+      ),
+      _MetricData(
+        Icons.attach_money_rounded,
+        const Color(0xFF2E7D32),
+        '\$${totalRecaudado.toStringAsFixed(2)}',
+        'Recaudado',
+        'Pagos aprobados',
       ),
     ];
 

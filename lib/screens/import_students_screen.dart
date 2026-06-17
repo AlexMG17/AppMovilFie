@@ -26,6 +26,71 @@ const _kNavy   = AppColors.sentryNavy;
 
 const _kRequiredCols = ['nombre', 'correo_electronico', 'carrera'];
 
+/// Maps common header variations to their canonical column name.
+const _kHeaderAliases = <String, String>{
+  // nombre
+  'nombre': 'nombre',
+  'nombre completo': 'nombre',
+  'nombres': 'nombre',
+  'name': 'nombre',
+  'full name': 'nombre',
+  // correo_electronico
+  'correo_electronico': 'correo_electronico',
+  'correo_electrónico': 'correo_electronico',
+  'correo electronico': 'correo_electronico',
+  'correo electrónico': 'correo_electronico',
+  'email': 'correo_electronico',
+  'correo': 'correo_electronico',
+  'e-mail': 'correo_electronico',
+  'mail': 'correo_electronico',
+  // carrera
+  'carrera': 'carrera',
+  'carrera universitaria': 'carrera',
+  'programa': 'carrera',
+  'major': 'carrera',
+  // cedula
+  'cedula': 'cedula',
+  'cédula': 'cedula',
+  'cedula de identidad': 'cedula',
+  'cédula de identidad': 'cedula',
+  'ci': 'cedula',
+  'dni': 'cedula',
+  'id': 'cedula',
+  // monto
+  'monto': 'monto',
+  'monto pagado': 'monto',
+  'valor': 'monto',
+  'precio': 'monto',
+  'amount': 'monto',
+  'costo': 'monto',
+};
+
+String _normalizeHeader(String raw) {
+  final lower = raw
+      .toLowerCase()
+      .trim()
+      .replaceAll('*', '')   // "nombre *" → "nombre "
+      .trim()
+      .replaceAll('á', 'a')
+      .replaceAll('é', 'e')
+      .replaceAll('í', 'i')
+      .replaceAll('ó', 'o')
+      .replaceAll('ú', 'u')
+      .replaceAll('ü', 'u')
+      .replaceAll('ñ', 'n');
+  return _kHeaderAliases[lower] ?? lower;
+}
+
+/// Scans the first [maxRows] rows to find the one that contains
+/// all required columns. Returns -1 if not found.
+int _findHeaderRow(List<List<String>> rowsNormalized, {int maxRows = 6}) {
+  for (int i = 0; i < rowsNormalized.length && i < maxRows; i++) {
+    final cols = rowsNormalized[i].toSet();
+    if (_kRequiredCols.every((c) => cols.contains(c))) return i;
+  }
+  return -1;
+}
+
 const _kCarreras = [
   // ── FIE (primordiales) ──────────────────────────────────────────────────
   'Diseño Gráfico',
@@ -71,12 +136,14 @@ class ImportedStudent {
   final String nombre;
   final String correoElectronico;
   final String carrera;
-  final String cedula; // opcional
+  final String cedula;
+  final double? monto;
   const ImportedStudent({
     required this.nombre,
     required this.correoElectronico,
     required this.carrera,
     this.cedula = '',
+    this.monto,
   });
 }
 
@@ -295,24 +362,22 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
 
     if (lines.isEmpty) throw Exception('Archivo vacío');
 
-    final firstLine = lines[0];
-    final delimiter = firstLine.contains(';') ? ';' : ',';
+    final delimiter = lines[0].contains(';') ? ';' : ',';
 
-    final headers = firstLine
-        .split(delimiter)
-        .map((h) => h.trim().toLowerCase().replaceAll('"', ''))
+    final allRows = lines
+        .map((l) => l.split(delimiter).map((v) => v.trim().replaceAll('"', '')).toList())
         .toList();
 
-    _validateHeaders(headers);
+    final normalizedRows = allRows.map((r) => r.map(_normalizeHeader).toList()).toList();
+    final headerIdx = _findHeaderRow(normalizedRows);
+    if (headerIdx == -1) throw Exception('Columnas faltantes: ${_kRequiredCols.join(', ')}');
+
+    final headers = normalizedRows[headerIdx];
 
     final result = <ImportedStudent>[];
-    for (int i = 1; i < lines.length; i++) {
-      final values = lines[i]
-          .split(delimiter)
-          .map((v) => v.trim().replaceAll('"', ''))
-          .toList();
-
-      if (values.length < 3) continue;
+    for (int i = headerIdx + 1; i < allRows.length; i++) {
+      final values = allRows[i];
+      if (values.every((v) => v.isEmpty)) continue;
 
       final row = <String, String>{};
       for (int j = 0; j < headers.length && j < values.length; j++) {
@@ -323,6 +388,8 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       final email = row['correo_electronico'] ?? '';
       final carrera = row['carrera'] ?? '';
       final cedula = row['cedula'] ?? '';
+      final montoRaw = row['monto'] ?? '';
+      final monto = montoRaw.isNotEmpty ? double.tryParse(montoRaw.replaceAll(',', '.')) : null;
 
       if (nombre.isEmpty || email.isEmpty) continue;
 
@@ -331,6 +398,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
         correoElectronico: email,
         carrera: carrera,
         cedula: cedula,
+        monto: monto,
       ));
     }
     return result;
@@ -346,20 +414,20 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     final rows = sheet.rows;
     if (rows.isEmpty) throw Exception('Archivo vacío');
 
-    final headers = rows[0]
-        .map((c) => c?.value?.toString().trim().toLowerCase() ?? '')
+    // Convert all rows to normalized string lists to find the header row
+    final normalizedRows = rows
+        .map((r) => r.map((c) => _normalizeHeader(c?.value?.toString() ?? '')).toList())
         .toList();
 
-    _validateHeaders(headers);
+    final headerIdx = _findHeaderRow(normalizedRows);
+    if (headerIdx == -1) throw Exception('Columnas faltantes: ${_kRequiredCols.join(', ')}');
+
+    final headers = normalizedRows[headerIdx];
 
     final result = <ImportedStudent>[];
-    for (int i = 1; i < rows.length; i++) {
+    for (int i = headerIdx + 1; i < rows.length; i++) {
       final row = rows[i];
-      if (row.every(
-        (c) => c?.value == null || c!.value.toString().trim().isEmpty,
-      )) {
-        continue;
-      }
+      if (row.every((c) => c?.value == null || c!.value.toString().trim().isEmpty)) continue;
 
       final data = <String, String>{};
       for (int j = 0; j < headers.length && j < row.length; j++) {
@@ -370,6 +438,8 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
       final email = data['correo_electronico'] ?? '';
       final carrera = data['carrera'] ?? '';
       final cedula = data['cedula'] ?? '';
+      final montoRaw = data['monto'] ?? '';
+      final monto = montoRaw.isNotEmpty ? double.tryParse(montoRaw.replaceAll(',', '.')) : null;
 
       if (nombre.isEmpty || email.isEmpty) continue;
 
@@ -378,17 +448,10 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
         correoElectronico: email,
         carrera: carrera,
         cedula: cedula,
+        monto: monto,
       ));
     }
     return result;
-  }
-
-  // ── Validar columnas requeridas ───────────────────────────────────────────
-  void _validateHeaders(List<String> headers) {
-    final missing = _kRequiredCols.where((c) => !headers.contains(c)).toList();
-    if (missing.isNotEmpty) {
-      throw Exception('Columnas faltantes: ${missing.join(', ')}');
-    }
   }
 
   // ── Procesar e importar ───────────────────────────────────────────────────
@@ -411,6 +474,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
         'correo_electronico': s.correoElectronico,
         'carrera': s.carrera,
         'cedula': s.cedula,
+        if (s.monto != null) 'monto': s.monto.toString(),
       });
     }
 
@@ -468,160 +532,187 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
     final nombreCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
     final cedulaCtrl = TextEditingController();
+    final montoCtrl = TextEditingController();
     String? selectedCarrera;
 
-    final student = await showModalBottomSheet<ImportedStudent>(
+    final student = await showDialog<ImportedStudent>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      barrierDismissible: true,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
-          padding:
-              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: _kCard,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        builder: (ctx, setModalState) => Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.88,
             ),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text('Agregar estudiante',
-                            style: _ts(17, fw: FontWeight.w800)),
-                      ),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(ctx),
-                        child: const Icon(Icons.close_rounded,
-                            color: _kGrey, size: 22),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  _buildFormField(nombreCtrl, 'Nombre completo *',
-                      'Ej: Juan Pérez', TextInputType.name, true),
-                  const SizedBox(height: 12),
-                  _buildFormField(emailCtrl, 'Correo electrónico *',
-                      'Ej: j.perez@espoch.edu.ec',
-                      TextInputType.emailAddress, true),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedCarrera,
-                    isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: 'Carrera *',
-                      labelStyle: _ts(12, color: _kGrey),
-                      filled: true,
-                      fillColor: _kBg,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: _kBorder),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: _kBorder),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: _kPurple, width: 1.5),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: _kRed),
-                      ),
-                      focusedErrorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: _kRed, width: 1.5),
-                      ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Título ──
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text('Agregar estudiante',
+                              style: _ts(17, fw: FontWeight.w800)),
+                        ),
+                        GestureDetector(
+                          onTap: () => Navigator.pop(ctx),
+                          child: const Icon(Icons.close_rounded,
+                              color: _kGrey, size: 22),
+                        ),
+                      ],
                     ),
-                    style: _ts(13),
-                    hint: Text('Selecciona una carrera',
-                        style: _ts(12,
-                            color: _kGrey.withValues(alpha: 0.6))),
-                    items: [
-                      const DropdownMenuItem(
-                        enabled: false,
-                        value: '__divider_fie__',
-                        child: Text('── Facultad FIE ──',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF94A3B8),
-                                fontStyle: FontStyle.italic)),
-                      ),
-                      ..._kCarreras
-                          .take(7)
-                          .map((c) => DropdownMenuItem(
-                              value: c,
-                              child: Text(c,
-                                  style: _ts(13,
-                                      fw: FontWeight.w600,
-                                      color: _kNavy)))),
-                      const DropdownMenuItem(
-                        enabled: false,
-                        value: '__divider_other__',
-                        child: Text('── Otras facultades ──',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF94A3B8),
-                                fontStyle: FontStyle.italic)),
-                      ),
-                      ..._kCarreras
-                          .skip(7)
-                          .map((c) => DropdownMenuItem(
-                              value: c,
-                              child: Text(c, style: _ts(13)))),
-                    ],
-                    onChanged: (v) =>
-                        setModalState(() => selectedCarrera = v),
-                    validator: (v) =>
-                        (v == null || v.isEmpty) ? 'Campo requerido' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  _buildFormField(cedulaCtrl, 'Cédula (opcional)',
-                      'Ej: 0601234567', TextInputType.number, false),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (formKey.currentState!.validate()) {
-                          Navigator.pop(
-                            ctx,
-                            ImportedStudent(
-                              nombre: nombreCtrl.text.trim(),
-                              correoElectronico: emailCtrl.text.trim(),
-                              carrera: selectedCarrera!,
-                              cedula: cedulaCtrl.text.trim(),
+                    const SizedBox(height: 16),
+                    // ── Campos scrolleables ──
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildFormField(nombreCtrl, 'Nombre completo *',
+                                'Ej: Juan Pérez', TextInputType.name, true),
+                            const SizedBox(height: 12),
+                            _buildFormField(emailCtrl, 'Correo electrónico *',
+                                'Ej: j.perez@espoch.edu.ec',
+                                TextInputType.emailAddress, true),
+                            const SizedBox(height: 12),
+                            DropdownButtonFormField<String>(
+                              initialValue: selectedCarrera,
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                labelText: 'Carrera *',
+                                labelStyle: _ts(12, color: _kGrey),
+                                filled: true,
+                                fillColor: _kBg,
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 12),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide:
+                                      const BorderSide(color: _kBorder),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide:
+                                      const BorderSide(color: _kBorder),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(
+                                      color: _kPurple, width: 1.5),
+                                ),
+                                errorBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: _kRed),
+                                ),
+                                focusedErrorBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(
+                                      color: _kRed, width: 1.5),
+                                ),
+                              ),
+                              style: _ts(13),
+                              hint: Text('Selecciona una carrera',
+                                  style: _ts(12,
+                                      color: _kGrey.withValues(alpha: 0.6))),
+                              items: [
+                                const DropdownMenuItem(
+                                  enabled: false,
+                                  value: '__divider_fie__',
+                                  child: Text('── Facultad FIE ──',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          color: Color(0xFF94A3B8),
+                                          fontStyle: FontStyle.italic)),
+                                ),
+                                ..._kCarreras.take(7).map((c) =>
+                                    DropdownMenuItem(
+                                        value: c,
+                                        child: Text(c,
+                                            style: _ts(13,
+                                                fw: FontWeight.w600,
+                                                color: _kNavy)))),
+                                const DropdownMenuItem(
+                                  enabled: false,
+                                  value: '__divider_other__',
+                                  child: Text('── Otras facultades ──',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          color: Color(0xFF94A3B8),
+                                          fontStyle: FontStyle.italic)),
+                                ),
+                                ..._kCarreras
+                                    .skip(7)
+                                    .map((c) => DropdownMenuItem(
+                                        value: c,
+                                        child: Text(c, style: _ts(13)))),
+                              ],
+                              onChanged: (v) =>
+                                  setModalState(() => selectedCarrera = v),
+                              validator: (v) => (v == null || v.isEmpty)
+                                  ? 'Campo requerido'
+                                  : null,
                             ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.person_add_rounded,
-                          color: _kWhite, size: 18),
-                      label: Text('Agregar estudiante',
-                          style:
-                              _ts(14, fw: FontWeight.w700, color: _kWhite)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _kPurple,
-                        foregroundColor: _kWhite,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
+                            const SizedBox(height: 12),
+                            _buildFormField(cedulaCtrl, 'Cédula (opcional)',
+                                'Ej: 0601234567', TextInputType.number, false),
+                            const SizedBox(height: 12),
+                            _buildFormField(
+                                montoCtrl,
+                                'Monto pagado',
+                                'Ej: 5.00',
+                                TextInputType.numberWithOptions(decimal: true),
+                                false),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    // ── Botón fijo abajo ──
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          if (formKey.currentState!.validate()) {
+                            final montoVal = double.tryParse(
+                                montoCtrl.text.trim().replaceAll(',', '.'));
+                            Navigator.pop(
+                              ctx,
+                              ImportedStudent(
+                                nombre: nombreCtrl.text.trim(),
+                                correoElectronico: emailCtrl.text.trim(),
+                                carrera: selectedCarrera!,
+                                cedula: cedulaCtrl.text.trim(),
+                                monto: montoVal,
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.person_add_rounded,
+                            color: _kWhite, size: 18),
+                        label: Text('Agregar estudiante',
+                            style: _ts(14,
+                                fw: FontWeight.w700, color: _kWhite)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _kPurple,
+                          foregroundColor: _kWhite,
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

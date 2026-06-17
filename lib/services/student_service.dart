@@ -162,6 +162,8 @@ class StudentService {
               'carrera': s['carrera'],
               'procesado': false,
               if ((s['cedula'] ?? '').isNotEmpty) 'cedula': s['cedula'],
+              if ((s['monto'] ?? '').isNotEmpty)
+                'monto': double.tryParse(s['monto']!),
             })
         .toList();
 
@@ -231,12 +233,14 @@ class StudentService {
     try {
       final inList = await _client
           .from('listado_estudiantes')
-          .select('id_detalle')
+          .select('id_detalle, monto')
           .eq('correo_electronico', email)
           .limit(1)
           .maybeSingle();
 
       if (inList == null) return;
+
+      final montoFromList = (inList['monto'] as num?)?.toDouble();
 
       final existingPago = await _client
           .from('pagos')
@@ -252,6 +256,7 @@ class StudentService {
           'comprobante': null,
           'estado': 'aprobado',
           'fecha_pago': DateTime.now().toIso8601String(),
+          'monto': montoFromList,
         });
       }
 

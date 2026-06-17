@@ -190,36 +190,69 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
   // ── actions ───────────────────────────────────────────────────────────────
 
   Future<void> _approve(PagoAdminModel p) async {
-    final ok = await showDialog<bool>(
+    final montoCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final monto = await showDialog<double>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Aprobar pago', style: _ts(16, fw: FontWeight.w700)),
-        content: Text(
-          '¿Confirmas la aprobación del pago de ${p.nombreUsuario}?\n'
-          'Se generará su código QR de acceso.',
-          style: _ts(13, c: AppColors.sentryGrey),
+        title: Text('Monto recibido', style: _ts(16, fw: FontWeight.w700)),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: montoCtrl,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            autofocus: true,
+            decoration: InputDecoration(
+              prefixText: '\$ ',
+              hintText: '0.00',
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide:
+                    const BorderSide(color: AppColors.sentryBlue, width: 1.5),
+              ),
+            ),
+            validator: (v) {
+              final n =
+                  double.tryParse((v ?? '').replaceAll(',', '.'));
+              if (n == null || n <= 0) return 'Ingresa un monto válido';
+              if (n > 999.99) return 'Monto máximo: \$999.99';
+              return null;
+            },
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(ctx),
             child: Text('Cancelar', style: _ts(13, c: AppColors.sentryGrey)),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(
+                  ctx,
+                  double.parse(montoCtrl.text.replaceAll(',', '.')),
+                );
+              }
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.success,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
             ),
-            child:
-                Text('Aprobar', style: _ts(13, fw: FontWeight.w600, c: Colors.white)),
+            child: Text('Aprobar',
+                style: _ts(13, fw: FontWeight.w600, c: Colors.white)),
           ),
         ],
       ),
     );
-    if (ok != true || !mounted) return;
+    montoCtrl.dispose();
+    if (monto == null || !mounted) return;
 
     setState(() => _processing.add(p.id));
     try {
@@ -227,11 +260,93 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
         idPago: p.id,
         idUsuario: p.idUsuario,
         idEvento: p.idEvento,
+        monto: monto,
       );
       if (mounted) {
         await _refreshSilent();
         _showQrDialog(p.nombreUsuario, qrCode);
         _showSnack('✓ ${p.nombreUsuario} aprobado. QR generado.');
+      }
+    } catch (e) {
+      if (mounted) _showSnack('Error: ${e.toString()}', isError: true);
+    } finally {
+      if (mounted) setState(() => _processing.remove(p.id));
+    }
+  }
+
+  Future<void> _editMonto(PagoAdminModel p) async {
+    final montoCtrl = TextEditingController(
+      text: p.monto != null ? p.monto!.toStringAsFixed(2) : '',
+    );
+    final formKey = GlobalKey<FormState>();
+
+    final monto = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Editar monto', style: _ts(16, fw: FontWeight.w700)),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: montoCtrl,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            autofocus: true,
+            decoration: InputDecoration(
+              prefixText: '\$ ',
+              hintText: '0.00',
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide:
+                    const BorderSide(color: AppColors.sentryBlue, width: 1.5),
+              ),
+            ),
+            validator: (v) {
+              final n =
+                  double.tryParse((v ?? '').replaceAll(',', '.'));
+              if (n == null || n <= 0) return 'Ingresa un monto válido';
+              if (n > 999.99) return 'Monto máximo: \$999.99';
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancelar', style: _ts(13, c: AppColors.sentryGrey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(
+                  ctx,
+                  double.parse(montoCtrl.text.replaceAll(',', '.')),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.sentryBlue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('Guardar',
+                style: _ts(13, fw: FontWeight.w600, c: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    montoCtrl.dispose();
+    if (monto == null || !mounted) return;
+
+    setState(() => _processing.add(p.id));
+    try {
+      await PaymentService.updateMonto(idPago: p.id, monto: monto);
+      if (mounted) {
+        await _refreshSilent();
+        _showSnack('Monto actualizado: \$${monto.toStringAsFixed(2)}');
       }
     } catch (e) {
       if (mounted) _showSnack('Error: ${e.toString()}', isError: true);
@@ -404,6 +519,9 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
                 '  ${_pad(p.fechaPago.hour)}:${_pad(p.fechaPago.minute)}',
               ),
               _detailRow('Estado', p.estado.toUpperCase()),
+              if (p.monto != null)
+                _detailRow('Monto registrado',
+                    '\$${p.monto!.toStringAsFixed(2)}'),
               if (!p.comprobanteIsUrl && p.comprobante != null)
                 _detailRow('Referencia', p.comprobante!),
               const SizedBox(height: 16),
@@ -930,7 +1048,11 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
               const SizedBox(width: 16),
               _infoChip(Icons.access_time_rounded,
                   '${_pad(p.fechaPago.hour)}:${_pad(p.fechaPago.minute)}'),
-              if (p.comprobanteIsUrl) ...[
+              if (p.monto != null) ...[
+                const SizedBox(width: 16),
+                _infoChip(Icons.attach_money_rounded,
+                    '\$${p.monto!.toStringAsFixed(2)}'),
+              ] else if (p.comprobanteIsUrl) ...[
                 const SizedBox(width: 16),
                 _infoChip(Icons.attach_file_rounded, 'Archivo'),
               ],
@@ -965,6 +1087,9 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
                 ] else if (p.isApproved) ...[
                   _iconBtn(Icons.qr_code_2_rounded, AppColors.sentryNavy,
                       () => _showExistingQr(p), 'Ver QR'),
+                  const SizedBox(width: 8),
+                  _iconBtn(Icons.attach_money_rounded, AppColors.sentryBlue,
+                      () => _editMonto(p), '\$'),
                   const SizedBox(width: 8),
                   Expanded(
                     child: _actionBtn('Revertir', const Color(0xFFE65100),

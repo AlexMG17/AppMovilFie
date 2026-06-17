@@ -13,6 +13,7 @@ class PagoModel {
   final String? comprobante; // URL en Storage o referencia de transferencia
   final String estado;       // pendiente | aprobado | rechazado
   final DateTime fechaPago;
+  final double? monto;
 
   const PagoModel({
     required this.id,
@@ -21,6 +22,7 @@ class PagoModel {
     this.comprobante,
     required this.estado,
     required this.fechaPago,
+    this.monto,
   });
 
   factory PagoModel.fromMap(Map<String, dynamic> map) => PagoModel(
@@ -31,6 +33,7 @@ class PagoModel {
         estado: map['estado'] ?? 'pendiente',
         fechaPago: DateTime.tryParse(map['fecha_pago'].toString()) ??
             DateTime.now(),
+        monto: (map['monto'] as num?)?.toDouble(),
       );
 
   bool get isPending => estado == 'pendiente';
@@ -50,6 +53,8 @@ class PagoAdminModel {
   final String estado;
   final DateTime fechaPago;
 
+  final double? monto;
+
   const PagoAdminModel({
     required this.id,
     required this.idUsuario,
@@ -59,6 +64,7 @@ class PagoAdminModel {
     this.comprobante,
     required this.estado,
     required this.fechaPago,
+    this.monto,
   });
 
   factory PagoAdminModel.fromMap(Map<String, dynamic> map) {
@@ -73,6 +79,7 @@ class PagoAdminModel {
       estado: map['estado'] ?? 'pendiente',
       fechaPago:
           DateTime.tryParse(map['fecha_pago'].toString()) ?? DateTime.now(),
+      monto: (map['monto'] as num?)?.toDouble(),
     );
   }
 
@@ -212,10 +219,11 @@ class PaymentService {
     required int idPago,
     required int idUsuario,
     required int idEvento,
+    required double monto,
   }) async {
     await _client
         .from('pagos')
-        .update({'estado': 'aprobado'})
+        .update({'estado': 'aprobado', 'monto': monto})
         .eq('id_pago', idPago);
 
     final qr = await generateEntryQr(idUsuario: idUsuario, idEvento: idEvento);
@@ -227,6 +235,17 @@ class PaymentService {
     ).ignore();
 
     return qr;
+  }
+
+  /// Actualiza el monto de un pago ya aprobado sin cambiar su estado.
+  static Future<void> updateMonto({
+    required int idPago,
+    required double monto,
+  }) async {
+    await _client
+        .from('pagos')
+        .update({'monto': monto})
+        .eq('id_pago', idPago);
   }
 
   /// Rechaza el pago.
@@ -265,13 +284,11 @@ class PaymentService {
   }
 
   /// Estadísticas para el dashboard del admin.
-  static Future<Map<String, int>> getDashboardStats({
+  static Future<Map<String, dynamic>> getDashboardStats({
     required int idEvento,
   }) async {
-    // pagos y entradas ya están filtrados por evento (payload pequeño).
-    // usuarios se cuenta con HEAD request (sin transferir filas).
     final results = await Future.wait([
-      _client.from('pagos').select('estado').eq('id_evento', idEvento),
+      _client.from('pagos').select('estado, monto').eq('id_evento', idEvento),
       _client.from('entradas').select('estado').eq('id_evento', idEvento),
       _client.from('usuarios').count(CountOption.exact),
     ]);
@@ -279,6 +296,10 @@ class PaymentService {
     final pagosList = results[0] as List;
     final entradasList = results[1] as List;
     final totalUsuarios = results[2] as int;
+
+    final totalRecaudado = pagosList
+        .where((p) => p['estado'] == 'aprobado' && p['monto'] != null)
+        .fold<double>(0, (sum, p) => sum + (p['monto'] as num).toDouble());
 
     return {
       'pendientes': pagosList.where((p) => p['estado'] == 'pendiente').length,
@@ -288,6 +309,7 @@ class PaymentService {
       'qr_generados': entradasList.where((e) => e['estado'] != 'cancelado').length,
       'total_usuarios': totalUsuarios,
       'total': pagosList.length,
+      'total_recaudado': totalRecaudado,
     };
   }
 

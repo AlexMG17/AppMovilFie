@@ -257,7 +257,10 @@ class _PaymentStatusScreenState extends State<PaymentStatusScreen> {
       child: Column(
         children: [
           _detailRow('Evento', 'Gala FIE'),
-          _detailRow('Monto', '\$5.00'),
+          _detailRow(
+            'Monto',
+            v.monto != null ? '\$${v.monto!.toStringAsFixed(2)}' : 'Por confirmar',
+          ),
           _detailRow('Método', 'Transferencia bancaria'),
           _detailRow(
             'Comprobante',
