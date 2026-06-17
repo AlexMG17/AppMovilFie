@@ -67,10 +67,15 @@ serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  const { data: rows } = await supabase
+  console.log(`[send-notification] id_usuario=${id_usuario}`);
+
+  const { data: rows, error: dbError } = await supabase
     .from("device_tokens")
     .select("token")
     .eq("id_usuario", id_usuario);
+
+  if (dbError) console.error("[send-notification] DB error:", JSON.stringify(dbError));
+  console.log(`[send-notification] tokens encontrados: ${rows?.length ?? 0}`);
 
   if (!rows || rows.length === 0) {
     return new Response(JSON.stringify({ sent: 0 }), {
@@ -96,7 +101,8 @@ serve(async (req) => {
             notification: { title, body },
             data: data ?? {},
             android: {
-              notification: { channel_id: "sentry_channel", priority: "HIGH" },
+              priority: "high",
+              notification: { channel_id: "sentry_channel" },
             },
           },
         }),
@@ -105,8 +111,10 @@ serve(async (req) => {
 
     if (res.ok) {
       sent++;
+      console.log(`[send-notification] FCM ok, token=${token.slice(0, 20)}...`);
     } else {
       const err = await res.json();
+      console.error(`[send-notification] FCM error:`, JSON.stringify(err));
       const errorCode = err?.error?.details?.[0]?.errorCode;
       if (errorCode === "UNREGISTERED" || errorCode === "INVALID_ARGUMENT") {
         await supabase.from("device_tokens").delete().eq("token", token);

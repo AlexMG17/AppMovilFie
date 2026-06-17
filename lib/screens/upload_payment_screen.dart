@@ -420,7 +420,7 @@ class _UploadPaymentScreenState extends State<UploadPaymentScreen> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Realiza tu depósito o transferencia de \$5.00 a la cuenta de la FIE y sube aquí el comprobante para verificación.',
+              'Realiza tu depósito o transferencia a la cuenta de la FIE y sube aquí el comprobante para verificación.',
               style: GoogleFonts.outfit(
                 color: AppColors.sentryNavy,
                 fontSize: 13,
@@ -469,7 +469,7 @@ class _UploadPaymentScreenState extends State<UploadPaymentScreen> {
           _bankRow('Tipo', 'Cuenta de Ahorros'),
           _bankRow('Número', '2208154670'),
           _bankRow('Beneficiario', 'FIE ESPOCH'),
-          _bankRow('Monto', '\$5.00', highlight: true),
+          _bankRow('Monto', 'Según lo indicado', highlight: true),
         ],
       ),
     );
