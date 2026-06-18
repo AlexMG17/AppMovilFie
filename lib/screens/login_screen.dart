@@ -42,6 +42,10 @@ class _LoginScreenState extends State<LoginScreen> {
   // Lógica para mostrar la verificación de cuenta nueva
   bool _isVerificationFlow = false;
 
+  // Control de reenvío de OTP con temporizador
+  Timer? _resendTimer;
+  int _secondsRemaining = 0;
+
   // Control para nuestra notificación superior
   OverlayEntry? _activeToast;
 
@@ -131,6 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void dispose() {
     _authSubscription?.cancel();
+    _resendTimer?.cancel();
     _activeToast?.remove();
     _nameController.dispose();
     _emailController.dispose();
@@ -148,6 +153,26 @@ class _LoginScreenState extends State<LoginScreen> {
     _confirmPasswordController.clear();
     _otpController.clear();
     _newPasswordController.clear();
+  }
+
+  void _startResendTimer() {
+    _resendTimer?.cancel();
+    setState(() {
+      _secondsRemaining = 60; // 60 segundos por IP
+    });
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        if (_secondsRemaining > 0) {
+          _secondsRemaining--;
+        } else {
+          _resendTimer?.cancel();
+        }
+      });
+    });
   }
 
   // =========================================================================
@@ -252,6 +277,7 @@ class _LoginScreenState extends State<LoginScreen> {
           _isResetPasswordFlow =
               true; // Cambiamos la interfaz a "Ingresar Código"
         });
+        _startResendTimer();
       }
     } on AuthException catch (e) {
       if (mounted) _showTopToast('Error: ${e.message}', isError: true);
@@ -303,6 +329,8 @@ class _LoginScreenState extends State<LoginScreen> {
           setState(() {
             _isResetPasswordFlow = false;
             _clearControllers();
+            _secondsRemaining = 0;
+            _resendTimer?.cancel();
           });
         }
       }
@@ -332,6 +360,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       if (mounted) {
         _showTopToast('¡Nuevo código enviado a tu correo!');
+        _startResendTimer();
       }
     } on AuthException catch (e) {
       if (mounted) _showTopToast('Error: ${e.message}', isError: true);
@@ -365,6 +394,10 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       if (res.session != null && mounted) {
         _showTopToast('¡Cuenta verificada exitosamente!');
+        setState(() {
+          _secondsRemaining = 0;
+          _resendTimer?.cancel();
+        });
         final role = await GuardService.getCurrentUserRole();
         if (!mounted) return;
 
@@ -450,6 +483,7 @@ class _LoginScreenState extends State<LoginScreen> {
           setState(() {
             _isVerificationFlow = true;
           });
+          _startResendTimer();
         }
       }
     } on AuthException catch (e) {
@@ -464,6 +498,7 @@ class _LoginScreenState extends State<LoginScreen> {
             _isVerificationFlow =
                 true; // Lo mandamos automáticamente a verificar
           });
+          _startResendTimer();
         }
       } else {
         if (mounted) _showTopToast('Error: ${e.message}', isError: true);
@@ -760,6 +795,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: () {
                   setState(() {
                     _isResetPasswordFlow = false;
+                    _clearControllers();
+                    _secondsRemaining = 0;
+                    _resendTimer?.cancel();
                   });
                 },
               ),
@@ -820,6 +858,32 @@ class _LoginScreenState extends State<LoginScreen> {
             text: 'Cambiar Contraseña',
             onPressed: _handleResetPassword,
           ),
+          SizedBox(height: 24.h),
+
+          // BOTÓN DE REENVIAR CÓDIGO DE RECUPERACIÓN
+          TextButton(
+            onPressed: _isLoading || _secondsRemaining > 0
+                ? null
+                : () => _handleForgotPassword(isStudent ?? true),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              _secondsRemaining > 0
+                  ? 'Reenviar código en ${_secondsRemaining}s'
+                  : '¿No recibiste el código? Reenviar',
+              style: TextStyle(
+                color: _secondsRemaining > 0
+                    ? AppColors.sentryGrey
+                    : AppColors.sentryBlue,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -848,6 +912,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   setState(() {
                     _isVerificationFlow = false;
                     _clearControllers();
+                    _secondsRemaining = 0;
+                    _resendTimer?.cancel();
                   });
                 },
               ),
@@ -908,17 +974,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
           // BOTÓN DE REENVIAR CÓDIGO
           TextButton(
-            onPressed: _isLoading ? null : _resendVerificationCode,
+            onPressed: _isLoading || _secondsRemaining > 0 ? null : _resendVerificationCode,
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text(
-              '¿No recibiste el código? Reenviar',
+            child: Text(
+              _secondsRemaining > 0
+                  ? 'Reenviar código en ${_secondsRemaining}s'
+                  : '¿No recibiste el código? Reenviar',
               style: TextStyle(
-                color: AppColors.sentryBlue,
+                color: _secondsRemaining > 0
+                    ? AppColors.sentryGrey
+                    : AppColors.sentryBlue,
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
               ),
