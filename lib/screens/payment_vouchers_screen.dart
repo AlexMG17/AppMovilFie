@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -227,17 +228,20 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () async {
+              FocusManager.instance.primaryFocus?.unfocus();
+              await Future<void>.delayed(const Duration(milliseconds: 300));
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
             child: Text('Cancelar', style: _ts(13, c: AppColors.sentryGrey)),
           ),
           ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(
-                  ctx,
-                  double.parse(montoCtrl.text.replaceAll(',', '.')),
-                );
-              }
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+              final value = double.parse(montoCtrl.text.replaceAll(',', '.'));
+              FocusManager.instance.primaryFocus?.unfocus();
+              await Future<void>.delayed(const Duration(milliseconds: 300));
+              if (ctx.mounted) Navigator.pop(ctx, value);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.success,
@@ -253,6 +257,9 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
     );
     montoCtrl.dispose();
     if (monto == null || !mounted) return;
+
+    await _waitUntilCurrent();
+    if (!mounted) return;
 
     setState(() => _processing.add(p.id));
     try {
@@ -314,17 +321,20 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () async {
+              FocusManager.instance.primaryFocus?.unfocus();
+              await Future<void>.delayed(const Duration(milliseconds: 300));
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
             child: Text('Cancelar', style: _ts(13, c: AppColors.sentryGrey)),
           ),
           ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(
-                  ctx,
-                  double.parse(montoCtrl.text.replaceAll(',', '.')),
-                );
-              }
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+              final value = double.parse(montoCtrl.text.replaceAll(',', '.'));
+              FocusManager.instance.primaryFocus?.unfocus();
+              await Future<void>.delayed(const Duration(milliseconds: 300));
+              if (ctx.mounted) Navigator.pop(ctx, value);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.sentryBlue,
@@ -340,6 +350,9 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
     );
     montoCtrl.dispose();
     if (monto == null || !mounted) return;
+
+    await _waitUntilCurrent();
+    if (!mounted) return;
 
     setState(() => _processing.add(p.id));
     try {
@@ -358,7 +371,7 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
   Future<void> _reject(PagoAdminModel p) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Rechazar pago', style: _ts(16, fw: FontWeight.w700)),
         content: Text(
@@ -367,11 +380,11 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(ctx, false),
             child: Text('Cancelar', style: _ts(13, c: AppColors.sentryGrey)),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
@@ -403,7 +416,7 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
   Future<void> _revertApproval(PagoAdminModel p) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('¿Revertir aprobación?', style: _ts(16, fw: FontWeight.w700)),
         content: Text(
@@ -413,11 +426,11 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(ctx, false),
             child: Text('Cancelar', style: _ts(13, c: AppColors.sentryGrey)),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFE65100),
               foregroundColor: Colors.white,
@@ -470,6 +483,24 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
       return;
     }
     _showQrDialog(p.nombreUsuario, entry['codigo_qr'] ?? '');
+  }
+
+  /// Waits frame-by-frame until this widget's route is the current foreground
+  /// route. Use before calling setState after any dialog/sheet is dismissed so
+  /// we never rebuild while the dialog's element tree is still deactivating.
+  Future<void> _waitUntilCurrent() {
+    final completer = Completer<void>();
+    void check() {
+      if (!mounted) { completer.complete(); return; }
+      final route = ModalRoute.of(context);
+      if (route == null || route.isCurrent) {
+        completer.complete();
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) => check());
+      }
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => check());
+    return completer.future;
   }
 
   void _showSnack(String msg, {bool isError = false}) {
@@ -581,7 +612,7 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
   void _showQrDialog(String nombre, String qrCode) {
     showDialog(
       context: context,
-      builder: (_) => Dialog(
+      builder: (ctx) => Dialog(
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
@@ -628,7 +659,7 @@ class _PaymentVouchersScreenState extends State<PaymentVouchersScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(ctx),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.sentryBlue,
                     foregroundColor: Colors.white,

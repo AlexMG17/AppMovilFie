@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 
@@ -78,5 +79,17 @@ class UserManagementService {
         .from('usuarios')
         .update({'id_rol': newRoleId})
         .eq('id_usuario', userId);
+  }
+
+  static Future<void> deleteUser(String email) async {
+    try {
+      await _client.functions.invoke(
+        'delete-user-account',
+        body: {'email': email},
+      );
+    } catch (e) {
+      debugPrint('delete-user-account edge fn: $e');
+    }
+    await _client.from('usuarios').delete().eq('email', email);
   }
 }
