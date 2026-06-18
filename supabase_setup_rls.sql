@@ -173,6 +173,12 @@ CREATE POLICY "Actualización de entradas" ON public.entradas
   FOR UPDATE TO authenticated
   USING (public.es_validador_o_admin());
 
+DROP POLICY IF EXISTS "Actualización de entradas propia para salida" ON public.entradas;
+CREATE POLICY "Actualización de entradas propia para salida" ON public.entradas
+  FOR UPDATE TO authenticated
+  USING (id_usuario = public.mi_id_usuario())
+  WITH CHECK (estado = 'activo' AND dentro_evento = false);
+
 DROP POLICY IF EXISTS "Eliminación de entradas solo admin" ON public.entradas;
 CREATE POLICY "Eliminación de entradas solo admin" ON public.entradas
   FOR DELETE TO authenticated

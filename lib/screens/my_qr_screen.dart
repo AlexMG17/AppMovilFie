@@ -1,15 +1,16 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/event_service.dart';
 import '../services/payment_service.dart';
 import '../services/qr_cache_service.dart';
 import '../services/student_service.dart';
-import '../services/qr_unique_service.dart';
 import '../services/supabase_service.dart';
 import '../theme/app_colors.dart';
 
@@ -38,10 +39,11 @@ class _MyQrScreenState extends State<MyQrScreen> {
 
   RealtimeChannel? _realtimeChannel;
 
-  // Variables dinámicas para las coordenadas del evento
-  double? _eventCenterLat;
-  double? _eventCenterLng;
-  final double _radioAfueraMetros = 350.0;
+  // Timer de polling como respaldo al Realtime, para detectar cambio de estado
+  Timer? _pollingTimer;
+
+  // Polígono del evento para verificar GPS directamente en esta pantalla
+  List<LatLng>? _eventPolygon;
 
   bool get _isExpired =>
       _expiresAt != null && DateTime.now().isAfter(_expiresAt!);
@@ -54,8 +56,120 @@ class _MyQrScreenState extends State<MyQrScreen> {
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _realtimeChannel?.unsubscribe();
     super.dispose();
+  }
+
+  /// Polling cada 8 s: comprueba BD y además hace chequeo GPS+polígono
+  /// si la BD sigue diciendo que está dentro. Así esta pantalla puede
+  /// resetear la entrada por sí misma sin depender de home_screen.
+  /// Verifica si el usuario está físicamente dentro del polígono del evento.
+  /// Retorna true si está adentro, o si hay un error/falta de permisos (por seguridad).
+  /// Retorna false únicamente si se pudo determinar con certeza que está afuera.
+  Future<bool> _checkGpsInsidePolygon(List<LatLng> polygon) async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return true; // Si el GPS está desactivado, asumimos adentro por seguridad
+
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return true; // Sin permisos, asumimos adentro por seguridad
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 5), // Límite de tiempo para evitar bloqueos
+        ),
+      );
+
+      final userPoint = LatLng(position.latitude, position.longitude);
+      return _isInsidePolygon(userPoint, polygon);
+    } catch (e) {
+      debugPrint('Error en _checkGpsInsidePolygon: $e');
+      return true; // En caso de error, asumimos adentro por seguridad
+    }
+  }
+
+  void _startPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 8), (_) async {
+      final id = _idEntrada;
+      if (id == null || !mounted) return;
+      try {
+        // 1. Consultar BD
+        final row = await SupabaseService.client
+            .from('entradas')
+            .select('estado, dentro_evento')
+            .eq('id_entrada', id)
+            .maybeSingle();
+        if (!mounted || row == null) return;
+
+        final estadoDb = (row['estado'] as String? ?? 'activo').toLowerCase();
+        final dentroDB = row['dentro_evento'] as bool? ?? false;
+        final isInsideDB = estadoDb == 'usado' && dentroDB;
+
+        if (!isInsideDB) {
+          // BD dice que está afuera → actualizar UI
+          if (_dentroEvento) {
+            setState(() {
+              _dentroEvento = false;
+              _entradaEstado = estadoDb;
+            });
+          }
+          _stopPolling();
+          return;
+        }
+
+        // 2. BD dice que está adentro → verificar GPS contra polígono
+        final polygon = _eventPolygon;
+        if (polygon != null && polygon.isNotEmpty) {
+          final insidePolygon = await _checkGpsInsidePolygon(polygon);
+          if (!insidePolygon) {
+            // GPS dice afuera → resetear BD y mostrar QR
+            await SupabaseService.client
+                .from('entradas')
+                .update({'estado': 'activo', 'dentro_evento': false})
+                .eq('id_entrada', id);
+
+            if (mounted) {
+              setState(() {
+                _dentroEvento = false;
+                _entradaEstado = 'activo';
+              });
+            }
+            _stopPolling();
+          }
+        }
+      } catch (_) {}
+    });
+  }
+
+  /// Algoritmo ray-casting para verificar si un punto está dentro de un polígono.
+  bool _isInsidePolygon(LatLng point, List<LatLng> polygon) {
+    bool inside = false;
+    int j = polygon.length - 1;
+    for (int i = 0; i < polygon.length; i++) {
+      final yi = polygon[i].latitude;
+      final yj = polygon[j].latitude;
+      final xi = polygon[i].longitude;
+      final xj = polygon[j].longitude;
+      final py = point.latitude;
+      final px = point.longitude;
+      if ((yi > py) != (yj > py) &&
+          px < (xj - xi) * (py - yi) / (yj - yi) + xi) {
+        inside = !inside;
+      }
+      j = i;
+    }
+    return inside;
+  }
+
+  void _stopPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
   }
 
   Future<void> _loadWithCache() async {
@@ -64,6 +178,9 @@ class _MyQrScreenState extends State<MyQrScreen> {
       _message = null;
       _isOffline = false;
     });
+
+    // Limpiar caché de eventos para asegurar que se obtengan las coordenadas y el polígono más recientes
+    EventService.clearEventCache();
 
     final userId = SupabaseService.currentUser?.id ?? '';
 
@@ -133,9 +250,9 @@ class _MyQrScreenState extends State<MyQrScreen> {
         }
       }
 
-      // Guardamos las coordenadas reales del evento activo (Ej: La Poli)
-      _eventCenterLat = event.lat;
-      _eventCenterLng = event.lng;
+
+      // Guardamos el polígono del evento activo para el chequeo GPS en polling
+      _eventPolygon = event.polygon;
 
       Map<String, dynamic>? entry = await PaymentService.getMyEntry(
         idUsuario: uid,
@@ -179,15 +296,38 @@ class _MyQrScreenState extends State<MyQrScreen> {
       }
 
       final newQr = entry['codigo_qr'] as String? ?? '';
-      final newEstado = entry['estado'] as String? ?? 'activo';
+      String newEstado = entry['estado'] as String? ?? 'activo';
       final newExpiresAt = entry['fecha_expiracion'] != null
           ? DateTime.tryParse(entry['fecha_expiracion'].toString())
           : null;
       final newVersion = entry['version_qr'] as int? ?? 1;
       final newIdEntrada = entry['id_entrada'] as int?;
 
-      // LA CORRECCIÓN MÁS IMPORTANTE: Leemos 'usado' en la columna 'estado'
-      final newDentroEvento = newEstado.toLowerCase() == 'usado';
+      // Determinamos si está dentro leyendo AMBAS columnas de la BD
+      bool newDentroEvento =
+          newEstado.toLowerCase() == 'usado' &&
+          (entry['dentro_evento'] as bool? ?? false);
+
+      // Si la base de datos dice que está adentro, verificar con el GPS de inmediato
+      if (newDentroEvento && newIdEntrada != null && event.polygon != null && event.polygon!.isNotEmpty) {
+        final insidePolygon = await _checkGpsInsidePolygon(event.polygon!);
+        if (!insidePolygon) {
+          // Si está físicamente fuera, resetear BD de inmediato
+          try {
+            await SupabaseService.client
+                .from('entradas')
+                .update({'estado': 'activo', 'dentro_evento': false})
+                .eq('id_entrada', newIdEntrada);
+            newDentroEvento = false;
+            newEstado = 'activo';
+          } catch (_) {
+            // Asumir que está afuera y permitir ver el QR
+            newDentroEvento = false;
+            newEstado = 'activo';
+          }
+        }
+      }
+
       final now = DateTime.now();
 
       await QrCacheService.save(
@@ -225,9 +365,11 @@ class _MyQrScreenState extends State<MyQrScreen> {
         _subscribeToEntrada(_idEntrada!);
       }
 
-      // Validar con coordenadas dinámicas si salió del recinto
+      // Si está marcado como adentro, iniciar polling de respaldo
       if (_dentroEvento && _idEntrada != null) {
-        _autoResetSiAfuera(_idEntrada!);
+        _startPolling();
+      } else {
+        _stopPolling();
       }
     } catch (_) {
       if (!mounted) return;
@@ -243,6 +385,7 @@ class _MyQrScreenState extends State<MyQrScreen> {
   }
 
   /// Suscripción Realtime: detecta cuando el guardia escanea (estado pasa a 'usado')
+  /// o cuando el geofencing resetea el estado a 'activo'
   void _subscribeToEntrada(int idEntrada) {
     _realtimeChannel?.unsubscribe();
     _realtimeChannel = SupabaseService.client
@@ -260,57 +403,28 @@ class _MyQrScreenState extends State<MyQrScreen> {
             if (!mounted) return;
             final newRecord = payload.newRecord;
             final estadoActualizado = newRecord['estado'] as String?;
+            final dentroActualizado = newRecord['dentro_evento'] as bool?;
 
             if (estadoActualizado != null) {
+              final isInsideNow =
+                  estadoActualizado.toLowerCase() == 'usado' &&
+                  (dentroActualizado ?? false);
               setState(() {
                 _entradaEstado = estadoActualizado;
-                _dentroEvento = estadoActualizado.toLowerCase() == 'usado';
+                _dentroEvento = isInsideNow;
               });
+              // Activar/desactivar polling según estado
+              if (isInsideNow) {
+                _startPolling();
+              } else {
+                _stopPolling();
+              }
             }
           },
         )
         .subscribe();
   }
 
-  /// Si está marcado como adentro pero el GPS dice que está lejos (coordenadas dinámicas)
-  Future<void> _autoResetSiAfuera(int idEntrada) async {
-    if (_eventCenterLat == null || _eventCenterLng == null) return;
-
-    try {
-      final permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
-
-      final distancia = Geolocator.distanceBetween(
-        position.latitude,
-        position.longitude,
-        _eventCenterLat!, // Coordenada dinámica del evento
-        _eventCenterLng!, // Coordenada dinámica del evento
-      );
-
-      if (distancia > _radioAfueraMetros) {
-        await QrUniqueService.registrarSalida(
-          idEntrada,
-        ); // Asegúrate de que esto regrese el estado a "activo" en tu BD
-        if (mounted) {
-          setState(() {
-            _dentroEvento = false;
-            _entradaEstado = 'activo';
-          });
-        }
-      }
-    } catch (_) {
-      // Sin permiso o GPS no disponible → no hacer nada
-    }
-  }
 
   void _copyCode() {
     if (_codigoQr == null) return;
