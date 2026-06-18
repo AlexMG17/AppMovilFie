@@ -263,13 +263,9 @@ class _StudentListScreenState extends State<StudentListScreen>
   Future<void> _showStudentDialog(StudentRecord? existing) async {
     FocusManager.instance.primaryFocus?.unfocus();
 
-    final saved = await showModalBottomSheet<bool>(
+    final saved = await showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: _kCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      barrierDismissible: true,
       builder: (ctx) => _StudentFormSheet(
         existing: existing,
         careers: _careers,
@@ -931,6 +927,7 @@ class _StudentFormSheetState extends State<_StudentFormSheet> {
   late final TextEditingController _nombreCtrl;
   late final TextEditingController _emailCtrl;
   late final TextEditingController _cedulaCtrl;
+  late final TextEditingController _montoCtrl;
   late String _selCareer;
   bool _saving = false;
 
@@ -940,6 +937,7 @@ class _StudentFormSheetState extends State<_StudentFormSheet> {
     _nombreCtrl = TextEditingController(text: widget.existing?.nombre);
     _emailCtrl = TextEditingController(text: widget.existing?.email);
     _cedulaCtrl = TextEditingController(text: widget.existing?.cedula);
+    _montoCtrl = TextEditingController();
     _selCareer = widget.existing?.carrera ?? (widget.careers.length > 1 ? widget.careers[1] : '');
   }
 
@@ -948,6 +946,7 @@ class _StudentFormSheetState extends State<_StudentFormSheet> {
     _nombreCtrl.dispose();
     _emailCtrl.dispose();
     _cedulaCtrl.dispose();
+    _montoCtrl.dispose();
     super.dispose();
   }
 
@@ -956,8 +955,7 @@ class _StudentFormSheetState extends State<_StudentFormSheet> {
 
   Widget _field(
     String label,
-    TextEditingController ctrl,
-    IconData icon, {
+    TextEditingController ctrl, {
     TextInputType keyboardType = TextInputType.text,
     int? maxLength,
   }) => TextField(
@@ -969,90 +967,100 @@ class _StudentFormSheetState extends State<_StudentFormSheet> {
     decoration: InputDecoration(
       counterText: '',
       labelText: label,
-      labelStyle: _ts(13, color: _kGrey),
-      prefixIcon: Icon(icon, color: _kGrey, size: 18),
+      labelStyle: _ts(12, color: _kGrey),
       filled: true,
       fillColor: _kBg,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kBorder)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kBorder)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kPurple)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _kBorder)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _kBorder)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _kPurple, width: 1.5)),
     ),
   );
 
-  Widget _dropdown<T>({
-    required T value,
-    required List<DropdownMenuItem<T>> items,
-    required ValueChanged<T?> onChanged,
-  }) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-    decoration: BoxDecoration(color: _kBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: _kBorder)),
-    child: DropdownButtonHideUnderline(
-      child: DropdownButton<T>(
-        value: value,
-        dropdownColor: _kCard,
-        isExpanded: true,
-        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _kGrey),
-        items: items,
-        onChanged: onChanged,
-      ),
-    ),
-  );
 
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(
-        left: 20, right: 20, top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(color: _kBorder, borderRadius: BorderRadius.circular(2)),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(isEdit ? 'Editar Estudiante' : 'Agregar Estudiante', style: _ts(18, fw: FontWeight.w800)),
-          Text(isEdit ? 'Modificar registro' : 'Nuevo registro', style: _ts(11, color: _kGrey)),
-          const SizedBox(height: 20),
-          _field('Nombre completo', _nombreCtrl, Icons.person_outline_rounded),
-          const SizedBox(height: 12),
-          _field('Correo electrónico', _emailCtrl, Icons.email_outlined, keyboardType: TextInputType.emailAddress),
-          const SizedBox(height: 12),
-          _field('Cédula', _cedulaCtrl, Icons.badge_outlined, keyboardType: TextInputType.number, maxLength: 10),
-          const SizedBox(height: 12),
-          if (widget.careers.length > 1)
-            _dropdown<String>(
-              value: _selCareer.isEmpty ? widget.careers[1] : _selCareer,
-              items: widget.careers.skip(1).map((c) => DropdownMenuItem(value: c, child: Text(c, style: _ts(13)))).toList(),
-              onChanged: (v) => setState(() => _selCareer = v!),
-            ),
-          const SizedBox(height: 20),
-          Row(
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: _kBorder),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              // ── Título con X ──
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      isEdit ? 'Editar estudiante' : 'Agregar estudiante',
+                      style: _ts(17, fw: FontWeight.w800),
+                    ),
                   ),
-                  child: Text('Cancelar', style: _ts(14, color: _kGrey)),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(Icons.close_rounded, color: _kGrey, size: 22),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // ── Campos ──
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _field('Nombre completo *', _nombreCtrl),
+                      const SizedBox(height: 12),
+                      _field('Correo electrónico *', _emailCtrl,
+                          keyboardType: TextInputType.emailAddress),
+                      const SizedBox(height: 12),
+                      // Carrera dropdown
+                      if (widget.careers.length > 1)
+                        DropdownButtonFormField<String>(
+                          initialValue: _selCareer.isEmpty ? null : _selCareer,
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            labelText: 'Carrera *',
+                            labelStyle: _ts(12, color: _kGrey),
+                            filled: true,
+                            fillColor: _kBg,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _kBorder)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _kBorder)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _kPurple, width: 1.5)),
+                          ),
+                          hint: Text('Selecciona una carrera', style: _ts(12, color: _kGrey)),
+                          style: _ts(13),
+                          items: widget.careers.skip(1).map((c) =>
+                              DropdownMenuItem(value: c, child: Text(c, style: _ts(13)))).toList(),
+                          onChanged: (v) => setState(() => _selCareer = v!),
+                        ),
+                      const SizedBox(height: 12),
+                      _field('Cédula (opcional)', _cedulaCtrl,
+                          keyboardType: TextInputType.number, maxLength: 10),
+                      const SizedBox(height: 12),
+                      _field('Monto pagado', _montoCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
+              // ── Botón ──
+              const SizedBox(height: 4),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
                   onPressed: _saving ? null : () async {
                     final nombre = _nombreCtrl.text.trim();
                     final email = _emailCtrl.text.trim();
                     final cedula = _cedulaCtrl.text.trim();
+                    final monto = double.tryParse(_montoCtrl.text.trim().replaceAll(',', '.'));
                     if (nombre.isEmpty || email.isEmpty) return;
                     setState(() => _saving = true);
                     try {
@@ -1061,11 +1069,13 @@ class _StudentFormSheetState extends State<_StudentFormSheet> {
                           idDetalle: widget.existing!.idDetalle!,
                           nombre: nombre, email: email,
                           carrera: _selCareer, cedula: cedula,
+                          monto: monto,
                         );
                       } else {
                         await StudentService.addStudent(
                           nombre: nombre, email: email,
                           carrera: _selCareer, cedula: cedula,
+                          monto: monto,
                         );
                       }
                       if (!mounted) return;
@@ -1082,20 +1092,25 @@ class _StudentFormSheetState extends State<_StudentFormSheet> {
                       }
                     }
                   },
+                  icon: _saving
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: _kWhite))
+                      : Icon(isEdit ? Icons.save_rounded : Icons.person_add_rounded, color: _kWhite, size: 18),
+                  label: Text(
+                    isEdit ? 'Guardar cambios' : 'Agregar estudiante',
+                    style: _ts(14, fw: FontWeight.w700, color: _kWhite),
+                  ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _kPurple, foregroundColor: _kWhite,
+                    backgroundColor: _kPurple,
+                    foregroundColor: _kWhite,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
-                  child: _saving
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: _kWhite))
-                      : Text(isEdit ? 'Guardar' : 'Agregar', style: _ts(14, fw: FontWeight.w700, color: _kWhite)),
                 ),
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

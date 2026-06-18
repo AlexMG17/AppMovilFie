@@ -91,6 +91,71 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   int _countByRole(String role) =>
       _allUsers.where((u) => u.rolNombre == role).length;
 
+  Future<void> _deleteUser(AppUser user) async {
+    if (user.email == _currentEmail) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No puedes eliminar tu propia cuenta.')),
+      );
+      return;
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Eliminar usuario',
+          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.sentryNavy),
+        ),
+        content: Text(
+          '¿Eliminar a ${user.nombre}?\nEsta acción no se puede deshacer.',
+          style: GoogleFonts.outfit(fontSize: 13, color: AppColors.sentryGrey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancelar', style: GoogleFonts.outfit(fontSize: 13, color: AppColors.sentryGrey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text('Eliminar', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true || !mounted) return;
+
+    try {
+      await UserManagementService.deleteUser(user.email);
+      if (!mounted) return;
+      setState(() {
+        _allUsers.removeWhere((u) => u.id == user.id);
+        _filtered.removeWhere((u) => u.id == user.id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${user.nombre} eliminado.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al eliminar: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
   Future<void> _showChangeRoleDialog(AppUser user) async {
     if (user.email == _currentEmail) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -253,6 +318,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         user: user,
                         isCurrentUser: user.email == _currentEmail,
                         onEdit: () => _showChangeRoleDialog(user),
+                        onDelete: () => _deleteUser(user),
                       );
                     },
                     childCount: _filtered.length,
@@ -617,7 +683,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 36),
+          const SizedBox(width: 70),
         ],
       ),
     );
@@ -630,11 +696,13 @@ class _UserRow extends StatelessWidget {
   final AppUser user;
   final bool isCurrentUser;
   final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   const _UserRow({
     required this.user,
     required this.isCurrentUser,
     required this.onEdit,
+    required this.onDelete,
   });
 
   Color _avatarColor() {
@@ -743,6 +811,19 @@ class _UserRow extends StatelessWidget {
               ),
               onPressed: isCurrentUser ? null : onEdit,
               tooltip: isCurrentUser ? 'No puedes editar tu propio rol' : 'Cambiar rol',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+            IconButton(
+              icon: Icon(
+                Icons.delete_rounded,
+                size: 18,
+                color: isCurrentUser
+                    ? AppColors.sentryGrey.withValues(alpha: 0.4)
+                    : AppColors.error,
+              ),
+              onPressed: isCurrentUser ? null : onDelete,
+              tooltip: isCurrentUser ? 'No puedes eliminarte a ti mismo' : 'Eliminar usuario',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),

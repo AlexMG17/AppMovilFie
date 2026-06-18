@@ -667,7 +667,7 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                                 montoCtrl,
                                 'Monto pagado',
                                 'Ej: 5.00',
-                                TextInputType.numberWithOptions(decimal: true),
+                                const TextInputType.numberWithOptions(decimal: true),
                                 false),
                             const SizedBox(height: 20),
                           ],
@@ -698,13 +698,11 @@ class _ImportStudentsScreenState extends State<ImportStudentsScreen>
                         icon: const Icon(Icons.person_add_rounded,
                             color: _kWhite, size: 18),
                         label: Text('Agregar estudiante',
-                            style: _ts(14,
-                                fw: FontWeight.w700, color: _kWhite)),
+                            style: _ts(14, fw: FontWeight.w700, color: _kWhite)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _kPurple,
                           foregroundColor: _kWhite,
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12)),
                           elevation: 0,

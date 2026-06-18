@@ -77,12 +77,15 @@ class StudentService {
     required String email,
     required String carrera,
     String cedula = '',
+    double? monto,
   }) async {
     await _client.from('listado_estudiantes').insert({
       'nombre': nombre,
       'correo_electronico': email,
       'carrera': carrera,
       if (cedula.isNotEmpty) 'cedula': cedula,
+      // ignore: use_null_aware_elements
+      if (monto != null) 'monto': monto,
     });
   }
 
@@ -213,12 +216,14 @@ class StudentService {
     required String email,
     required String carrera,
     String cedula = '',
+    double? monto,
   }) async {
     await _client.from('listado_estudiantes').update({
       'nombre': nombre,
       'correo_electronico': email,
       'carrera': carrera,
       if (cedula.isNotEmpty) 'cedula': cedula,
+      'monto': monto,
     }).eq('id_detalle', idDetalle);
   }
 
