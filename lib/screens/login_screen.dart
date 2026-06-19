@@ -435,7 +435,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
       final nombre = _nameController.text.trim();
-      final int idRol = isStudentFlow ? 1 : 2;
+      // Todos los usuarios nuevos (estudiantes o externos) se registran con el rol por defecto (id_rol = 1: usuario)
+      final int idRol = 1;
 
       if (isLoginFlow) {
         // ------------------ INICIAR SESIÓN ------------------
@@ -699,7 +700,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: SafeArea(
               child: Center(
                 child: Text(
-                  'v1.1.0',
+                  'v1.2.0',
                   style: TextStyle(
                     color: AppColors.sentryGrey.withAlpha(150), // Color sutil
                     fontSize: 12.sp,
